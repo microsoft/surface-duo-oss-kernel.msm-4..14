@@ -335,31 +335,6 @@
 			status = "okay";
 		};
 	};
-	irq_regs: siul2_reg@0x44010000 {
-		compatible = "fsl,irq_reqs-s32gen1","syscon","simple-mfd";
-		reg = <0x0 0x44010000 0x0 0x44>;
-		little-endian;
-	};
-	opad0_regs: siul2_reg@0x4009D700 {
-		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
-		reg = <0x0 0x4009D700 0x0 0x10>;
-		big-endian;
-	};
-	ipad0_regs: siul2_reg@0x4009D740 {
-		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
-		reg = <0x0 0x4009D740 0x0 0x10>;
-		big-endian;
-	};
-	opad1_regs: siul2_reg@0x4401170C {
-		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
-		reg = <0x0 0x4401170C 0x0 0x14>;
-		big-endian;
-	};
-	ipad1_regs: siul2_reg@0x4401174C {
-		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
-		reg = <0x0 0x4401174C 0x0 0x14>;
-		big-endian;
-	};
 };
 
 &cluster0_l2_cache {
