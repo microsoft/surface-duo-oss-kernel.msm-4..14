@@ -314,6 +314,11 @@
 			interrupt-controller;
 		};
 
+		restart@c264000 {
+			compatible = "qcom,pshold";
+			reg = <0x0c264000 0x1000>;
+		};
+
 		apps_smmu: iommu@15000000 {
 			compatible = "qcom,sdx55-smmu-500", "arm,mmu-500";
 			reg = <0x15000000 0x20000>;
