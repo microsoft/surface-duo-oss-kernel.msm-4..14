@@ -4,7 +4,10 @@ Simple IO memory regions to be managed by the genalloc API.
 
 Required properties:
 
-- compatible : mmio-sram or atmel,sama5d2-securam
+- compatible :
+	o mmio-sram
+	o atmel,sama5d2-securam
+	o nxp,s32g274a-llce-sram - This will initialize the SRAM by filling it with 0
 
 - reg : SRAM iomem address range
 
