@@ -523,7 +523,7 @@
 
 &adsp {
 	status = "okay";
-	firmware-name = "qcom/sm8250/adsp.mdt";
+	firmware-name = "qcom/sm8250/adsp.mbn";
 };
 
 &q6afedai {
@@ -668,7 +668,7 @@
 
 &cdsp {
 	status = "okay";
-	firmware-name = "qcom/sm8250/cdsp.mdt";
+	firmware-name = "qcom/sm8250/cdsp.mbn";
 };
 
 &dsi0 {
@@ -1066,7 +1066,7 @@
 
 &slpi {
 	/* status = "okay"; */
-	firmware-name = "qcom/sm8250/slpi.mdt";
+	firmware-name = "qcom/sm8250/slpi.mbn";
 };
 
 /* CAN */
