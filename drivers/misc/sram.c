@@ -317,7 +317,7 @@ err_chunks:
 	return ret;
 }
 
-static int atmel_securam_wait(void)
+static int atmel_securam_wait(struct platform_device *pdev)
 {
 	struct regmap *regmap;
 	u32 val;
@@ -331,9 +331,19 @@ static int atmel_securam_wait(void)
 					10000, 500000);
 }
 
+static int llce_init_sram(struct platform_device *pdev)
+{
+	struct sram_dev *sram = platform_get_drvdata(pdev);
+	size_t size = gen_pool_size(sram->pool);
+
+	memset_io((void __iomem *)sram->virt_base, 0, size);
+	return 0;
+}
+
 static const struct of_device_id sram_dt_ids[] = {
 	{ .compatible = "mmio-sram" },
 	{ .compatible = "atmel,sama5d2-securam", .data = atmel_securam_wait },
+	{ .compatible = "nxp,s32g274a-llce-sram", .data = llce_init_sram },
 	{}
 };
 
@@ -343,7 +353,7 @@ static int sram_probe(struct platform_device *pdev)
 	struct resource *res;
 	size_t size;
 	int ret;
-	int (*init_func)(void);
+	int (*init_func)(struct platform_device *pdev);
 
 	sram = devm_kzalloc(&pdev->dev, sizeof(*sram), GFP_KERNEL);
 	if (!sram)
@@ -390,7 +400,7 @@ static int sram_probe(struct platform_device *pdev)
 
 	init_func = of_device_get_match_data(&pdev->dev);
 	if (init_func) {
-		ret = init_func();
+		ret = init_func(pdev);
 		if (ret)
 			goto err_free_partitions;
 	}
