@@ -698,7 +698,7 @@
 &gpu {
 	zap-shader {
 		memory-region = <&gpu_mem>;
-		firmware-name = "qcom/a650_zap.mdt";
+		firmware-name = "qcom/sm8250/a650_zap.mbn";
 	};
 };
 
