@@ -581,6 +581,13 @@ mlxsw_reg_sfd_uc_tunnel_pack(char *payload, int rec_index,
 	mlxsw_reg_sfd_uc_tunnel_protocol_set(payload, rec_index, proto);
 }
 
+enum mlxsw_reg_tunnel_port {
+	MLXSW_REG_TUNNEL_PORT_NVE,
+	MLXSW_REG_TUNNEL_PORT_VPLS,
+	MLXSW_REG_TUNNEL_PORT_FLEX_TUNNEL0,
+	MLXSW_REG_TUNNEL_PORT_FLEX_TUNNEL1,
+};
+
 /* SFN - Switch FDB Notification Register
  * -------------------------------------------
  * The switch provides notifications on newly learned FDB entries and
@@ -738,13 +745,6 @@ MLXSW_ITEM32_INDEXED(reg, sfn, uc_tunnel_protocol, MLXSW_REG_SFN_BASE_LEN, 27,
 MLXSW_ITEM32_INDEXED(reg, sfn, uc_tunnel_uip_lsb, MLXSW_REG_SFN_BASE_LEN, 0,
 		     24, MLXSW_REG_SFN_REC_LEN, 0x0C, false);
 
-enum mlxsw_reg_sfn_tunnel_port {
-	MLXSW_REG_SFN_TUNNEL_PORT_NVE,
-	MLXSW_REG_SFN_TUNNEL_PORT_VPLS,
-	MLXSW_REG_SFN_TUNNEL_FLEX_TUNNEL0,
-	MLXSW_REG_SFN_TUNNEL_FLEX_TUNNEL1,
-};
-
 /* reg_sfn_uc_tunnel_port
  * Tunnel port.
  * Reserved on Spectrum.
@@ -821,8 +821,16 @@ static inline void mlxsw_reg_spms_vid_pack(char *payload, u16 vid,
 
 MLXSW_REG_DEFINE(spvid, MLXSW_REG_SPVID_ID, MLXSW_REG_SPVID_LEN);
 
+/* reg_spvid_tport
+ * Port is tunnel port.
+ * Reserved when SwitchX/-2 or Spectrum-1.
+ * Access: Index
+ */
+MLXSW_ITEM32(reg, spvid, tport, 0x00, 24, 1);
+
 /* reg_spvid_local_port
- * Local port number.
+ * When tport = 0: Local port number. Not supported for CPU port.
+ * When tport = 1: Tunnel port.
  * Access: Index
  */
 MLXSW_ITEM32(reg, spvid, local_port, 0x00, 16, 8);
@@ -834,17 +842,30 @@ MLXSW_ITEM32(reg, spvid, local_port, 0x00, 16, 8);
  */
 MLXSW_ITEM32(reg, spvid, sub_port, 0x00, 8, 8);
 
+/* reg_spvid_et_vlan
+ * EtherType used for when VLAN is pushed at ingress (for untagged
+ * packets or for QinQ push mode).
+ * 0: ether_type0 - (default)
+ * 1: ether_type1
+ * 2: ether_type2 - Reserved when Spectrum-1, supported by Spectrum-2
+ * Ethertype IDs are configured by SVER.
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, spvid, et_vlan, 0x04, 16, 2);
+
 /* reg_spvid_pvid
  * Port default VID
  * Access: RW
  */
 MLXSW_ITEM32(reg, spvid, pvid, 0x04, 0, 12);
 
-static inline void mlxsw_reg_spvid_pack(char *payload, u8 local_port, u16 pvid)
+static inline void mlxsw_reg_spvid_pack(char *payload, u8 local_port, u16 pvid,
+					u8 et_vlan)
 {
 	MLXSW_REG_ZERO(spvid, payload);
 	mlxsw_reg_spvid_local_port_set(payload, local_port);
 	mlxsw_reg_spvid_pvid_set(payload, pvid);
+	mlxsw_reg_spvid_et_vlan_set(payload, et_vlan);
 }
 
 /* SPVM - Switch Port VLAN Membership
@@ -1680,6 +1701,109 @@ static inline void mlxsw_reg_svfa_pack(char *payload, u8 local_port,
 	mlxsw_reg_svfa_vid_set(payload, vid);
 }
 
+/*  SPVTR - Switch Port VLAN Stacking Register
+ *  ------------------------------------------
+ *  The Switch Port VLAN Stacking register configures the VLAN mode of the port
+ *  to enable VLAN stacking.
+ */
+#define MLXSW_REG_SPVTR_ID 0x201D
+#define MLXSW_REG_SPVTR_LEN 0x10
+
+MLXSW_REG_DEFINE(spvtr, MLXSW_REG_SPVTR_ID, MLXSW_REG_SPVTR_LEN);
+
+/* reg_spvtr_tport
+ * Port is tunnel port.
+ * Access: Index
+ *
+ * Note: Reserved when SwitchX/-2 or Spectrum-1.
+ */
+MLXSW_ITEM32(reg, spvtr, tport, 0x00, 24, 1);
+
+/* reg_spvtr_local_port
+ * When tport = 0: local port number (Not supported from/to CPU).
+ * When tport = 1: tunnel port.
+ * Access: Index
+ */
+MLXSW_ITEM32(reg, spvtr, local_port, 0x00, 16, 8);
+
+/* reg_spvtr_ippe
+ * Ingress Port Prio Mode Update Enable.
+ * When set, the Port Prio Mode is updated with the provided ipprio_mode field.
+ * Reserved on Get operations.
+ * Access: OP
+ */
+MLXSW_ITEM32(reg, spvtr, ippe, 0x04, 31, 1);
+
+/* reg_spvtr_ipve
+ * Ingress Port VID Mode Update Enable.
+ * When set, the Ingress Port VID Mode is updated with the provided ipvid_mode
+ * field.
+ * Reserved on Get operations.
+ * Access: OP
+ */
+MLXSW_ITEM32(reg, spvtr, ipve, 0x04, 30, 1);
+
+/* reg_spvtr_epve
+ * Egress Port VID Mode Update Enable.
+ * When set, the Egress Port VID Mode is updated with the provided epvid_mode
+ * field.
+ * Access: OP
+ */
+MLXSW_ITEM32(reg, spvtr, epve, 0x04, 29, 1);
+
+/* reg_spvtr_ipprio_mode
+ * Ingress Port Priority Mode.
+ * This controls the PCP and DEI of the new outer VLAN
+ * Note: for SwitchX/-2 the DEI is not affected.
+ * 0: use port default PCP and DEI (configured by QPDPC).
+ * 1: use C-VLAN PCP and DEI.
+ * Has no effect when ipvid_mode = 0.
+ * Reserved when tport = 1.
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, spvtr, ipprio_mode, 0x04, 20, 4);
+
+enum mlxsw_reg_spvtr_ipvid_mode {
+	/* IEEE Compliant PVID (default) */
+	MLXSW_REG_SPVTR_IPVID_MODE_IEEE_COMPLIANT_PVID,
+	/* Push VLAN (for VLAN stacking, except prio tagged packets) */
+	MLXSW_REG_SPVTR_IPVID_MODE_PUSH_VLAN_FOR_UNTAGGED_PACKET,
+	/* Always push VLAN (also for prio tagged packets) */
+	MLXSW_REG_SPVTR_IPVID_MODE_ALWAYS_PUSH_VLAN,
+};
+
+/* reg_spvtr_ipvid_mode
+ * Ingress Port VLAN-ID Mode.
+ * For Spectrum family, this affects the values of SPVM.i
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, spvtr, ipvid_mode, 0x04, 16, 4);
+
+enum mlxsw_reg_spvtr_epvid_mode {
+	/* IEEE Compliant VLAN membership */
+	MLXSW_REG_SPVTR_EPVID_MODE_IEEE_COMPLIANT_VLAN_MEMBERSHIP,
+	/* Pop VLAN (for VLAN stacking) */
+	MLXSW_REG_SPVTR_EPVID_MODE_POP_VLAN,
+};
+
+/* reg_spvtr_epvid_mode
+ * Egress Port VLAN-ID Mode.
+ * For Spectrum family, this affects the values of SPVM.e,u,pt.
+ * Access: WO
+ */
+MLXSW_ITEM32(reg, spvtr, epvid_mode, 0x04, 0, 4);
+
+static inline void mlxsw_reg_spvtr_pack(char *payload, bool tport,
+					u8 local_port,
+					enum mlxsw_reg_spvtr_ipvid_mode ipvid_mode)
+{
+	MLXSW_REG_ZERO(spvtr, payload);
+	mlxsw_reg_spvtr_tport_set(payload, tport);
+	mlxsw_reg_spvtr_local_port_set(payload, local_port);
+	mlxsw_reg_spvtr_ipvid_mode_set(payload, ipvid_mode);
+	mlxsw_reg_spvtr_ipve_set(payload, true);
+}
+
 /* SVPE - Switch Virtual-Port Enabling Register
  * --------------------------------------------
  * Enables port virtualization.
@@ -1855,6 +1979,104 @@ static inline void mlxsw_reg_spvmlr_pack(char *payload, u8 local_port,
 		mlxsw_reg_spvmlr_rec_learn_enable_set(payload, i, learn_enable);
 		mlxsw_reg_spvmlr_rec_vid_set(payload, i, vid_begin + i);
 	}
+}
+
+/* SPVC - Switch Port VLAN Classification Register
+ * -----------------------------------------------
+ * Configures the port to identify packets as untagged / single tagged /
+ * double packets based on the packet EtherTypes.
+ * Ethertype IDs are configured by SVER.
+ */
+#define MLXSW_REG_SPVC_ID 0x2026
+#define MLXSW_REG_SPVC_LEN 0x0C
+
+MLXSW_REG_DEFINE(spvc, MLXSW_REG_SPVC_ID, MLXSW_REG_SPVC_LEN);
+
+/* reg_spvc_local_port
+ * Local port.
+ * Access: Index
+ *
+ * Note: applies both to Rx port and Tx port, so if a packet traverses
+ * through Rx port i and a Tx port j then port i and port j must have the
+ * same configuration.
+ */
+MLXSW_ITEM32(reg, spvc, local_port, 0x00, 16, 8);
+
+/* reg_spvc_inner_et2
+ * Vlan Tag1 EtherType2 enable.
+ * Packet is initially classified as double VLAN Tag if in addition to
+ * being classified with a tag0 VLAN Tag its tag1 EtherType value is
+ * equal to ether_type2.
+ * 0: disable (default)
+ * 1: enable
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, spvc, inner_et2, 0x08, 17, 1);
+
+/* reg_spvc_et2
+ * Vlan Tag0 EtherType2 enable.
+ * Packet is initially classified as VLAN Tag if its tag0 EtherType is
+ * equal to ether_type2.
+ * 0: disable (default)
+ * 1: enable
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, spvc, et2, 0x08, 16, 1);
+
+/* reg_spvc_inner_et1
+ * Vlan Tag1 EtherType1 enable.
+ * Packet is initially classified as double VLAN Tag if in addition to
+ * being classified with a tag0 VLAN Tag its tag1 EtherType value is
+ * equal to ether_type1.
+ * 0: disable
+ * 1: enable (default)
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, spvc, inner_et1, 0x08, 9, 1);
+
+/* reg_spvc_et1
+ * Vlan Tag0 EtherType1 enable.
+ * Packet is initially classified as VLAN Tag if its tag0 EtherType is
+ * equal to ether_type1.
+ * 0: disable
+ * 1: enable (default)
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, spvc, et1, 0x08, 8, 1);
+
+/* reg_inner_et0
+ * Vlan Tag1 EtherType0 enable.
+ * Packet is initially classified as double VLAN Tag if in addition to
+ * being classified with a tag0 VLAN Tag its tag1 EtherType value is
+ * equal to ether_type0.
+ * 0: disable
+ * 1: enable (default)
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, spvc, inner_et0, 0x08, 1, 1);
+
+/* reg_et0
+ * Vlan Tag0 EtherType0 enable.
+ * Packet is initially classified as VLAN Tag if its tag0 EtherType is
+ * equal to ether_type0.
+ * 0: disable
+ * 1: enable (default)
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, spvc, et0, 0x08, 0, 1);
+
+static inline void mlxsw_reg_spvc_pack(char *payload, u8 local_port, bool et1,
+				       bool et0)
+{
+	MLXSW_REG_ZERO(spvc, payload);
+	mlxsw_reg_spvc_local_port_set(payload, local_port);
+	/* Enable inner_et1 and inner_et0 to enable identification of double
+	 * tagged packets.
+	 */
+	mlxsw_reg_spvc_inner_et1_set(payload, 1);
+	mlxsw_reg_spvc_inner_et0_set(payload, 1);
+	mlxsw_reg_spvc_et1_set(payload, et1);
+	mlxsw_reg_spvc_et0_set(payload, et0);
 }
 
 /* CWTP - Congetion WRED ECN TClass Profile
@@ -7279,10 +7501,11 @@ static inline void mlxsw_reg_ralue_pack4(char *payload,
 					 enum mlxsw_reg_ralxx_protocol protocol,
 					 enum mlxsw_reg_ralue_op op,
 					 u16 virtual_router, u8 prefix_len,
-					 u32 dip)
+					 u32 *dip)
 {
 	mlxsw_reg_ralue_pack(payload, protocol, op, virtual_router, prefix_len);
-	mlxsw_reg_ralue_dip4_set(payload, dip);
+	if (dip)
+		mlxsw_reg_ralue_dip4_set(payload, *dip);
 }
 
 static inline void mlxsw_reg_ralue_pack6(char *payload,
@@ -7292,7 +7515,8 @@ static inline void mlxsw_reg_ralue_pack6(char *payload,
 					 const void *dip)
 {
 	mlxsw_reg_ralue_pack(payload, protocol, op, virtual_router, prefix_len);
-	mlxsw_reg_ralue_dip6_memcpy_to(payload, dip);
+	if (dip)
+		mlxsw_reg_ralue_dip6_memcpy_to(payload, dip);
 }
 
 static inline void
@@ -8243,6 +8467,86 @@ mlxsw_reg_rmft2_ipv6_pack(char *payload, bool v, u16 offset, u16 virtual_router,
 	mlxsw_reg_rmft2_dip6_mask_memcpy_to(payload, (void *)&dip6_mask);
 	mlxsw_reg_rmft2_sip6_memcpy_to(payload, (void *)&sip6);
 	mlxsw_reg_rmft2_sip6_mask_memcpy_to(payload, (void *)&sip6_mask);
+}
+
+/* Note that XRALXX register position violates the rule of ordering register
+ * definition by the ID. However, XRALXX pack helpers are using RALXX pack
+ * helpers, RALXX registers have higher IDs.
+ */
+
+/* XRALTA - XM Router Algorithmic LPM Tree Allocation Register
+ * -----------------------------------------------------------
+ * The XRALTA is used to allocate the XLT LPM trees.
+ *
+ * This register embeds original RALTA register.
+ */
+#define MLXSW_REG_XRALTA_ID 0x7811
+#define MLXSW_REG_XRALTA_LEN 0x08
+#define MLXSW_REG_XRALTA_RALTA_OFFSET 0x04
+
+MLXSW_REG_DEFINE(xralta, MLXSW_REG_XRALTA_ID, MLXSW_REG_XRALTA_LEN);
+
+static inline void mlxsw_reg_xralta_pack(char *payload, bool alloc,
+					 enum mlxsw_reg_ralxx_protocol protocol,
+					 u8 tree_id)
+{
+	char *ralta_payload = payload + MLXSW_REG_XRALTA_RALTA_OFFSET;
+
+	MLXSW_REG_ZERO(xralta, payload);
+	mlxsw_reg_ralta_pack(ralta_payload, alloc, protocol, tree_id);
+}
+
+/* XRALST - XM Router Algorithmic LPM Structure Tree Register
+ * ----------------------------------------------------------
+ * The XRALST is used to set and query the structure of an XLT LPM tree.
+ *
+ * This register embeds original RALST register.
+ */
+#define MLXSW_REG_XRALST_ID 0x7812
+#define MLXSW_REG_XRALST_LEN 0x108
+#define MLXSW_REG_XRALST_RALST_OFFSET 0x04
+
+MLXSW_REG_DEFINE(xralst, MLXSW_REG_XRALST_ID, MLXSW_REG_XRALST_LEN);
+
+static inline void mlxsw_reg_xralst_pack(char *payload, u8 root_bin, u8 tree_id)
+{
+	char *ralst_payload = payload + MLXSW_REG_XRALST_RALST_OFFSET;
+
+	MLXSW_REG_ZERO(xralst, payload);
+	mlxsw_reg_ralst_pack(ralst_payload, root_bin, tree_id);
+}
+
+static inline void mlxsw_reg_xralst_bin_pack(char *payload, u8 bin_number,
+					     u8 left_child_bin,
+					     u8 right_child_bin)
+{
+	char *ralst_payload = payload + MLXSW_REG_XRALST_RALST_OFFSET;
+
+	mlxsw_reg_ralst_bin_pack(ralst_payload, bin_number, left_child_bin,
+				 right_child_bin);
+}
+
+/* XRALTB - XM Router Algorithmic LPM Tree Binding Register
+ * --------------------------------------------------------
+ * The XRALTB register is used to bind virtual router and protocol
+ * to an allocated LPM tree.
+ *
+ * This register embeds original RALTB register.
+ */
+#define MLXSW_REG_XRALTB_ID 0x7813
+#define MLXSW_REG_XRALTB_LEN 0x08
+#define MLXSW_REG_XRALTB_RALTB_OFFSET 0x04
+
+MLXSW_REG_DEFINE(xraltb, MLXSW_REG_XRALTB_ID, MLXSW_REG_XRALTB_LEN);
+
+static inline void mlxsw_reg_xraltb_pack(char *payload, u16 virtual_router,
+					 enum mlxsw_reg_ralxx_protocol protocol,
+					 u8 tree_id)
+{
+	char *raltb_payload = payload + MLXSW_REG_XRALTB_RALTB_OFFSET;
+
+	MLXSW_REG_ZERO(xraltb, payload);
+	mlxsw_reg_raltb_pack(raltb_payload, virtual_router, protocol, tree_id);
 }
 
 /* MFCR - Management Fan Control Register
@@ -10314,13 +10618,6 @@ enum mlxsw_reg_tnumt_record_type {
  */
 MLXSW_ITEM32(reg, tnumt, record_type, 0x00, 28, 4);
 
-enum mlxsw_reg_tnumt_tunnel_port {
-	MLXSW_REG_TNUMT_TUNNEL_PORT_NVE,
-	MLXSW_REG_TNUMT_TUNNEL_PORT_VPLS,
-	MLXSW_REG_TNUMT_TUNNEL_FLEX_TUNNEL0,
-	MLXSW_REG_TNUMT_TUNNEL_FLEX_TUNNEL1,
-};
-
 /* reg_tnumt_tunnel_port
  * Tunnel port.
  * Access: RW
@@ -10368,7 +10665,7 @@ MLXSW_ITEM32_INDEXED(reg, tnumt, udip_ptr, 0x0C, 0, 24, 0x04, 0x00, false);
 
 static inline void mlxsw_reg_tnumt_pack(char *payload,
 					enum mlxsw_reg_tnumt_record_type type,
-					enum mlxsw_reg_tnumt_tunnel_port tport,
+					enum mlxsw_reg_tunnel_port tport,
 					u32 underlay_mc_ptr, bool vnext,
 					u32 next_underlay_mc_ptr,
 					u8 record_size)
@@ -10532,13 +10829,6 @@ static inline void mlxsw_reg_tndem_pack(char *payload, u8 underlay_ecn,
 
 MLXSW_REG_DEFINE(tnpc, MLXSW_REG_TNPC_ID, MLXSW_REG_TNPC_LEN);
 
-enum mlxsw_reg_tnpc_tunnel_port {
-	MLXSW_REG_TNPC_TUNNEL_PORT_NVE,
-	MLXSW_REG_TNPC_TUNNEL_PORT_VPLS,
-	MLXSW_REG_TNPC_TUNNEL_FLEX_TUNNEL0,
-	MLXSW_REG_TNPC_TUNNEL_FLEX_TUNNEL1,
-};
-
 /* reg_tnpc_tunnel_port
  * Tunnel port.
  * Access: Index
@@ -10558,7 +10848,7 @@ MLXSW_ITEM32(reg, tnpc, learn_enable_v6, 0x04, 1, 1);
 MLXSW_ITEM32(reg, tnpc, learn_enable_v4, 0x04, 0, 1);
 
 static inline void mlxsw_reg_tnpc_pack(char *payload,
-				       enum mlxsw_reg_tnpc_tunnel_port tport,
+				       enum mlxsw_reg_tunnel_port tport,
 				       bool learn_enable)
 {
 	MLXSW_REG_ZERO(tnpc, payload);
@@ -11127,9 +11417,11 @@ static const struct mlxsw_reg_info *mlxsw_reg_infos[] = {
 	MLXSW_REG(slcor),
 	MLXSW_REG(spmlr),
 	MLXSW_REG(svfa),
+	MLXSW_REG(spvtr),
 	MLXSW_REG(svpe),
 	MLXSW_REG(sfmr),
 	MLXSW_REG(spvmlr),
+	MLXSW_REG(spvc),
 	MLXSW_REG(cwtp),
 	MLXSW_REG(cwtpm),
 	MLXSW_REG(pgcr),
@@ -11195,6 +11487,9 @@ static const struct mlxsw_reg_info *mlxsw_reg_infos[] = {
 	MLXSW_REG(rigr2),
 	MLXSW_REG(recr2),
 	MLXSW_REG(rmft2),
+	MLXSW_REG(xralta),
+	MLXSW_REG(xralst),
+	MLXSW_REG(xraltb),
 	MLXSW_REG(mfcr),
 	MLXSW_REG(mfsc),
 	MLXSW_REG(mfsm),
