@@ -487,6 +487,13 @@
 	status = "okay";
 };
 
+&msm_dp {
+	status = "okay";
+	data-lanes = <0 1>;
+	vdda-1p2-supply = <&vreg_l26a_1p2>;
+	vdda-0p9-supply = <&vreg_l1a_0p875>;
+};
+
 &mss_pil {
 	status = "okay";
 	firmware-name = "qcom/sdm845/mba.mbn", "qcom/sdm845/modem.mbn";
