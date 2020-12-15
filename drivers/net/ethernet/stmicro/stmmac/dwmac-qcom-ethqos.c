@@ -1990,7 +1990,7 @@ static int qcom_ethqos_suspend(struct device *dev)
 	struct qcom_ethqos *ethqos;
 	struct net_device *ndev = NULL;
 	int ret;
-	int allow_suspend = 0;
+	int allow_suspend = 1;
 
 	ETHQOSDBG("Suspend Enter\n");
 	if (of_device_is_compatible(dev->of_node, "qcom,emac-smmu-embedded")) {
