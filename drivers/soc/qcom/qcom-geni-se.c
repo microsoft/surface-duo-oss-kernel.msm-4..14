@@ -79,20 +79,6 @@
  */
 
 #define MAX_CLK_PERF_LEVEL 32
-#define NUM_AHB_CLKS 2
-
-/**
- * @struct geni_wrapper - Data structure to represent the QUP Wrapper Core
- * @dev:		Device pointer of the QUP wrapper core
- * @base:		Base address of this instance of QUP wrapper core
- * @ahb_clks:		Handle to the primary & secondary AHB clocks
- */
-struct geni_wrapper {
-	struct device *dev;
-	void __iomem *base;
-	struct clk_bulk_data ahb_clks[NUM_AHB_CLKS];
-	struct geni_icc_path to_core;
-};
 
 static const char * const icc_path_names[] = {"qup-core", "qup-config",
 						"qup-memory"};
@@ -107,7 +93,6 @@ static struct geni_wrapper *earlycon_wrapper;
 #define GENI_OUTPUT_CTRL		0x24
 #define GENI_CGC_CTRL			0x28
 #define GENI_CLK_CTRL_RO		0x60
-#define GENI_IF_DISABLE_RO		0x64
 #define GENI_FW_S_REVISION_RO		0x6c
 #define SE_GENI_BYTE_GRAN		0x254
 #define SE_GENI_TX_PACKING_CFG0		0x260
@@ -311,6 +296,39 @@ static void geni_se_select_dma_mode(struct geni_se *se)
 	writel_relaxed(val, se->base + SE_GENI_DMA_MODE_EN);
 }
 
+static int geni_se_select_gpi_mode(struct geni_se *se)
+{
+	unsigned int geni_dma_mode = 0;
+	unsigned int gpi_event_en = 0;
+	unsigned int common_geni_m_irq_en = 0;
+	unsigned int common_geni_s_irq_en = 0;
+
+	common_geni_m_irq_en = readl_relaxed(se->base + SE_GENI_M_IRQ_EN);
+	common_geni_s_irq_en = readl_relaxed(se->base + SE_GENI_S_IRQ_EN);
+	common_geni_m_irq_en &=
+			~(M_CMD_DONE_EN | M_TX_FIFO_WATERMARK_EN |
+			M_RX_FIFO_WATERMARK_EN | M_RX_FIFO_LAST_EN);
+	common_geni_s_irq_en &= ~S_CMD_DONE_EN;
+	geni_dma_mode = readl_relaxed(se->base + SE_GENI_DMA_MODE_EN);
+	gpi_event_en = readl_relaxed(se->base + SE_GSI_EVENT_EN);
+
+	geni_dma_mode |= GENI_DMA_MODE_EN;
+	gpi_event_en |= (DMA_RX_EVENT_EN | DMA_TX_EVENT_EN |
+				GENI_M_EVENT_EN | GENI_S_EVENT_EN);
+
+	writel_relaxed(0, se->base + SE_IRQ_EN);
+	writel_relaxed(common_geni_s_irq_en, se->base + SE_GENI_S_IRQ_EN);
+	writel_relaxed(common_geni_m_irq_en, se->base + SE_GENI_M_IRQ_EN);
+	writel_relaxed(0xFFFFFFFF, se->base + SE_GENI_M_IRQ_CLEAR);
+	writel_relaxed(0xFFFFFFFF, se->base + SE_GENI_S_IRQ_CLEAR);
+	writel_relaxed(0xFFFFFFFF, se->base + SE_DMA_TX_IRQ_CLR);
+	writel_relaxed(0xFFFFFFFF, se->base + SE_DMA_RX_IRQ_CLR);
+	writel_relaxed(geni_dma_mode, se->base + SE_GENI_DMA_MODE_EN);
+	writel_relaxed(gpi_event_en, se->base + SE_GSI_EVENT_EN);
+
+	return 0;
+}
+
 /**
  * geni_se_select_mode() - Select the serial engine transfer mode
  * @se:		Pointer to the concerned serial engine.
@@ -318,7 +336,8 @@ static void geni_se_select_dma_mode(struct geni_se *se)
  */
 void geni_se_select_mode(struct geni_se *se, enum geni_se_xfer_mode mode)
 {
-	WARN_ON(mode != GENI_SE_FIFO && mode != GENI_SE_DMA);
+	WARN_ON(mode != GENI_SE_FIFO && mode != GENI_SE_DMA &&
+		mode != GENI_GPI_DMA);
 
 	switch (mode) {
 	case GENI_SE_FIFO:
@@ -326,6 +345,9 @@ void geni_se_select_mode(struct geni_se *se, enum geni_se_xfer_mode mode)
 		break;
 	case GENI_SE_DMA:
 		geni_se_select_dma_mode(se);
+		break;
+	case GENI_GPI_DMA:
+		geni_se_select_gpi_mode(se);
 		break;
 	case GENI_SE_INVALID:
 	default:
