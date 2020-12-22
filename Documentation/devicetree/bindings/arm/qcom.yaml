@@ -39,6 +39,7 @@ description: |
         sc7180
         sdm630
         sdm660
+        sdx55
         sdm845
         sm8250
 
@@ -177,7 +178,5 @@ properties:
               - qcom,qrb5165-rb5
               - qcom,sm8250-mtp
           - const: qcom,sm8250
-
-additionalProperties: true
 
 ...
