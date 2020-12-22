@@ -194,10 +194,14 @@ static int wcd934x_slim_status_up(struct slim_device *sdev)
 static int wcd934x_slim_status(struct slim_device *sdev,
 			       enum slim_device_status status)
 {
+	struct wcd934x_ddata *ddata;
+
 	switch (status) {
 	case SLIM_DEVICE_STATUS_UP:
 		return wcd934x_slim_status_up(sdev);
 	case SLIM_DEVICE_STATUS_DOWN:
+		ddata = dev_get_drvdata(&sdev->dev);
+		regcache_cache_only(ddata->regmap, true);
 		mfd_remove_devices(&sdev->dev);
 		break;
 	default:
