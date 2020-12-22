@@ -42,6 +42,7 @@ description: |
         sdx55
         sdm845
         sm8250
+        sm8350
 
   The 'board' element must be one of the following strings:
 
@@ -178,5 +179,12 @@ properties:
               - qcom,qrb5165-rb5
               - qcom,sm8250-mtp
           - const: qcom,sm8250
+
+      - items:
+          - enum:
+              - qcom,sm8350-mtp
+          - const: qcom,sm8350
+
+additionalProperties: true
 
 ...
