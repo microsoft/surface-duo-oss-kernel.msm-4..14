@@ -26,7 +26,7 @@
 #define TM_TRDY_OFF			0x00e4
 #define TM_WDOG_LOG_OFF		0x013c
 
-/* v2.x: 8996, 8998, sdm845 */
+/* v2.x: 8996, 8998, sc7180, sdm845, sm8150, sm8250 */
 
 static struct tsens_features tsens_v2_feat = {
 	.ver_major	= VER_2_X,

@@ -22,6 +22,9 @@
 #define VIG_SC7180_MASK \
 	(VIG_MASK | BIT(DPU_SSPP_SCALER_QSEED4))
 
+#define VIG_SM8250_MASK \
+	(VIG_MASK | BIT(DPU_SSPP_SCALER_QSEED3LITE))
+
 #define DMA_SDM845_MASK \
 	(BIT(DPU_SSPP_SRC) | BIT(DPU_SSPP_QOS) | BIT(DPU_SSPP_QOS_8LVL) |\
 	BIT(DPU_SSPP_TS_PREFILL) | BIT(DPU_SSPP_TS_PREFILL_REC1) |\
@@ -40,6 +43,8 @@
 
 #define PINGPONG_SDM845_SPLIT_MASK \
 	(PINGPONG_SDM845_MASK | BIT(DPU_PINGPONG_TE2))
+
+#define MERGE_3D_SM8150_MASK (0)
 
 #define DSPP_SC7180_MASK BIT(DPU_DSPP_PCC)
 
@@ -112,7 +117,7 @@ static const struct dpu_caps sm8250_dpu_caps = {
 	.max_mixer_width = DEFAULT_DPU_OUTPUT_LINE_WIDTH,
 	.max_mixer_blendstages = 0xb,
 	.max_linewidth = 4096,
-	.qseed_type = DPU_SSPP_SCALER_QSEED3, /* TODO: qseed3 lite */
+	.qseed_type = DPU_SSPP_SCALER_QSEED3LITE,
 	.smart_dma_rev = DPU_SSPP_SMART_DMA_V2, /* TODO: v2.5 */
 	.ubwc_version = DPU_HW_UBWC_VER_40,
 	.has_src_split = true,
@@ -371,6 +376,34 @@ static const struct dpu_sspp_cfg sc7180_sspp[] = {
 		sdm845_dma_sblk_2, 9, SSPP_TYPE_DMA, DPU_CLK_CTRL_CURSOR1),
 };
 
+static const struct dpu_sspp_sub_blks sm8250_vig_sblk_0 =
+				_VIG_SBLK("0", 5, DPU_SSPP_SCALER_QSEED3LITE);
+static const struct dpu_sspp_sub_blks sm8250_vig_sblk_1 =
+				_VIG_SBLK("1", 6, DPU_SSPP_SCALER_QSEED3LITE);
+static const struct dpu_sspp_sub_blks sm8250_vig_sblk_2 =
+				_VIG_SBLK("2", 7, DPU_SSPP_SCALER_QSEED3LITE);
+static const struct dpu_sspp_sub_blks sm8250_vig_sblk_3 =
+				_VIG_SBLK("3", 8, DPU_SSPP_SCALER_QSEED3LITE);
+
+static const struct dpu_sspp_cfg sm8250_sspp[] = {
+	SSPP_BLK("sspp_0", SSPP_VIG0, 0x4000, VIG_SM8250_MASK,
+		sm8250_vig_sblk_0, 0,  SSPP_TYPE_VIG, DPU_CLK_CTRL_VIG0),
+	SSPP_BLK("sspp_1", SSPP_VIG1, 0x6000, VIG_SM8250_MASK,
+		sm8250_vig_sblk_1, 4,  SSPP_TYPE_VIG, DPU_CLK_CTRL_VIG1),
+	SSPP_BLK("sspp_2", SSPP_VIG2, 0x8000, VIG_SM8250_MASK,
+		sm8250_vig_sblk_2, 8, SSPP_TYPE_VIG, DPU_CLK_CTRL_VIG2),
+	SSPP_BLK("sspp_3", SSPP_VIG3, 0xa000, VIG_SM8250_MASK,
+		sm8250_vig_sblk_3, 12,  SSPP_TYPE_VIG, DPU_CLK_CTRL_VIG3),
+	SSPP_BLK("sspp_8", SSPP_DMA0, 0x24000,  DMA_SDM845_MASK,
+		sdm845_dma_sblk_0, 1, SSPP_TYPE_DMA, DPU_CLK_CTRL_DMA0),
+	SSPP_BLK("sspp_9", SSPP_DMA1, 0x26000,  DMA_SDM845_MASK,
+		sdm845_dma_sblk_1, 5, SSPP_TYPE_DMA, DPU_CLK_CTRL_DMA1),
+	SSPP_BLK("sspp_10", SSPP_DMA2, 0x28000,  DMA_CURSOR_SDM845_MASK,
+		sdm845_dma_sblk_2, 9, SSPP_TYPE_DMA, DPU_CLK_CTRL_CURSOR0),
+	SSPP_BLK("sspp_11", SSPP_DMA3, 0x2a000,  DMA_CURSOR_SDM845_MASK,
+		sdm845_dma_sblk_3, 13, SSPP_TYPE_DMA, DPU_CLK_CTRL_CURSOR1),
+};
+
 /*************************************************************
  * MIXER sub blocks config
  *************************************************************/
@@ -433,9 +466,9 @@ static const struct dpu_lm_cfg sc7180_lm[] = {
 
 static const struct dpu_lm_cfg sm8150_lm[] = {
 	LM_BLK("lm_0", LM_0, 0x44000, MIXER_SDM845_MASK,
-		&sdm845_lm_sblk, PINGPONG_0, LM_1, 0),
+		&sdm845_lm_sblk, PINGPONG_0, LM_1, DSPP_0),
 	LM_BLK("lm_1", LM_1, 0x45000, MIXER_SDM845_MASK,
-		&sdm845_lm_sblk, PINGPONG_1, LM_0, 0),
+		&sdm845_lm_sblk, PINGPONG_1, LM_0, DSPP_1),
 	LM_BLK("lm_2", LM_2, 0x46000, MIXER_SDM845_MASK,
 		&sdm845_lm_sblk, PINGPONG_2, LM_3, 0),
 	LM_BLK("lm_3", LM_3, 0x47000, MIXER_SDM845_MASK,
@@ -454,16 +487,28 @@ static const struct dpu_dspp_sub_blks sc7180_dspp_sblk = {
 		.len = 0x90, .version = 0x10000},
 };
 
-#define DSPP_BLK(_name, _id, _base) \
+static const struct dpu_dspp_sub_blks sm8150_dspp_sblk = {
+	.pcc = {.id = DPU_DSPP_PCC, .base = 0x1700,
+		.len = 0x90, .version = 0x40000},
+};
+
+#define DSPP_BLK(_name, _id, _base, _sblk) \
 		{\
 		.name = _name, .id = _id, \
 		.base = _base, .len = 0x1800, \
 		.features = DSPP_SC7180_MASK, \
-		.sblk = &sc7180_dspp_sblk \
+		.sblk = _sblk \
 		}
 
 static const struct dpu_dspp_cfg sc7180_dspp[] = {
-	DSPP_BLK("dspp_0", DSPP_0, 0x54000),
+	DSPP_BLK("dspp_0", DSPP_0, 0x54000, &sc7180_dspp_sblk),
+};
+
+static const struct dpu_dspp_cfg sm8150_dspp[] = {
+	DSPP_BLK("dspp_0", DSPP_0, 0x54000, &sm8150_dspp_sblk),
+	DSPP_BLK("dspp_1", DSPP_1, 0x56000, &sm8150_dspp_sblk),
+	DSPP_BLK("dspp_2", DSPP_2, 0x58000, &sm8150_dspp_sblk),
+	DSPP_BLK("dspp_3", DSPP_3, 0x5a000, &sm8150_dspp_sblk),
 };
 
 /*************************************************************
@@ -481,40 +526,59 @@ static const struct dpu_pingpong_sub_blks sdm845_pp_sblk = {
 		.len = 0x20, .version = 0x10000},
 };
 
-#define PP_BLK_TE(_name, _id, _base) \
+#define PP_BLK_TE(_name, _id, _base, _merge_3d) \
 	{\
 	.name = _name, .id = _id, \
 	.base = _base, .len = 0xd4, \
 	.features = PINGPONG_SDM845_SPLIT_MASK, \
+	.merge_3d = _merge_3d, \
 	.sblk = &sdm845_pp_sblk_te \
 	}
-#define PP_BLK(_name, _id, _base) \
+#define PP_BLK(_name, _id, _base, _merge_3d) \
 	{\
 	.name = _name, .id = _id, \
 	.base = _base, .len = 0xd4, \
 	.features = PINGPONG_SDM845_MASK, \
+	.merge_3d = _merge_3d, \
 	.sblk = &sdm845_pp_sblk \
 	}
 
 static const struct dpu_pingpong_cfg sdm845_pp[] = {
-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000),
-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800),
-	PP_BLK("pingpong_2", PINGPONG_2, 0x71000),
-	PP_BLK("pingpong_3", PINGPONG_3, 0x71800),
+	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000, 0),
+	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800, 0),
+	PP_BLK("pingpong_2", PINGPONG_2, 0x71000, 0),
+	PP_BLK("pingpong_3", PINGPONG_3, 0x71800, 0),
 };
 
 static struct dpu_pingpong_cfg sc7180_pp[] = {
-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000),
-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800),
+	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000, 0),
+	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800, 0),
 };
 
 static const struct dpu_pingpong_cfg sm8150_pp[] = {
-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000),
-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800),
-	PP_BLK("pingpong_2", PINGPONG_2, 0x71000),
-	PP_BLK("pingpong_3", PINGPONG_3, 0x71800),
-	PP_BLK("pingpong_4", PINGPONG_4, 0x72000),
-	PP_BLK("pingpong_5", PINGPONG_5, 0x72800),
+	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000, MERGE_3D_0),
+	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800, MERGE_3D_0),
+	PP_BLK("pingpong_2", PINGPONG_2, 0x71000, MERGE_3D_1),
+	PP_BLK("pingpong_3", PINGPONG_3, 0x71800, MERGE_3D_1),
+	PP_BLK("pingpong_4", PINGPONG_4, 0x72000, MERGE_3D_2),
+	PP_BLK("pingpong_5", PINGPONG_5, 0x72800, MERGE_3D_2),
+};
+
+/*************************************************************
+ * MERGE_3D sub blocks config
+ *************************************************************/
+#define MERGE_3D_BLK(_name, _id, _base) \
+	{\
+	.name = _name, .id = _id, \
+	.base = _base, .len = 0x100, \
+	.features = MERGE_3D_SM8150_MASK, \
+	.sblk = NULL \
+	}
+
+static const struct dpu_merge_3d_cfg sm8150_merge_3d[] = {
+	MERGE_3D_BLK("merge_3d_0", MERGE_3D_0, 0x83000),
+	MERGE_3D_BLK("merge_3d_1", MERGE_3D_1, 0x83100),
+	MERGE_3D_BLK("merge_3d_2", MERGE_3D_2, 0x83200),
 };
 
 /*************************************************************
@@ -836,8 +900,12 @@ static void sm8150_cfg_init(struct dpu_mdss_cfg *dpu_cfg)
 		.sspp = sdm845_sspp,
 		.mixer_count = ARRAY_SIZE(sm8150_lm),
 		.mixer = sm8150_lm,
+		.dspp_count = ARRAY_SIZE(sm8150_dspp),
+		.dspp = sm8150_dspp,
 		.pingpong_count = ARRAY_SIZE(sm8150_pp),
 		.pingpong = sm8150_pp,
+		.merge_3d_count = ARRAY_SIZE(sm8150_merge_3d),
+		.merge_3d = sm8150_merge_3d,
 		.intf_count = ARRAY_SIZE(sm8150_intf),
 		.intf = sm8150_intf,
 		.vbif_count = ARRAY_SIZE(sdm845_vbif),
@@ -861,13 +929,16 @@ static void sm8250_cfg_init(struct dpu_mdss_cfg *dpu_cfg)
 		.mdp = sm8250_mdp,
 		.ctl_count = ARRAY_SIZE(sm8150_ctl),
 		.ctl = sm8150_ctl,
-		/* TODO: sspp qseed version differs from 845 */
-		.sspp_count = ARRAY_SIZE(sdm845_sspp),
-		.sspp = sdm845_sspp,
+		.sspp_count = ARRAY_SIZE(sm8250_sspp),
+		.sspp = sm8250_sspp,
 		.mixer_count = ARRAY_SIZE(sm8150_lm),
 		.mixer = sm8150_lm,
+		.dspp_count = ARRAY_SIZE(sm8150_dspp),
+		.dspp = sm8150_dspp,
 		.pingpong_count = ARRAY_SIZE(sm8150_pp),
 		.pingpong = sm8150_pp,
+		.merge_3d_count = ARRAY_SIZE(sm8150_merge_3d),
+		.merge_3d = sm8150_merge_3d,
 		.intf_count = ARRAY_SIZE(sm8150_intf),
 		.intf = sm8150_intf,
 		.vbif_count = ARRAY_SIZE(sdm845_vbif),

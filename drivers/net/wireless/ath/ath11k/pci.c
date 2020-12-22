@@ -760,11 +760,18 @@ static void ath11k_pci_free_region(struct ath11k_pci *ab_pci)
 static int ath11k_pci_power_up(struct ath11k_base *ab)
 {
 	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
+	u8 aspm;
 	int ret;
 
 	ab_pci->register_window = 0;
 	clear_bit(ATH11K_PCI_FLAG_INIT_DONE, &ab_pci->flags);
 	ath11k_pci_sw_reset(ab_pci->ab);
+
+	pci_read_config_byte(ab_pci->pdev, 0x80, &aspm);
+	pci_write_config_byte(ab_pci->pdev, 0x80, aspm & 0xfd);
+
+	ath11k_info(ab, "aspm 0x%x changed to 0x%x\n",
+		    aspm, aspm & 0xfd);
 
 	ret = ath11k_mhi_start(ab_pci);
 	if (ret) {
@@ -883,6 +890,7 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 	struct ath11k_pci *ab_pci;
 	u32 soc_hw_version, soc_hw_version_major, soc_hw_version_minor;
 	int ret;
+	u32 val;
 
 	dev_warn(&pdev->dev, "WARNING: ath11k PCI support is experimental!\n");
 
@@ -921,6 +929,9 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 			   soc_hw_version_major, soc_hw_version_minor);
 
 		switch (soc_hw_version_major) {
+		case 1:
+			ab->hw_rev = ATH11K_HW_QCA6390_HW11;
+			break;
 		case 2:
 			ab->hw_rev = ATH11K_HW_QCA6390_HW20;
 			break;
