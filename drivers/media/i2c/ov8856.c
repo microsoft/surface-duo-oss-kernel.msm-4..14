@@ -1281,8 +1281,13 @@ static void ov8856_update_pad_format(const struct ov8856_mode *mode,
 {
 	fmt->width = mode->width;
 	fmt->height = mode->height;
-	fmt->code = MEDIA_BUS_FMT_SGRBG10_1X10;
 	fmt->field = V4L2_FIELD_NONE;
+
+	if (mode->reg_list.regs == mode_3264x2448_regs ||
+	    mode->reg_list.regs == mode_1632x1224_regs)
+		fmt->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	else
+		fmt->code = MEDIA_BUS_FMT_SGRBG10_1X10;
 }
 
 static int ov8856_start_streaming(struct ov8856 *ov8856)
