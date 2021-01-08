@@ -38,6 +38,14 @@
 			status = "disabled";
 		};
 	};
+
+	ss5_pwr_ctrl0 {
+		compatible = "gnss_sirf";
+		pinctrl-0 = <&ss5_pwr_ctrl_rst_on>;
+		ssVreset-gpio = <&tlmm 87 1>;
+		ssVonoff-gpio = <&tlmm 18 1>;
+	};
+
 	emac_hw: qcom,emac@20000 {
 		compatible = "qcom,emac-dwc-eqos";
 		qcom,arm-smmu;
@@ -201,6 +209,10 @@
 };
 
 &qupv3_se0_2uart {
+	status = "ok";
+};
+
+&qupv3_se4_2uart {
 	status = "ok";
 };
 
