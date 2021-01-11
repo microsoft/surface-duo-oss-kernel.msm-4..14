@@ -184,6 +184,7 @@ struct qmi_info {
  *		 or restore.
  * @qmi: Details of the QMI client on the kernel side.
  * @cdev: Device used by the Userspace to read/write the image buffer.
+ * @open_count: Account open instances.
  */
 struct subsys_backup {
 	struct device *dev;
@@ -193,6 +194,7 @@ struct subsys_backup {
 	struct qmi_info qmi;
 	struct work_struct request_handler_work;
 	struct cdev cdev;
+	atomic_t open_count;
 };
 
 static struct qmi_elem_info qmi_backup_ind_type_ei[] = {
@@ -932,6 +934,38 @@ static void request_handler_worker(struct work_struct *work)
 	}
 }
 
+static int is_valid_indication(struct subsys_backup *dev, void *ind,
+							 int restore)
+{
+	struct qmi_backup_ind_type *backup_ind;
+	struct qmi_restore_ind_type *restore_ind;
+
+	if (restore) {
+		/* Is backup in progress? */
+		if (dev->state == BACKUP_START || dev->state == BACKUP_END)
+			return 0;
+		restore_ind = (struct qmi_restore_ind_type *)ind;
+		/* Duplicate start indication */
+		if (dev->state == RESTORE_START && ind->restore_state == START)
+			return 0;
+		/* Duplicate end indication */
+		if (dev->state == RESTORE_END && ind->restore_state == END)
+			return 0;
+	} else {
+		/* Is restore in progress? */
+		if (dev->state == RESTORE_START || dev->state == RESTORE_END)
+			return 0;
+		backup_ind = struct qmi_backup_ind_type *(ind);
+		/* Duplicate start indication */
+		if (dev->state == BACKUP_START && ind->backup_state == START)
+			return 0;
+		/* Duplicate end indication */
+		if (dev->state == BACKUP_END && ind->backup_state == END)
+			return 0;
+	}
+	return 1;
+}
+
 static void backup_notif_handler(struct qmi_handle *handle,
 	struct sockaddr_qrtr *sq, struct qmi_txn *txn, const void *decoded_msg)
 {
@@ -942,17 +976,8 @@ static void backup_notif_handler(struct qmi_handle *handle,
 	qmi = container_of(handle, struct qmi_info, qmi_svc_handle);
 	backup_dev = container_of(qmi, struct subsys_backup, qmi);
 
-	if (backup_dev->state == RESTORE_START ||
-			backup_dev->state == RESTORE_END) {
-		dev_err(backup_dev->dev, "%s: Error: Restore in progress\n",
-				__func__);
-		return;
-	}
-
 	ind = (struct qmi_backup_ind_type *)decoded_msg;
-
-	if ((backup_dev->state == BACKUP_START && ind->backup_state == START) ||
-		(backup_dev->state == BACKUP_END && ind->backup_state == END)) {
+	if (!is_valid_indication(backup_dev, (void *)ind, 0)) {
 		dev_err(backup_dev->dev, "%s: Error: Spurious request\n",
 				__func__);
 		return;
@@ -969,7 +994,7 @@ static void backup_notif_handler(struct qmi_handle *handle,
 
 	backup_dev->qmi.decoded_msg = devm_kzalloc(backup_dev->dev,
 					sizeof(*decoded_msg), GFP_KERNEL);
-	if (!backup_dev) {
+	if (!backup_dev->qmi.decoded_msg) {
 		dev_err(backup_dev->dev, "%s: Failed to allocate memory\n",
 				__func__);
 		return;
@@ -990,19 +1015,8 @@ static void restore_notif_handler(struct qmi_handle *handle,
 	qmi = container_of(handle, struct qmi_info, qmi_svc_handle);
 	backup_dev = container_of(qmi, struct subsys_backup, qmi);
 
-	if (backup_dev->state == BACKUP_START ||
-			backup_dev->state == BACKUP_END) {
-		dev_err(backup_dev->dev, "%s: Error: Backup in progress\n",
-				__func__);
-		return;
-	}
-
 	ind = (struct qmi_restore_ind_type *)decoded_msg;
-
-	if ((backup_dev->state == RESTORE_START &&
-			ind->restore_state == START) ||
-			(backup_dev->state == RESTORE_END &&
-			ind->restore_state == END)) {
+	if (!is_valid_indication(backup_dev, (void *)ind, 1)) {
 		dev_err(backup_dev->dev, "%s: Error: Spurious request\n",
 				__func__);
 		return;
@@ -1019,7 +1033,7 @@ static void restore_notif_handler(struct qmi_handle *handle,
 
 	backup_dev->qmi.decoded_msg = devm_kzalloc(backup_dev->dev,
 					sizeof(*decoded_msg), GFP_KERNEL);
-	if (!backup_dev) {
+	if (!backup_dev->qmi.decoded_msg) {
 		dev_err(backup_dev->dev, "%s: Failed to allocate memory\n",
 				__func__);
 		return;
@@ -1162,6 +1176,12 @@ static int backup_buffer_open(struct inode *inodep, struct file *filep)
 {
 	struct subsys_backup *backup_dev = container_of(inodep->i_cdev,
 					struct subsys_backup, cdev);
+	if (atomic_inc_return(&backup_dev->open_count) != 1) {
+		dev_err(backup_dev->dev,
+				"Multiple instances of open  not allowed\n");
+		atomic_dec(&backup_dev->open_count);
+		return -EBUSY;
+	}
 	filep->private_data = backup_dev;
 	return 0;
 }
@@ -1226,7 +1246,14 @@ static int backup_buffer_flush(struct file *filp, fl_owner_t id)
 	if (ret)
 		dev_err(backup_dev->dev, "%s: Remote notif failed: %d\n",
 				__func__, ret);
+	return 0;
+}
 
+static int backup_buffer_release(struct inode *inodep, struct file *filep)
+{
+	struct subsys_backup *backup_dev = container_of(inodep->i_cdev,
+					struct subsys_backup, cdev);
+	atomic_dec(&backup_dev->open_count);
 	return 0;
 }
 
@@ -1236,6 +1263,7 @@ static const struct file_operations backup_buffer_fops = {
 	.read	= backup_buffer_read,
 	.write	= backup_buffer_write,
 	.flush	= backup_buffer_flush,
+	.release = backup_buffer_release,
 };
 
 static int subsys_backup_init_device(struct platform_device *pdev,
