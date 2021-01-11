@@ -548,7 +548,7 @@
 
 &adsp {
 	status = "okay";
-	firmware-name = "qcom/sm8250/adsp.mbn";
+	firmware-name = "qcom/sm8250/adsp.mdt";
 };
 
 &q6afedai {
@@ -693,7 +693,7 @@
 
 &cdsp {
 	status = "okay";
-	firmware-name = "qcom/sm8250/cdsp.mbn";
+	firmware-name = "qcom/sm8250/cdsp.mdt";
 };
 
 &dsi0 {
@@ -723,7 +723,7 @@
 &gpu {
 	zap-shader {
 		memory-region = <&gpu_mem>;
-		firmware-name = "qcom/sm8250/a650_zap.mbn";
+		firmware-name = "qcom/a650_zap.mdt";
 	};
 };
 
@@ -1092,7 +1092,7 @@
 
 &slpi {
 	/* status = "okay"; */
-	firmware-name = "qcom/sm8250/slpi.mbn";
+	firmware-name = "qcom/sm8250/slpi.mdt";
 };
 
 /* CAN */
