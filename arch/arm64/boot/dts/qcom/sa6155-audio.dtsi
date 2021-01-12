@@ -622,3 +622,14 @@ qcom,msm-dai-q6 {
 &qupv3_se8_i2c {
 	status = "ok";
 };
+
+
+&qupv3_se6_spi {
+       status = "ok";
+       spidev@0 {
+              compatible = "spidev";
+              spi-max-frequency = <50000000>;
+              reg = <0>;
+       };
+};
+
