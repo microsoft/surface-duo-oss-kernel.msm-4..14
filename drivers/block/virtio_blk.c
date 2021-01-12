@@ -25,9 +25,7 @@ static int major;
 static DEFINE_IDA(vd_index_ida);
 
 static struct workqueue_struct *virtblk_wq;
-#ifdef CONFIG_PFK_VIRTUALIZED
 static struct workqueue_struct *ice_workqueue;
-#endif
 
 struct virtio_blk_vq {
 	struct virtqueue *vq;
@@ -47,13 +45,11 @@ struct virtio_blk {
 	/* Process context for config space updates */
 	struct work_struct config_work;
 
-#ifdef CONFIG_PFK_VIRTUALIZED
 	/* Process context for virtual ICE configuration */
 	spinlock_t ice_work_lock;
 	struct work_struct ice_cfg_work;
 	struct request *req_pending;
 	bool work_pending;
-#endif
 
 	/* What host tells us, plus 2 for header & tailer. */
 	unsigned int sg_elems;
@@ -72,7 +68,10 @@ struct virtblk_req {
 	u8 sense[SCSI_SENSE_BUFFERSIZE];
 	struct virtio_scsi_inhdr in_hdr;
 #endif
-	struct virtio_blk_outhdr out_hdr;
+    struct {
+        struct virtio_blk_outhdr out_hdr;
+        struct virtio_blk_ice_info ice_info;
+    } __attribute__ ((packed));
 	u8 status;
 	struct scatterlist sg[];
 };
@@ -168,8 +167,10 @@ static int virtblk_add_req(struct virtqueue *vq, struct virtblk_req *vbr,
 {
 	struct scatterlist hdr, status, *sgs[3];
 	unsigned int num_out = 0, num_in = 0;
+	size_t const hdr_size = virtio_has_feature(vq->vdev, VIRTIO_BLK_F_ICE) ?
+        sizeof(vbr->out_hdr) + sizeof(vbr->ice_info) : sizeof(vbr->out_hdr);
 
-	sg_init_one(&hdr, &vbr->out_hdr, sizeof(vbr->out_hdr));
+	sg_init_one(&hdr, &vbr->out_hdr, hdr_size);
 	sgs[num_out++] = &hdr;
 
 	if (have_data) {
@@ -188,7 +189,7 @@ static int virtblk_add_req(struct virtqueue *vq, struct virtblk_req *vbr,
 static inline void virtblk_request_done(struct request *req)
 {
 	struct virtblk_req *vbr = blk_mq_rq_to_pdu(req);
-
+	struct virtio_blk *vblk = req->q->queuedata;
 
 	switch (req_op(req)) {
 	case REQ_OP_SCSI_IN:
@@ -197,15 +198,13 @@ static inline void virtblk_request_done(struct request *req)
 		break;
 	}
 
-#ifdef CONFIG_PFK_VIRTUALIZED
-{
-	bool ice_activated;
-	int ret = pfk_load_key_end(req->bio, &ice_activated);
+	if (virtio_has_feature(vblk->vdev, VIRTIO_BLK_F_ICE)) {
+		bool ice_activated;
+		int ret = pfk_load_key_end(req->bio, &ice_activated);
 
-	if (ice_activated && ret != 0)
-		pr_err("%s:  pfk_load_key_end returned %d\n", __func__, ret);
-}
-#endif
+		if (ice_activated && ret != 0)
+			pr_err("%s:  pfk_load_key_end returned %d\n", __func__, ret);
+    }
 
 	blk_mq_end_request(req, virtblk_result(vbr));
 }
@@ -242,7 +241,6 @@ static blk_status_t virtblk_handle_ice(struct virtio_blk *vblk,
 		struct request *req)
 {
 	blk_status_t retval = BLK_STS_OK;
-#ifdef CONFIG_PFK_VIRTUALIZED
 	int err;
 	bool activate_ice = false;
 	struct ice_crypto_setting pfk_crypto_data = {0};
@@ -287,16 +285,16 @@ static blk_status_t virtblk_handle_ice(struct virtio_blk *vblk,
 				break;
 			}
 			/* ice is activated - successful flow */
-			vbr->out_hdr.ice_info.ice_slot =
+			vbr->ice_info.ice_slot =
 					pfk_crypto_data.key_index;
-			vbr->out_hdr.ice_info.activate = true;
+			vbr->ice_info.activate = true;
 		} else {
 			/* ice is not activated */
-			vbr->out_hdr.ice_info.activate = false;
+			vbr->ice_info.activate = false;
 		}
 	} while (0);
 	spin_unlock_irqrestore(&vblk->ice_work_lock, flags);
-#endif
+
 	return retval;
 }
 
@@ -341,17 +339,19 @@ static blk_status_t virtio_queue_rq(struct blk_mq_hw_ctx *hctx,
 		0 : cpu_to_virtio64(vblk->vdev, blk_rq_pos(req));
 	vbr->out_hdr.ioprio = cpu_to_virtio32(vblk->vdev, req_get_ioprio(req));
 
-	retval = virtblk_handle_ice(vblk, req);
-	if (retval != BLK_STS_OK) {
-		if (retval == BLK_STS_RESOURCE) {
-			blk_mq_run_hw_queue(hctx, true);
-			spin_lock_irqsave(&vblk->vqs[qid].lock, flags);
-			virtqueue_kick_prepare(vblk->vqs[qid].vq);
-			spin_unlock_irqrestore(&vblk->vqs[qid].lock, flags);
-			virtqueue_notify(vblk->vqs[qid].vq);
-		} else
-			pr_err("%s: virtblk_handle_ice failed (%d)", __func__, retval);
-		return retval;
+	if (virtio_has_feature(vblk->vdev, VIRTIO_BLK_F_ICE)) {
+		retval = virtblk_handle_ice(vblk, req);
+		if (retval != BLK_STS_OK) {
+			if (retval == BLK_STS_RESOURCE) {
+				blk_mq_run_hw_queue(hctx, true);
+				spin_lock_irqsave(&vblk->vqs[qid].lock, flags);
+				virtqueue_kick_prepare(vblk->vqs[qid].vq);
+				spin_unlock_irqrestore(&vblk->vqs[qid].lock, flags);
+				virtqueue_notify(vblk->vqs[qid].vq);
+			} else
+				pr_err("%s: virtblk_handle_ice failed (%d)", __func__, retval);
+			return retval;
+		}
 	}
 
 	blk_mq_start_request(req);
@@ -370,12 +370,13 @@ static blk_status_t virtio_queue_rq(struct blk_mq_hw_ctx *hctx,
 	else
 		err = virtblk_add_req(vblk->vqs[qid].vq, vbr, vbr->sg, num);
 	if (err) {
-		bool ice_activated;
-		int ret = pfk_load_key_end(req->bio, &ice_activated);
+		if (virtio_has_feature(vblk->vdev, VIRTIO_BLK_F_ICE)) {
+			bool ice_activated;
+			int ret = pfk_load_key_end(req->bio, &ice_activated);
 
-		if (ice_activated && ret != 0)
-			pr_err("%s:  pfk_load_key_end returned %d\n", __func__, ret);
-
+			if (ice_activated && ret != 0)
+				pr_err("%s:  pfk_load_key_end returned %d\n", __func__, ret);
+		}
 		virtqueue_kick(vblk->vqs[qid].vq);
 		blk_mq_stop_hw_queue(hctx);
 		spin_unlock_irqrestore(&vblk->vqs[qid].lock, flags);
@@ -519,7 +520,6 @@ static void virtblk_config_changed_work(struct work_struct *work)
 	kobject_uevent_env(&disk_to_dev(vblk->disk)->kobj, KOBJ_CHANGE, envp);
 }
 
-#ifdef CONFIG_PFK_VIRTUALIZED
 static void virtblk_ice_work(struct work_struct *work)
 {
 	bool activate_ice = false;
@@ -553,7 +553,6 @@ static void virtblk_ice_work(struct work_struct *work)
 	vblk->work_pending = false;
 	spin_unlock_irqrestore(&vblk->ice_work_lock, flags);
 }
-#endif
 
 static void virtblk_config_changed(struct virtio_device *vdev)
 {
@@ -610,9 +609,7 @@ static int init_vq(struct virtio_blk *vblk)
 	}
 	vblk->num_vqs = num_vqs;
 
-#ifdef CONFIG_PFK_VIRTUALIZED
 	spin_lock_init(&vblk->ice_work_lock);
-#endif
 
 out:
 	kfree(vqs);
@@ -808,12 +805,10 @@ static int virtblk_probe(struct virtio_device *vdev)
 
 	INIT_WORK(&vblk->config_work, virtblk_config_changed_work);
 
-#ifdef CONFIG_PFK_VIRTUALIZED
-	if (!virtio_has_feature(vblk->vdev, VIRTIO_BLK_F_ICE))
-		return -ENOTTY;
-	INIT_WORK(&vblk->ice_cfg_work, virtblk_ice_work);
-	vblk->work_pending = false;
-#endif
+	if (virtio_has_feature(vblk->vdev, VIRTIO_BLK_F_ICE)) {
+        INIT_WORK(&vblk->ice_cfg_work, virtblk_ice_work);
+        vblk->work_pending = false;
+    }
 
 	err = init_vq(vblk);
 	if (err)
@@ -892,9 +887,8 @@ static int virtblk_probe(struct virtio_device *vdev)
 	blk_queue_max_hw_sectors(q, -1U);
 
 	/* Set inline encryption. */
-#ifdef CONFIG_PFK_VIRTUALIZED
-	queue_flag_set_unlocked(QUEUE_FLAG_INLINECRYPT, q);
-#endif
+	if (virtio_has_feature(vblk->vdev, VIRTIO_BLK_F_ICE))
+		queue_flag_set_unlocked(QUEUE_FLAG_INLINECRYPT, q);
 
 	/* Host can optionally specify maximum segment size and number of
 	 * segments. */
@@ -1055,9 +1049,7 @@ static unsigned int features[] = {
 	VIRTIO_BLK_F_RO, VIRTIO_BLK_F_BLK_SIZE,
 	VIRTIO_BLK_F_FLUSH, VIRTIO_BLK_F_TOPOLOGY, VIRTIO_BLK_F_CONFIG_WCE,
 	VIRTIO_BLK_F_MQ,
-#ifdef CONFIG_PFK_VIRTUALIZED
 	VIRTIO_BLK_F_ICE,
-#endif
 };
 
 static struct virtio_driver virtio_blk = {
@@ -1084,12 +1076,10 @@ static int __init init(void)
 {
 	int error;
 
-#ifdef CONFIG_PFK_VIRTUALIZED
 	ice_workqueue = alloc_workqueue("virtio-blk-ice",
 			WQ_MEM_RECLAIM | WQ_HIGHPRI | WQ_FREEZABLE, 0);
 	if (!ice_workqueue)
 		return -ENOMEM;
-#endif
 
 	virtblk_wq = alloc_workqueue("virtio-blk", 0, 0);
 	if (!virtblk_wq) {
@@ -1113,9 +1103,7 @@ out_unregister_blkdev:
 out_destroy_workqueue:
 	destroy_workqueue(virtblk_wq);
 out_destroy_ice_workqueue:
-#ifdef CONFIG_PFK_VIRTUALIZED
-	destroy_workqueue(ice_workqueue);
-#endif
+		destroy_workqueue(ice_workqueue);
 	return error;
 }
 
@@ -1124,9 +1112,7 @@ static void __exit fini(void)
 	unregister_virtio_driver(&virtio_blk);
 	unregister_blkdev(major, "virtblk");
 	destroy_workqueue(virtblk_wq);
-#ifdef CONFIG_PFK_VIRTUALIZED
 	destroy_workqueue(ice_workqueue);
-#endif
 }
 module_init(init);
 module_exit(fini);
