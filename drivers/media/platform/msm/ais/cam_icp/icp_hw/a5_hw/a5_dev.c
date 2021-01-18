@@ -229,7 +229,7 @@ static void __exit cam_a5_exit_module(void)
 	platform_driver_unregister(&cam_a5_driver);
 }
 
-module_init(cam_a5_init_module);
+fs_initcall(cam_a5_init_module);
 module_exit(cam_a5_exit_module);
 MODULE_DESCRIPTION("CAM A5 driver");
 MODULE_LICENSE("GPL v2");

@@ -414,7 +414,7 @@ static void __exit cam_sensor_driver_exit(void)
 	i2c_del_driver(&cam_sensor_driver_i2c);
 }
 
-module_init(cam_sensor_driver_init);
+fs_initcall(cam_sensor_driver_init);
 module_exit(cam_sensor_driver_exit);
 MODULE_DESCRIPTION("cam_sensor_driver");
 MODULE_LICENSE("GPL v2");

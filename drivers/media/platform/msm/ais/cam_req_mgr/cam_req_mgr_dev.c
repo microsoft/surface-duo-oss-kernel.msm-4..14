@@ -869,7 +869,7 @@ static void __exit cam_req_mgr_exit(void)
 	platform_driver_unregister(&cam_req_mgr_driver);
 }
 
-module_init(cam_req_mgr_init);
+fs_initcall(cam_req_mgr_init);
 late_initcall(cam_req_mgr_late_init);
 module_exit(cam_req_mgr_exit);
 MODULE_DESCRIPTION("Camera Request Manager");

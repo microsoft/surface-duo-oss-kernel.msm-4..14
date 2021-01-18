@@ -527,7 +527,7 @@ static void __exit cam_cci_exit_module(void)
 	platform_driver_unregister(&cci_driver);
 }
 
-module_init(cam_cci_init_module);
+fs_initcall(cam_cci_init_module);
 late_initcall(cam_cci_late_init);
 module_exit(cam_cci_exit_module);
 MODULE_DESCRIPTION("MSM CCI driver");

@@ -276,7 +276,7 @@ static void __exit cam_icp_exit_module(void)
 {
 	platform_driver_unregister(&cam_icp_driver);
 }
-module_init(cam_icp_init_module);
+fs_initcall(cam_icp_init_module);
 module_exit(cam_icp_exit_module);
 MODULE_DESCRIPTION("MSM ICP driver");
 MODULE_LICENSE("GPL v2");

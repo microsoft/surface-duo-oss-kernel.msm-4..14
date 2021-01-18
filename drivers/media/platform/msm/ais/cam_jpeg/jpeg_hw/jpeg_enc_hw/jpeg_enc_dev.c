@@ -232,7 +232,7 @@ static void __exit cam_jpeg_enc_exit_module(void)
 	platform_driver_unregister(&cam_jpeg_enc_driver);
 }
 
-module_init(cam_jpeg_enc_init_module);
+fs_initcall(cam_jpeg_enc_init_module);
 module_exit(cam_jpeg_enc_exit_module);
 MODULE_DESCRIPTION("CAM JPEG_ENC driver");
 MODULE_LICENSE("GPL v2");

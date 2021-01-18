@@ -234,7 +234,7 @@ static void __exit cam_jpeg_dma_exit_module(void)
 	platform_driver_unregister(&cam_jpeg_dma_driver);
 }
 
-module_init(cam_jpeg_dma_init_module);
+fs_initcall(cam_jpeg_dma_init_module);
 module_exit(cam_jpeg_dma_exit_module);
 MODULE_DESCRIPTION("CAM JPEG_DMA driver");
 MODULE_LICENSE("GPL v2");

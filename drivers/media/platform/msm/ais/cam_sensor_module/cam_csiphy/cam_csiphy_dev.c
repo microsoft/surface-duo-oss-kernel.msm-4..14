@@ -254,7 +254,7 @@ static void __exit cam_csiphy_exit_module(void)
 	platform_driver_unregister(&csiphy_driver);
 }
 
-module_init(cam_csiphy_init_module);
+fs_initcall(cam_csiphy_init_module);
 module_exit(cam_csiphy_exit_module);
 MODULE_DESCRIPTION("CAM CSIPHY driver");
 MODULE_LICENSE("GPL v2");

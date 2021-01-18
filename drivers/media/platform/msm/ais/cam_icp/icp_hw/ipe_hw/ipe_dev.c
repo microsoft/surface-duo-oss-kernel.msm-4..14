@@ -200,7 +200,7 @@ static void __exit cam_ipe_exit_module(void)
 	platform_driver_unregister(&cam_ipe_driver);
 }
 
-module_init(cam_ipe_init_module);
+fs_initcall(cam_ipe_init_module);
 module_exit(cam_ipe_exit_module);
 MODULE_DESCRIPTION("CAM IPE driver");
 MODULE_LICENSE("GPL v2");
