@@ -20,7 +20,7 @@
 #include "lpass.h"
 
 static struct snd_soc_dai_driver sc7180_lpass_cpu_dai_driver[] = {
-	[MI2S_PRIMARY] = {
+	[0] = {
 		.id = MI2S_PRIMARY,
 		.name = "Primary MI2S",
 		.playback = {
@@ -45,7 +45,7 @@ static struct snd_soc_dai_driver sc7180_lpass_cpu_dai_driver[] = {
 		.ops    = &asoc_qcom_lpass_cpu_dai_ops,
 	},
 
-	[MI2S_SECONDARY] = {
+	[1] = {
 		.id = MI2S_SECONDARY,
 		.name = "Secondary MI2S",
 		.playback = {
@@ -60,7 +60,7 @@ static struct snd_soc_dai_driver sc7180_lpass_cpu_dai_driver[] = {
 		.probe	= &asoc_qcom_lpass_cpu_dai_probe,
 		.ops    = &asoc_qcom_lpass_cpu_dai_ops,
 	},
-	[LPASS_DP_RX] = {
+	[2] = {
 		.id = LPASS_DP_RX,
 		.name = "Hdmi",
 		.playback = {
