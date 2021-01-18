@@ -19,7 +19,7 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
-static int32_t cam_sensor_update_i2c_slave_info(
+int32_t cam_sensor_update_i2c_slave_info(
 	struct camera_io_master *io_master,
 	struct cam_sensor_i2c_slave_info *slave_info);
 
@@ -333,7 +333,7 @@ static int32_t cam_sensor_i2c_modes_util(
 	return rc;
 }
 
-static int32_t cam_sensor_update_i2c_slave_info(
+int32_t cam_sensor_update_i2c_slave_info(
 		struct camera_io_master *io_master,
 		struct cam_sensor_i2c_slave_info *slave_info)
 {
@@ -369,7 +369,7 @@ static int32_t cam_sensor_update_i2c_slave_info(
 	return rc;
 }
 
-static int32_t cam_sensor_restore_slave_info(struct cam_sensor_ctrl_t *s_ctrl)
+int32_t cam_sensor_restore_slave_info(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0;
 
@@ -1002,6 +1002,7 @@ free_probe_cmd:
 	}
 		break;
 	case AIS_SENSOR_POWER_UP: {
+		CAM_INFO(CAM_SENSOR, "sensor power up start");
 		if ((s_ctrl->is_probe_succeed == 0) ||
 			(s_ctrl->sensor_state != CAM_SENSOR_INIT)) {
 			CAM_WARN(CAM_SENSOR,
@@ -1027,6 +1028,7 @@ free_probe_cmd:
 		break;
 
 	case AIS_SENSOR_POWER_DOWN: {
+		CAM_INFO(CAM_SENSOR, "sensor power down start");
 		if (s_ctrl->sensor_state == CAM_SENSOR_START) {
 			rc = -EINVAL;
 			CAM_WARN(CAM_SENSOR,
@@ -1051,12 +1053,14 @@ free_probe_cmd:
 	}
 		break;
 	case AIS_SENSOR_I2C_POWER_UP: {
+		CAM_INFO(CAM_SENSOR, "sensor i2c power up start");
 		rc = camera_io_init(&(s_ctrl->io_master_info));
 		if (rc < 0)
 			CAM_ERR(CAM_SENSOR, "io_init failed: rc: %d", rc);
 	}
 		break;
 	case AIS_SENSOR_I2C_POWER_DOWN: {
+		CAM_INFO(CAM_SENSOR, "sensor i2c power down start");
 		rc = camera_io_release(&(s_ctrl->io_master_info));
 		if (rc < 0)
 			CAM_ERR(CAM_SENSOR, "io_release failed: rc: %d", rc);

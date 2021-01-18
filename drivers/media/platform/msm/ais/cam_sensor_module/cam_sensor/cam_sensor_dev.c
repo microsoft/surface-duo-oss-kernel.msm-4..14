@@ -15,6 +15,15 @@
 #include "cam_sensor_soc.h"
 #include "cam_sensor_core.h"
 
+static struct v4l2_subdev *g_sensor_subdev[MAX_SENSORS];
+
+struct cam_sensor_ctrl_t *cam_sensor_get_subdevdata(int sensor_dev_index)
+{
+        if (sensor_dev_index < MAX_SENSORS)
+                return v4l2_get_subdevdata(g_sensor_subdev[sensor_dev_index]);
+        return NULL;
+}
+
 
 static int cam_sensor_subdev_subscribe_event(struct v4l2_subdev *sd,
 	struct v4l2_fh *fh,
@@ -60,9 +69,9 @@ static int cam_sensor_subdev_close(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	mutex_lock(&(s_ctrl->cam_sensor_mutex));
-	cam_sensor_shutdown(s_ctrl);
-	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
+         mutex_lock(&(s_ctrl->cam_sensor_mutex));
+         cam_sensor_shutdown(s_ctrl);
+         mutex_unlock(&(s_ctrl->cam_sensor_mutex));
 
 	return 0;
 }
@@ -354,6 +363,7 @@ static int32_t cam_sensor_driver_platform_probe(
 	s_ctrl->sensordata->power_info.dev = &pdev->dev;
 	platform_set_drvdata(pdev, s_ctrl);
 	s_ctrl->sensor_state = CAM_SENSOR_INIT;
+	g_sensor_subdev[soc_info->index] = &s_ctrl->v4l2_dev_str.sd;
 
 	return rc;
 unreg_subdev:

@@ -36,6 +36,7 @@
 
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
+#define MAX_SENSORS 4
 
 #define TRUE  1
 #define FALSE 0
@@ -132,5 +133,7 @@ struct cam_sensor_ctrl_t {
 	uint16_t pipeline_delay;
 	struct cam_sensor_intr_t s_intr[AIS_MAX_INTR_GPIO];
 };
+
+extern struct cam_sensor_ctrl_t *cam_sensor_get_subdevdata(int sensor_dev_index);
 
 #endif /* _CAM_SENSOR_DEV_H_ */
