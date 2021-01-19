@@ -89,3 +89,14 @@
 &kgsl_msm_iommu {
 	status = "disabled";
 };
+
+&usb3 {
+	dwc3@7580000 {
+		usb-phy = <&usb2_phy1>, <&usb_nop_phy>;
+		maximum-speed = "high-speed";
+	};
+};
+
+&usb_ss_phy {
+	qcom,keep-powerdown;
+};
