@@ -73,7 +73,7 @@
 #include <uapi/linux/virtio_mmio.h>
 #include <linux/virtio_ring.h>
 
-#ifdef CONFIG_QTI_GVM_QUIN
+#if defined (CONFIG_QTI_GVM_QUIN) || defined (CONFIG_QTI_GVM_GHS)
 #include <linux/virtio_ids.h>
 #include <linux/of.h>
 
@@ -470,7 +470,7 @@ static int vm_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 	if (err)
 		return err;
 
-#ifdef CONFIG_QTI_GVM_QUIN
+#if defined (CONFIG_QTI_GVM_QUIN) || defined (CONFIG_QTI_GVM_GHS)
 	if ((vdev->id.device == VIRTIO_ID_INPUT) &&
 			!list_empty(&wakeup_devs)) {
 		struct virtio_wakeup_device *wk_dev;
@@ -536,7 +536,7 @@ static int virtio_mmio_probe(struct platform_device *pdev)
 	unsigned long magic;
 	int rc;
 
-#ifdef CONFIG_QTI_GVM_QUIN
+#if defined (CONFIG_QTI_GVM_QUIN) || defined (CONFIG_QTI_GVM_GHS)
 	/*
 	 * Assuming only virito-input supports virtual machine wakeup, there
 	 * will be a duplicate virtio mmio device under soc{} in device tree.
@@ -544,7 +544,14 @@ static int virtio_mmio_probe(struct platform_device *pdev)
 	 * virito_mmio_probe depends on similar node under vdevs{} in device
 	 * tree inserted by host machine.
 	 */
-	if (of_property_read_bool(pdev->dev.of_node, "virtio,wakeup")) {
+#ifdef CONFIG_QTI_GVM_QUIN
+	if (of_property_read_bool(pdev->dev.of_node, "virtio,wakeup"))
+#elif defined (CONFIG_QTI_GVM_GHS)
+	if (!strcmp(pdev->dev.of_node->name, "virtio-power-key"))
+#else
+	if (0)
+#endif
+	{
 		struct virtio_wakeup_device *wk_dev;
 
 		wk_dev = devm_kzalloc(&pdev->dev, sizeof(*wk_dev), GFP_KERNEL);
@@ -556,7 +563,9 @@ static int virtio_mmio_probe(struct platform_device *pdev)
 		list_add(&wk_dev->node, &wakeup_devs);
 		mutex_unlock(&wakeup_devs_lock);
 
+#ifdef CONFIG_QTI_GVM_QUIN
 		return 0;
+#endif
 	}
 #endif
 
