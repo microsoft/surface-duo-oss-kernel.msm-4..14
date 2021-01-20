@@ -1,8 +1,4 @@
 name: imx-kernel
-version: null
-version-script: |
-    . debian/debian.env
-    dpkg-parsechangelog -l $DEBIAN/changelog -S version
 summary: i.mx linux kernel
 description: The i.MX Ubuntu kernel package as a snap
 
@@ -10,6 +6,7 @@ grade: stable
 build-base: core20
 confinement: strict
 type: kernel
+adopt-info: kernel
 
 architectures:
   - build-on: amd64
