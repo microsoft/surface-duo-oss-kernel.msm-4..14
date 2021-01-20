@@ -1,14 +1,11 @@
 name: imx-kernel
-version: null
-version-script: |
-    . debian/debian.env
-    dpkg-parsechangelog -l $DEBIAN/changelog -S version
 summary: The Ubuntu iMX Linux kernel
 description: This Ubuntu Linux kernel for NXP iMX family of devices
 
 grade: stable
 confinement: strict
 type: kernel
+adopt-info: kernel
 
 build-base: core18
 
@@ -57,7 +54,6 @@ parts:
             make_module INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH=${SNAPCRAFT_PART_INSTALL} modules_install
         organize:
             kernel.img: Image
->>>>>>> 3a17edacdd8e... fix kernel part
         stage:
             - System.map-*
             - config-*
