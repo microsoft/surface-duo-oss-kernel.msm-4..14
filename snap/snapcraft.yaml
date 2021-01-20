@@ -22,15 +22,35 @@ parts:
         $SNAPCRAFT_PART_BUILD/scripts/ubuntu-retpoline-extract-one
       snapcraftctl build
     kernel-with-firmware: false
-  firmware:
-    plugin: nil
-    stage-packages:
-      - linux-firmware
-    organize:
-      lib/firmware: firmware
-    prime:
-      - -usr
-      - -lib
+
+    firmware:
+        plugin: nil
+        stage-packages:
+            - linux-firmware
+        stage:
+            - -firmware/amd
+            - -firmware/amdgpu
+            - -firmware/cavium
+            - -firmware/dpaa2
+            - -firmware/i915
+            - -firmware/intel
+            - -firmware/iwlwifi-*
+            - -firmware/liquidio
+            - -firmware/matrox
+            - -firmware/mediatek
+            - -firmware/mellanox
+            - -firmware/mrvl
+            - -firmware/netronome
+            - -firmware/nvidia
+            - -firmware/qed
+            - -firmware/radeon
+            - -firmware/rockchip
+            - -firmware/qcom
+            - -firmware/qca
+        organize:
+            lib/firmware: firmware
+        prime:
+            - firmware
 
 build-packages:
     - dpkg-dev
