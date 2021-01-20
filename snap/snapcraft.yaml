@@ -31,6 +31,12 @@ parts:
     prime:
       - -usr
       - -lib
-    build-packages:
-      - cpio
-      - libssl-dev
+
+build-packages:
+    - dpkg-dev
+    - u-boot-tools
+    - libssl-dev
+    - libfdt-dev
+    - flex
+    - bison
+    - initramfs-tools-core
