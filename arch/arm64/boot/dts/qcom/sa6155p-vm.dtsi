@@ -394,9 +394,10 @@
 		qcom,vdd-wlan-ctrl2-info = <0 0 0 0>;
 
 		wlan-en-gpio = <&tlmm 98 0>;
-		pinctrl-names = "wlan_en_active", "wlan_en_sleep";
+		pinctrl-names = "wlan_en_active", "wlan_en_sleep", "default";
 		pinctrl-0 = <&cnss_wlan_en_active>;
 		pinctrl-1 = <&cnss_wlan_en_sleep>;
+		pinctrl-2 = <&cnss_wlan_en_sleep>;
 
 		chip_cfg@0 {
 			reg = <0x10000000 0x10000000>,
