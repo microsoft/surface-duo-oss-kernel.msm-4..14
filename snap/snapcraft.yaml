@@ -1,10 +1,10 @@
-name: pc-kernel
+name: imx-kernel
 version: null
 version-script: |
     . debian/debian.env
     dpkg-parsechangelog -l $DEBIAN/changelog -S version
-summary: The Ubuntu generic Linux kernel
-description: This Ubuntu generic Linux kernel
+summary: i.mx linux kernel
+description: The i.MX Ubuntu kernel package as a snap
 grade: stable
 confinement: strict
 type: kernel
