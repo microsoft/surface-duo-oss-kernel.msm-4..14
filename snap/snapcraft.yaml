@@ -5,7 +5,9 @@ version-script: |
     dpkg-parsechangelog -l $DEBIAN/changelog -S version
 summary: i.mx linux kernel
 description: The i.MX Ubuntu kernel package as a snap
+
 grade: stable
+build-base: core20
 confinement: strict
 type: kernel
 
@@ -18,18 +20,21 @@ architectures:
     run-on: arm64
 
 parts:
-  kernel:
-    plugin: kernel
-    source: .
-    source-type: git
-    kconfigflavour: generic
-    kconfigs:
-      - CONFIG_DEBUG_INFO=n
-    override-build: |
-      cp debian/scripts/retpoline-extract-one \
-        $SNAPCRAFT_PART_BUILD/scripts/ubuntu-retpoline-extract-one
-      snapcraftctl build
-    kernel-with-firmware: false
+    kernel:
+        plugin: x-kernel
+        source: .
+        kdefconfig: [ "snappy_defconfig" ]
+        kernel-with-firmware: false
+        kernel-image-target:
+            arm64: Image
+            armhf: zImage
+        kernel-initrd-flavour: edge
+        kernel-initrd-compression: gz
+        override-build: |
+            snapcraftctl build
+            snapcraftctl set-version $(git describe --tags | cut -c 12-42)
+        organize:
+            kernel.img: Image
 
     firmware:
         plugin: nil
