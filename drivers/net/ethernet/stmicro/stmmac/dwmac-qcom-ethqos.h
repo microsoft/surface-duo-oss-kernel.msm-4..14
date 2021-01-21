@@ -292,6 +292,11 @@ enum IO_MACRO_PHY_MODE {
 		MII_MODE
 };
 
+enum current_phy_state {
+	PHY_IS_ON = 0,
+	PHY_IS_OFF,
+};
+
 #define RGMII_IO_BASE_ADDRESS ethqos->rgmii_base
 
 #define RGMII_IO_MACRO_CONFIG_RGOFFADDR_OFFSET (0x00000000)
@@ -396,6 +401,11 @@ struct qcom_ethqos {
 	struct cdev *avb_class_b_cdev;
 	struct class *avb_class_b_class;
 
+	/* Mac recovery dev node variables*/
+	dev_t emac_rec_dev_t;
+	struct cdev *emac_rec_cdev;
+	struct class *emac_rec_class;
+
 	unsigned long avb_class_a_intr_cnt;
 	unsigned long avb_class_b_intr_cnt;
 	struct dentry *debugfs_dir;
@@ -430,6 +440,21 @@ struct qcom_ethqos {
 	bool ipa_enabled;
 	/* Key Performance Indicators */
 	bool print_kpi;
+
+	enum current_phy_state phy_state;
+	int backup_suspend_speed;
+	u32 backup_bmcr;
+	unsigned backup_autoneg:1;
+
+	/* Mac recovery parameters */
+	int mac_err_cnt[MAC_ERR_CNT];
+	bool mac_rec_en[MAC_ERR_CNT];
+	bool mac_rec_fail[MAC_ERR_CNT];
+	int mac_rec_cnt[MAC_ERR_CNT];
+	int mac_rec_threshold[MAC_ERR_CNT];
+	struct delayed_work tdu_rec;
+	bool tdu_scheduled;
+	int tdu_chan;
 };
 
 struct pps_cfg {
@@ -488,6 +513,9 @@ int ethqos_configure_mac_address(struct stmmac_priv *priv,
 
 
 int ppsout_config(struct stmmac_priv *priv, struct pps_cfg *eth_pps_cfg);
+int ethqos_phy_power_on(struct qcom_ethqos *ethqos);
+void  ethqos_phy_power_off(struct qcom_ethqos *ethqos);
+void ethqos_reset_phy_enable_interrupt(struct qcom_ethqos *ethqos);
 
 u16 dwmac_qcom_select_queue(
 	struct net_device *dev,
