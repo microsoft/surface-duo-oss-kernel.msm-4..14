@@ -2,7 +2,7 @@
 /*
  * Device Tree file for S32G274ARDB Board.
  *
- * Copyright 2019-2020 NXP
+ * Copyright 2019-2021 NXP
  *
  */
 
@@ -612,6 +612,8 @@
 };
 
 &qspi {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl0_qspi>;
 	status = "okay";
 
 	mx25uw51245g@0 {
