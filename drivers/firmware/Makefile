@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0
 #
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
 # Makefile for the linux kernel.
 #
 obj-$(CONFIG_ARM_PSCI_FW)	+= psci.o
@@ -29,5 +35,6 @@ obj-y				+= meson/
 obj-$(CONFIG_GOOGLE_FIRMWARE)	+= google/
 obj-$(CONFIG_EFI)		+= efi/
 obj-$(CONFIG_UEFI_CPER)		+= efi/
-obj-$(CONFIG_MSM_TZ_LOG)       += qcom/
+obj-$(CONFIG_MSM_TZ_LOG)        += qcom/
+obj-$(CONFIG_SURFACE_FIRMWARE)  += surface/
 obj-y				+= tegra/

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2233,7 +2234,10 @@ int dsi_ctrl_setup(struct dsi_ctrl *dsi_ctrl)
 				&dsi_ctrl->host_config.video_timing,
 				dsi_ctrl->host_config.video_timing.h_active * 3,
 				0x0,
-				&dsi_ctrl->roi);
+				/* MS_CHANGE start */
+				&dsi_ctrl->roi,
+				dsi_ctrl->host_config.u.cmd_engine.idle_ctrl);
+				/* MS_CHANGE end */
 		dsi_ctrl->hw.ops.cmd_engine_en(&dsi_ctrl->hw, true);
 	} else {
 		dsi_ctrl->hw.ops.video_engine_setup(&dsi_ctrl->hw,
@@ -2663,7 +2667,7 @@ int dsi_ctrl_host_timing_update(struct dsi_ctrl *dsi_ctrl)
 			dsi_ctrl->hw.ops.setup_cmd_stream(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.video_timing,
 				dsi_ctrl->host_config.video_timing.h_active * 3,
-				0x0, NULL);
+				0x0, NULL, dsi_ctrl->host_config.u.cmd_engine.idle_ctrl); /* MS_CHANGE */
 	} else {
 		pr_err("invalid panel mode for resolution switch\n");
 		return -EINVAL;
@@ -2755,7 +2759,10 @@ int dsi_ctrl_host_init(struct dsi_ctrl *dsi_ctrl, bool is_splash_enabled)
 				&dsi_ctrl->host_config.video_timing,
 				dsi_ctrl->host_config.video_timing.h_active * 3,
 				0x0,
-				NULL);
+				/* MS_CHANGE start */
+				NULL,
+				dsi_ctrl->host_config.u.cmd_engine.idle_ctrl);
+				/* MS_CHANGE end */
 		} else {
 			dsi_ctrl->hw.ops.video_engine_setup(&dsi_ctrl->hw,
 					&dsi_ctrl->host_config.common_config,

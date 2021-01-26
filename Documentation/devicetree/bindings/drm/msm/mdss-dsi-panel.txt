@@ -580,6 +580,7 @@ Additional properties added to the second level nodes that represent timings pro
 					commands.
 					"dsi_lp_mode" = DSI low power mode (default)
 					"dsi_hs_mode" = DSI high speed mode
+- qcom,mdss-dsi-idle-ctrl :		Number of idle pclk cycles to insert
 
 Note, if a given optional qcom,* binding is not present, then the driver will configure
 the default values specified.
@@ -640,6 +641,7 @@ Example:
 		qcom,mdss-dsi-te-dcs-command = <1>;
 		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
 		qcom,mdss-dsi-wr-mem-start = <0x2c>;
+		qcom,mdss-dsi-idle-ctrl = <1>;
 		qcom,mdss-dsi-te-pin-select = <1>;
 		qcom,mdss-dsi-h-sync-pulse = <1>;
 		qcom,mdss-dsi-hfp-power-mode;
