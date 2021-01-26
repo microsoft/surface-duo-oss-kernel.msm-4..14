@@ -1,4 +1,10 @@
 #
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
 # MSM camera configuration
 #
 
@@ -12,6 +18,14 @@ menuconfig SPECTRA_CAMERA
       Qualcomm Technologies, Inc. Spectra camera and video capture.
       Enabling this adds support for the camera driver stack including sensor,
       IFE and postprocessing drivers.
+
+config QCOM_CAMERA_TEMPERATURE
+    bool "Qualcomm Technologies, Inc. camera sensor temperature readout"
+    depends on SPECTRA_CAMERA
+    default n
+    ---help---
+      Say yes here to enable temperature readout from supported camera sensor
+      modules. Currently the IMX351 sensor is supported.
 
 menuconfig MSM_AIS
     bool "Qualcomm Technologies, Inc. Automotive Imaging System"
