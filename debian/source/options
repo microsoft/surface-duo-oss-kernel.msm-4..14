@@ -1,0 +1,11 @@
+# Ignore vbox symlinks, we will regenerate these at clean (LP:1426113)
+## autoreconstruct -- begin
+# Ignore any symlinks created since the orig which are rebuilt by reconstruct.
+extend-diff-ignore=^arch/arm64/boot/dts/broadcom/bcm283x-rpi-csi1-2lane.dtsi$
+extend-diff-ignore=^arch/arm64/boot/dts/broadcom/bcm283x-rpi-lan7515.dtsi$
+extend-diff-ignore=^arch/arm64/boot/dts/overlays$
+## autoreconstruct -- end
+
+# force "dpkg-source -I -i" behavior
+diff-ignore
+tar-ignore

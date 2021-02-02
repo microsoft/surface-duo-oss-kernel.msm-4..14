@@ -1,0 +1,12 @@
+repo_list=(
+	"http://archive.ubuntu.com/ubuntu/pool/main/l/linux-qcomm"
+	"http://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux-qcomm"
+	"http://archive.ubuntu.com/ubuntu/pool/universe/l/linux-qcomm"
+	"http://ports.ubuntu.com/ubuntu-ports/pool/universe/l/linux-qcomm"
+	"http://ppa.launchpad.net/canonical-kernel-team/ppa/ubuntu/pool/main/l/linux-qcomm"
+	"http://ppa.launchpad.net/canonical-kernel-team/unstable/ubuntu/pool/main/l/linux-qcomm"
+)
+
+package_prefixes linux-buildinfo
+
+getall arm64 qcomm
