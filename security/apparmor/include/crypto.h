@@ -35,14 +35,14 @@ static inline unsigned int aa_hash_size(void)
 	return 0;
 }
 
-void aa_snprint_hashstr(char *out, unsigned char *hash, unsigned int hsize)
-{
-}
+// void aa_snprint_hashstr(char *out, unsigned char *hash, unsigned int hsize)
+// {
+// }
 
-char *aa_asprint_hashstr(unsigned char *hash, unsigned int hsize, gfp_t gfp)
-{
-	return NULL;
-}
+// char *aa_asprint_hashstr(unsigned char *hash, unsigned int hsize, gfp_t gfp)
+// {
+//	return NULL;
+//}
 #endif
 
 #endif /* __APPARMOR_CRYPTO_H */
