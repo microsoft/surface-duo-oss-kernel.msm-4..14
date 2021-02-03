@@ -39,7 +39,7 @@ void aa_snprint_hashstr(char *out, unsigned char *hash, unsigned int hsize)
 {
 }
 
-char *aa_asprint_hashstr(unsigned char *hash, unsigned int hsize, gfp_t gfp);
+char *aa_asprint_hashstr(unsigned char *hash, unsigned int hsize, gfp_t gfp)
 {
 	return NULL;
 }
