@@ -190,6 +190,14 @@ struct mlx5e_tc_attr_to_reg_mapping mlx5e_tc_attr_to_reg_mappings[] = {
 	[NIC_ZONE_RESTORE_TO_REG] = nic_zone_restore_to_reg_ct,
 };
 
+/* To avoid false lock dependency warning set the tc_ht lock
+ * class different than the lock class of the ht being used when deleting
+ * last flow from a group and then deleting a group, we get into del_sw_flow_group()
+ * which call rhashtable_destroy on fg->ftes_hash which will take ht->mutex but
+ * it's different than the ht->mutex here.
+ */
+static struct lock_class_key tc_ht_lock_key;
+
 static void mlx5e_put_flow_tunnel_id(struct mlx5e_tc_flow *flow);
 
 void
@@ -1324,12 +1332,6 @@ mlx5e_tc_add_fdb_flow(struct mlx5e_priv *priv,
 	u32 max_prio, max_chain;
 	int err = 0;
 	int out_index;
-
-	if (!mlx5_chains_prios_supported(esw_chains(esw)) && attr->prio != 1) {
-		NL_SET_ERR_MSG_MOD(extack,
-				   "E-switch priorities unsupported, upgrade FW");
-		return -EOPNOTSUPP;
-	}
 
 	/* We check chain range only for tc flows.
 	 * For ft flows, we checked attr->chain was originally 0 and set it to
@@ -5221,6 +5223,8 @@ int mlx5e_tc_nic_init(struct mlx5e_priv *priv)
 	if (err)
 		return err;
 
+	lockdep_set_class(&tc->ht.mutex, &tc_ht_lock_key);
+
 	if (MLX5_CAP_FLOWTABLE_NIC_RX(priv->mdev, ignore_flow_level)) {
 		attr.flags = MLX5_CHAINS_AND_PRIOS_SUPPORTED |
 			MLX5_CHAINS_IGNORE_FLOW_LEVEL_SUPPORTED;
@@ -5338,6 +5342,8 @@ int mlx5e_tc_esw_init(struct rhashtable *tc_ht)
 	err = rhashtable_init(tc_ht, &tc_ht_params);
 	if (err)
 		goto err_ht_init;
+
+	lockdep_set_class(&tc_ht->mutex, &tc_ht_lock_key);
 
 	return err;
 

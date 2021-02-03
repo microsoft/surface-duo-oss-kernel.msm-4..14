@@ -78,10 +78,13 @@ void mptcp_pm_new_connection(struct mptcp_sock *msk, int server_side)
 bool mptcp_pm_allow_new_subflow(struct mptcp_sock *msk)
 {
 	struct mptcp_pm_data *pm = &msk->pm;
+	unsigned int subflows_max;
 	int ret = 0;
 
+	subflows_max = mptcp_pm_get_subflows_max(msk);
+
 	pr_debug("msk=%p subflows=%d max=%d allow=%d", msk, pm->subflows,
-		 pm->subflows_max, READ_ONCE(pm->accept_subflow));
+		 subflows_max, READ_ONCE(pm->accept_subflow));
 
 	/* try to avoid acquiring the lock below */
 	if (!READ_ONCE(pm->accept_subflow))
@@ -89,8 +92,8 @@ bool mptcp_pm_allow_new_subflow(struct mptcp_sock *msk)
 
 	spin_lock_bh(&pm->lock);
 	if (READ_ONCE(pm->accept_subflow)) {
-		ret = pm->subflows < pm->subflows_max;
-		if (ret && ++pm->subflows == pm->subflows_max)
+		ret = pm->subflows < subflows_max;
+		if (ret && ++pm->subflows == subflows_max)
 			WRITE_ONCE(pm->accept_subflow, false);
 	}
 	spin_unlock_bh(&pm->lock);
@@ -188,8 +191,7 @@ void mptcp_pm_add_addr_received(struct mptcp_sock *msk,
 
 void mptcp_pm_add_addr_send_ack(struct mptcp_sock *msk)
 {
-	if (!mptcp_pm_should_add_signal_ipv6(msk) &&
-	    !mptcp_pm_should_add_signal_port(msk))
+	if (!mptcp_pm_should_add_signal(msk))
 		return;
 
 	mptcp_pm_schedule_work(msk, MPTCP_PM_ADD_ADDR_SEND_ACK);
@@ -205,6 +207,14 @@ void mptcp_pm_rm_addr_received(struct mptcp_sock *msk, u8 rm_id)
 	mptcp_pm_schedule_work(msk, MPTCP_PM_RM_ADDR_RECEIVED);
 	pm->rm_id = rm_id;
 	spin_unlock_bh(&pm->lock);
+}
+
+void mptcp_pm_mp_prio_received(struct sock *sk, u8 bkup)
+{
+	struct mptcp_subflow_context *subflow = mptcp_subflow_ctx(sk);
+
+	pr_debug("subflow->backup=%d, bkup=%d\n", subflow->backup, bkup);
+	subflow->backup = bkup;
 }
 
 /* path manager helpers */
