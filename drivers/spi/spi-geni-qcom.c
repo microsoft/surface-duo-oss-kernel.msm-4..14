@@ -823,6 +823,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 
 	if (mas->cur_xfer_mode == GENI_SE_FIFO) {
 		setup_fifo_xfer(xfer, mas, slv->mode, spi);
+		ret = 1;
 	} else {
 		setup_gsi_xfer(xfer, mas, slv, spi);
 		if ((mas->num_xfers >= NUM_SPI_XFER) ||
