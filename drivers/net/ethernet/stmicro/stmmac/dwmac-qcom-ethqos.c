@@ -55,6 +55,18 @@ static struct ethqos_emac_driver_data emac_por_data = {
 	.num_por = ARRAY_SIZE(emac_por),
 };
 
+static char err_names[10][14] = {"PHY_RW_ERR",
+	"PHY_DET_ERR",
+	"CRC_ERR",
+	"RECEIVE_ERR",
+	"OVERFLOW_ERR",
+	"FBE_ERR",
+	"RBU_ERR",
+	"TDU_ERR",
+	"DRIBBLE_ERR",
+	"WDT_ERR",
+};
+
 struct qcom_ethqos *pethqos;
 
 struct stmmac_emb_smmu_cb_ctx stmmac_emb_smmu_ctx = {0};
@@ -85,6 +97,10 @@ static void qcom_ethqos_read_iomacro_por_values(struct qcom_ethqos *ethqos)
 				ethqos->por[i].offset);
 }
 
+static DECLARE_WAIT_QUEUE_HEAD(mac_rec_wq);
+static bool mac_rec_wq_flag;
+
+static int retry_count;
 unsigned int dwmac_qcom_get_eth_type(unsigned char *buf)
 {
 	return
@@ -952,14 +968,22 @@ static int ethqos_mdio_read(struct stmmac_priv  *priv, int phyaddr, int phyreg)
 		value |= MII_GMAC4_READ;
 
 	if (readl_poll_timeout(priv->ioaddr + mii_address, v, !(v & MII_BUSY),
-			       100, 10000))
+			       100, 10000)) {
+		if (priv->plat->handle_mac_err)
+			priv->plat->handle_mac_err(priv, PHY_RW_ERR, 0);
+
 		return -EBUSY;
+	}
 
 	writel_relaxed(value, priv->ioaddr + mii_address);
 
 	if (readl_poll_timeout(priv->ioaddr + mii_address, v, !(v & MII_BUSY),
-			       100, 10000))
+			       100, 10000)) {
+		if (priv->plat->handle_mac_err)
+			priv->plat->handle_mac_err(priv, PHY_RW_ERR, 0);
+
 		return -EBUSY;
+	}
 
 	/* Read the data from the MII data register */
 	data = (int)readl_relaxed(priv->ioaddr + mii_data);
@@ -1128,6 +1152,11 @@ static ssize_t read_phy_reg_dump(struct file *file, char __user *user_buf,
 		ETHQOSERR("NULL Pointer\n");
 		return -EINVAL;
 	}
+	if (ethqos->phy_state == PHY_IS_OFF) {
+		ETHQOSINFO("Phy is in off state phy dump is not possible\n");
+		return -EOPNOTSUPP;
+	}
+
 	if (ethqos->phy_state == PHY_IS_OFF) {
 		ETHQOSINFO("Phy is in off state phy dump is not possible\n");
 		return -EOPNOTSUPP;
@@ -1724,6 +1753,222 @@ static ssize_t read_loopback_config(struct file *file,
 	return ret_cnt;
 }
 
+inline void *qcom_ethqos_get_priv(struct qcom_ethqos *ethqos)
+{
+	struct platform_device *pdev = ethqos->pdev;
+	struct net_device *dev = platform_get_drvdata(pdev);
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	return priv;
+}
+
+static int ethqos_writeback_desc_rec(struct stmmac_priv *priv, int chan)
+{
+	return -EOPNOTSUPP;
+}
+
+static int ethqos_reset_phy_rec(struct stmmac_priv *priv, int int_en)
+{
+	struct qcom_ethqos *ethqos =   priv->plat->bsp_priv;
+	int ret = 1;
+
+	if (int_en && (priv->phydev &&
+		       priv->phydev->autoneg == AUTONEG_DISABLE)) {
+		ethqos->backup_autoneg = priv->phydev->autoneg;
+		ethqos->backup_bmcr = ethqos_mdio_read(priv,
+						       priv->plat->phy_addr,
+						       MII_BMCR);
+	} else {
+		ethqos->backup_autoneg = AUTONEG_ENABLE;
+	}
+
+	ethqos_phy_power_off(ethqos);
+
+	ethqos_phy_power_on(ethqos);
+
+	if (int_en) {
+		ethqos_reset_phy_enable_interrupt(ethqos);
+		if (ethqos->backup_autoneg == AUTONEG_DISABLE && priv->phydev) {
+			priv->phydev->autoneg = ethqos->backup_autoneg;
+			phy_write(priv->phydev, MII_BMCR, ethqos->backup_bmcr);
+		}
+	}
+
+	return ret;
+}
+
+static int ethqos_tx_clean_rec(struct stmmac_priv *priv, int chan)
+{
+	struct stmmac_tx_queue *tx_q = &priv->tx_queue[chan];
+	int ret = 1;
+
+	if (!tx_q->skip_sw)
+		stmmac_tx_clean(priv, chan);
+	return ret;
+}
+
+static int ethqos_reset_tx_dma_rec(struct stmmac_priv *priv, int chan)
+{
+	int ret = 1;
+
+	stmmac_tx_err(priv, chan);
+	return ret;
+}
+
+static int ethqos_schedule_poll(struct stmmac_priv *priv, int chan)
+{
+	struct stmmac_rx_queue *rx_q = &priv->rx_queue[chan];
+	int ret = 1;
+
+	if (!rx_q->skip_sw) {
+		if (likely(napi_schedule_prep(&rx_q->napi))) {
+			priv->hw->dma->disable_dma_irq(priv->ioaddr, chan);
+			__napi_schedule(&rx_q->napi);
+		}
+	}
+	return ret;
+}
+
+static void ethqos_tdu_rec_wq(struct work_struct *work)
+{
+	struct delayed_work *dwork;
+	struct stmmac_priv *priv;
+	struct qcom_ethqos *ethqos;
+	int ret;
+
+	ETHQOSDBG("Enter\n");
+	dwork = container_of(work, struct delayed_work, work);
+	ethqos = container_of(dwork, struct qcom_ethqos, tdu_rec);
+
+	priv = qcom_ethqos_get_priv(ethqos);
+	if (!priv)
+		return;
+
+	ret = ethqos_tx_clean_rec(priv, ethqos->tdu_chan);
+	if (!ret)
+		return;
+
+	ethqos->tdu_scheduled = false;
+}
+
+static void ethqos_mac_rec_init(struct qcom_ethqos *ethqos)
+{
+	int threshold[] = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+	int en[] = {0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+	int i;
+
+	for (i = 0; i < MAC_ERR_CNT; i++) {
+		ethqos->mac_rec_threshold[i] = threshold[i];
+		ethqos->mac_rec_en[i] = en[i];
+		ethqos->mac_err_cnt[i] = 0;
+		ethqos->mac_rec_cnt[i] = 0;
+	}
+	INIT_DELAYED_WORK(&ethqos->tdu_rec,
+			  ethqos_tdu_rec_wq);
+}
+
+static int dwmac_qcom_handle_mac_err(void *pdata, int type, int chan)
+{
+	int ret = 1;
+	struct qcom_ethqos *ethqos;
+	struct stmmac_priv *priv;
+
+	if (!pdata)
+		return -EINVAL;
+	priv = pdata;
+	ethqos = priv->plat->bsp_priv;
+
+	if (!ethqos)
+		return -EINVAL;
+
+	ethqos->mac_err_cnt[type]++;
+
+	if (ethqos->mac_rec_en[type]) {
+		if (ethqos->mac_rec_cnt[type] >
+		    ethqos->mac_rec_threshold[type]) {
+			ETHQOSERR("exceeded recovery threshold for %s",
+				  err_names[type]);
+			ethqos->mac_rec_en[type] = false;
+			ret = 0;
+		} else {
+			ethqos->mac_rec_cnt[type]++;
+			switch (type) {
+			case PHY_RW_ERR:
+			{
+				ret = ethqos_reset_phy_rec(priv, true);
+				if (!ret) {
+					ETHQOSERR("recovery failed for %s",
+						  err_names[type]);
+					ethqos->mac_rec_fail[type] = true;
+				}
+			}
+			break;
+			case PHY_DET_ERR:
+			{
+				ret = ethqos_reset_phy_rec(priv, false);
+				if (!ret) {
+					ETHQOSERR("recovery failed for %s",
+						  err_names[type]);
+					ethqos->mac_rec_fail[type] = true;
+				}
+			}
+			break;
+			case FBE_ERR:
+			{
+				ret = ethqos_reset_tx_dma_rec(priv, chan);
+				if (!ret) {
+					ETHQOSERR("recovery failed for %s",
+						  err_names[type]);
+					ethqos->mac_rec_fail[type] = true;
+				}
+			}
+			break;
+			case RBU_ERR:
+			{
+				ret = ethqos_schedule_poll(priv, chan);
+				if (!ret) {
+					ETHQOSERR("recovery failed for %s",
+						  err_names[type]);
+					ethqos->mac_rec_fail[type] = true;
+				}
+			}
+			break;
+			case TDU_ERR:
+			{
+				if (!ethqos->tdu_scheduled) {
+					ethqos->tdu_chan = chan;
+					schedule_delayed_work
+					(&ethqos->tdu_rec,
+					 msecs_to_jiffies(3000));
+					ethqos->tdu_scheduled = true;
+				}
+			}
+			break;
+			case CRC_ERR:
+			case RECEIVE_ERR:
+			case OVERFLOW_ERR:
+			case DRIBBLE_ERR:
+			case WDT_ERR:
+			{
+				ret = ethqos_writeback_desc_rec(priv, chan);
+				if (!ret) {
+					ETHQOSERR("recovery failed for %s",
+						  err_names[type]);
+					ethqos->mac_rec_fail[type] = true;
+				}
+			}
+			break;
+			default:
+			break;
+			}
+		}
+	}
+	mac_rec_wq_flag = true;
+	wake_up_interruptible(&mac_rec_wq);
+
+	return ret;
+}
+
 static const struct file_operations fops_phy_reg_dump = {
 	.read = read_phy_reg_dump,
 	.open = simple_open,
@@ -1798,6 +2043,108 @@ static const struct file_operations fops_ipc_stmmac_log_low = {
 	.llseek = default_llseek,
 };
 
+static ssize_t read_mac_recovery_enable(struct file *filp, char __user *usr_buf,
+					size_t count, loff_t *f_pos)
+{
+	char *buf;
+	unsigned int len = 0, buf_len = 6000;
+	ssize_t ret_cnt;
+
+	buf = kzalloc(buf_len, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "PHY_RW_rec", pethqos->mac_rec_en[PHY_RW_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "PHY_DET_rec", pethqos->mac_rec_en[PHY_DET_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "CRC_rec", pethqos->mac_rec_en[CRC_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "RECEIVE_rec", pethqos->mac_rec_en[RECEIVE_ERR]);
+		len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "OVERFLOW_rec", pethqos->mac_rec_en[OVERFLOW_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "FBE_rec", pethqos->mac_rec_en[FBE_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "RBU_rec", pethqos->mac_rec_en[RBU_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "TDU_rec", pethqos->mac_rec_en[TDU_ERR]);
+		len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "DRIBBLE_rec", pethqos->mac_rec_en[DRIBBLE_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "WDT_rec", pethqos->mac_rec_en[WDT_ERR]);
+
+	if (len > buf_len)
+		len = buf_len;
+
+	ETHQOSDBG("%s", buf);
+	ret_cnt = simple_read_from_buffer(usr_buf, count, f_pos, buf, len);
+	kfree(buf);
+	return ret_cnt;
+}
+
+static ssize_t ethqos_mac_recovery_enable(struct file *file,
+					  const char __user *user_buf,
+					  size_t count, loff_t *ppos)
+{
+	unsigned char in_buf[15] = {0};
+	int i, ret;
+	struct qcom_ethqos *ethqos = pethqos;
+
+	if (sizeof(in_buf) < count) {
+		ETHQOSERR("emac string is too long - count=%u\n", count);
+		return -EFAULT;
+	}
+
+	memset(in_buf, 0,  sizeof(in_buf));
+	ret = copy_from_user(in_buf, user_buf, count);
+
+	for (i = 0; i < MAC_ERR_CNT; i++) {
+		if (in_buf[i] == '1')
+			ethqos->mac_rec_en[i] = true;
+		else
+			ethqos->mac_rec_en[i] = false;
+	}
+	return count;
+}
+
+static ssize_t ethqos_test_mac_recovery(struct file *file,
+					const char __user *user_buf,
+					size_t count, loff_t *ppos)
+{
+	unsigned char in_buf[4] = {0};
+	int ret, err, chan;
+	struct qcom_ethqos *ethqos = pethqos;
+
+	struct stmmac_priv *priv = qcom_ethqos_get_priv(ethqos);
+
+	if (sizeof(in_buf) < count) {
+		ETHQOSERR("emac string is too long - count=%u\n", count);
+		return -EFAULT;
+	}
+
+	memset(in_buf, 0,  sizeof(in_buf));
+	ret = copy_from_user(in_buf, user_buf, count);
+
+	err = in_buf[0] - '0';
+
+	chan = in_buf[2] - '0';
+
+	if (priv->plat->handle_mac_err)
+		priv->plat->handle_mac_err(priv, err, chan);
+
+	return count;
+}
+
+static const struct file_operations fops_mac_rec = {
+	.read = read_mac_recovery_enable,
+	.write = ethqos_test_mac_recovery,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+	.llseek = default_llseek,
+};
+
 static int ethqos_create_debugfs(struct qcom_ethqos        *ethqos)
 {
 	static struct dentry *phy_reg_dump;
@@ -1806,6 +2153,7 @@ static int ethqos_create_debugfs(struct qcom_ethqos        *ethqos)
 	static struct dentry *phy_off;
 	static struct dentry *loopback_enable_mode;
 
+	static struct dentry *mac_rec;
 	if (!ethqos) {
 		ETHQOSERR("Null Param %s\n", __func__);
 		return -ENOMEM;
@@ -1858,6 +2206,14 @@ static int ethqos_create_debugfs(struct qcom_ethqos        *ethqos)
 			  (int)loopback_enable_mode);
 		goto fail;
 	}
+	mac_rec = debugfs_create_file("test_mac_recovery", 0400,
+				      ethqos->debugfs_dir, ethqos,
+				      &fops_mac_rec);
+	if (!mac_rec || IS_ERR(mac_rec)) {
+		ETHQOSERR("Can't create mac_rec directory");
+		goto fail;
+	}
+
 	return 0;
 
 fail:
@@ -2102,15 +2458,6 @@ static void qcom_ethqos_phy_suspend_clks(struct qcom_ethqos *ethqos)
 	ETHQOSINFO("Exit\n");
 }
 
-inline void *qcom_ethqos_get_priv(struct qcom_ethqos *ethqos)
-{
-	struct platform_device *pdev = ethqos->pdev;
-	struct net_device *dev = platform_get_drvdata(pdev);
-	struct stmmac_priv *priv = netdev_priv(dev);
-
-	return priv;
-}
-
 inline bool qcom_ethqos_is_phy_link_up(struct qcom_ethqos *ethqos)
 {
 	/* PHY driver initializes phydev->link=1.
@@ -2229,6 +2576,173 @@ void qcom_ethqos_request_phy_wol(struct plat_stmmacenet_data *plat)
 			}
 		}
 	}
+}
+
+static unsigned int ethqos_poll_rec_dev_emac(struct file *file,
+					     poll_table *wait)
+{
+	int mask = 0;
+
+	ETHQOSDBG("\n");
+
+	poll_wait(file, &mac_rec_wq, wait);
+
+	if (mac_rec_wq_flag) {
+		mask = POLLIN | POLLRDNORM;
+		mac_rec_wq_flag = false;
+	}
+
+	ETHQOSDBG("mask %d\n", mask);
+
+	return mask;
+}
+
+static ssize_t ethqos_read_rec_dev_emac(struct file *filp, char __user *usr_buf,
+					size_t count, loff_t *f_pos)
+{
+	char *buf;
+	unsigned int len = 0, buf_len = 6000;
+	ssize_t ret_cnt;
+
+	buf = kzalloc(buf_len, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "PHY_RW_ERR", pethqos->mac_err_cnt[PHY_RW_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "PHY_DET_ERR", pethqos->mac_err_cnt[PHY_DET_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "CRC_ERR", pethqos->mac_err_cnt[CRC_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "RECEIVE_ERR", pethqos->mac_err_cnt[RECEIVE_ERR]);
+		len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "OVERFLOW_ERR", pethqos->mac_err_cnt[OVERFLOW_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "FBE_ERR", pethqos->mac_err_cnt[FBE_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "RBU_ERR", pethqos->mac_err_cnt[RBU_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "TDU_ERR", pethqos->mac_err_cnt[TDU_ERR]);
+		len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "DRIBBLE_ERR", pethqos->mac_err_cnt[DRIBBLE_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "WDT_ERR", pethqos->mac_err_cnt[WDT_ERR]);
+
+	len += scnprintf(buf + len, buf_len - len, "\n\n%s  =  %d\n",
+		 "PHY_RW_EN", pethqos->mac_rec_en[PHY_RW_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "PHY_DET_EN", pethqos->mac_rec_en[PHY_DET_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "CRC_EN", pethqos->mac_rec_en[CRC_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "RECEIVE_EN", pethqos->mac_rec_en[RECEIVE_ERR]);
+		len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "OVERFLOW_EN", pethqos->mac_rec_en[OVERFLOW_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "FBE_EN", pethqos->mac_rec_en[FBE_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "RBU_EN", pethqos->mac_rec_en[RBU_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "TDU_EN", pethqos->mac_rec_en[TDU_ERR]);
+		len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "DRIBBLE_EN", pethqos->mac_rec_en[DRIBBLE_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "WDT_EN", pethqos->mac_rec_en[WDT_ERR]);
+
+	len += scnprintf(buf + len, buf_len - len, "\n\n%s  =  %d\n",
+		 "PHY_RW_REC", pethqos->mac_rec_cnt[PHY_RW_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "PHY_DET_REC", pethqos->mac_rec_cnt[PHY_DET_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "CRC_REC", pethqos->mac_rec_cnt[CRC_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "RECEIVE_REC", pethqos->mac_rec_cnt[RECEIVE_ERR]);
+		len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "OVERFLOW_REC", pethqos->mac_rec_cnt[OVERFLOW_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "FBE_REC", pethqos->mac_rec_cnt[FBE_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "RBU_REC", pethqos->mac_rec_cnt[RBU_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "TDU_REC", pethqos->mac_rec_cnt[TDU_ERR]);
+		len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "DRIBBLE_REC", pethqos->mac_rec_cnt[DRIBBLE_ERR]);
+	len += scnprintf(buf + len, buf_len - len, "%s  =  %d\n",
+		 "WDT_REC", pethqos->mac_rec_cnt[WDT_ERR]);
+
+	if (len > buf_len)
+		len = buf_len;
+
+	ETHQOSDBG("%s", buf);
+	ret_cnt = simple_read_from_buffer(usr_buf, count, f_pos, buf, len);
+	kfree(buf);
+	return ret_cnt;
+}
+
+static const struct file_operations emac_rec_fops = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.read = ethqos_read_rec_dev_emac,
+	.write = ethqos_mac_recovery_enable,
+	.poll = ethqos_poll_rec_dev_emac,
+};
+
+static int ethqos_create_emac_rec_device_node(dev_t *emac_dev_t,
+					      struct cdev **emac_cdev,
+					      struct class **emac_class,
+					      char *emac_dev_node_name)
+{
+	int ret;
+
+	ret = alloc_chrdev_region(emac_dev_t, 0, 1,
+				  emac_dev_node_name);
+	if (ret) {
+		ETHQOSERR("alloc_chrdev_region error for node %s\n",
+			  emac_dev_node_name);
+		goto alloc_chrdev1_region_fail;
+	}
+
+	*emac_cdev = cdev_alloc();
+	if (!*emac_cdev) {
+		ret = -ENOMEM;
+		ETHQOSERR("failed to alloc cdev\n");
+		goto fail_alloc_cdev;
+	}
+	cdev_init(*emac_cdev, &emac_rec_fops);
+
+	ret = cdev_add(*emac_cdev, *emac_dev_t, 1);
+	if (ret < 0) {
+		ETHQOSERR(":cdev_add err=%d\n", -ret);
+		goto cdev1_add_fail;
+	}
+
+	*emac_class = class_create(THIS_MODULE, emac_dev_node_name);
+	if (!*emac_class) {
+		ret = -ENODEV;
+		ETHQOSERR("failed to create class\n");
+		goto fail_create_class;
+	}
+
+	if (!device_create(*emac_class, NULL,
+			   *emac_dev_t, NULL, emac_dev_node_name)) {
+		ret = -EINVAL;
+		ETHQOSERR("failed to create device_create\n");
+		goto fail_create_device;
+	}
+
+	ETHQOSERR(" mac recovery node opened");
+	return 0;
+
+fail_create_device:
+	class_destroy(*emac_class);
+fail_create_class:
+	cdev_del(*emac_cdev);
+cdev1_add_fail:
+fail_alloc_cdev:
+	unregister_chrdev_region(*emac_dev_t, 1);
+alloc_chrdev1_region_fail:
+		return ret;
 }
 
 static void ethqos_is_ipv4_NW_stack_ready(struct work_struct *work)
@@ -2432,6 +2946,7 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 	plat_dat->pmt = 1;
 	plat_dat->tso_en = of_property_read_bool(np, "snps,tso");
 	plat_dat->early_eth = ethqos->early_eth_enabled;
+	plat_dat->handle_mac_err = dwmac_qcom_handle_mac_err;
 
 	if (of_property_read_bool(pdev->dev.of_node, "qcom,arm-smmu")) {
 		stmmac_emb_smmu_ctx.pdev_master = pdev;
@@ -2481,6 +2996,7 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 
 	ethqos->ioaddr = (&stmmac_res)->addr;
 	ethqos_update_rgmii_tx_drv_strength(ethqos);
+	ethqos_mac_rec_init(ethqos);
 
 	ret = stmmac_dvr_probe(&pdev->dev, plat_dat, &stmmac_res);
 	if (ret)
@@ -2536,6 +3052,11 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 	ethqos_ipa_offload_event_handler(ethqos, EV_PROBE_INIT);
 	priv->hw->mac->map_mtl_to_dma(priv->hw, 0, 1); //change
 #endif
+
+	ethqos_create_emac_rec_device_node(&ethqos->emac_rec_dev_t,
+					   &ethqos->emac_rec_cdev,
+					   &ethqos->emac_rec_class,
+					   "emac_rec");
 
 #ifdef CONFIG_MSM_BOOT_TIME_MARKER
 	place_marker("M - Ethernet probe end");
