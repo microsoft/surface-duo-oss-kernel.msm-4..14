@@ -3,7 +3,7 @@
  * Generic on-chip SRAM allocation driver
  *
  * Copyright (C) 2012 Philipp Zabel, Pengutronix
- * Copyright 2020 NXP
+ * Copyright 2020-2021 NXP
  */
 
 #include <linux/clk.h>
@@ -344,7 +344,7 @@ static int llce_init_sram(struct device *dev)
 static const struct of_device_id sram_dt_ids[] = {
 	{ .compatible = "mmio-sram" },
 	{ .compatible = "atmel,sama5d2-securam", .data = atmel_securam_wait },
-	{ .compatible = "nxp,s32g274a-llce-sram", .data = llce_init_sram },
+	{ .compatible = "nxp,s32g-llce-sram", .data = llce_init_sram },
 	{}
 };
 
