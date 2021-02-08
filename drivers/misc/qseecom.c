@@ -471,6 +471,9 @@ static int __qseecom_scm_call2_locked(uint32_t smc_id, struct scm_desc *desc)
 	int ret = 0;
 	int retry_count = 0;
 
+	if (qseecom.support_bus_scaling)
+		return scm_call2(smc_id, desc);
+
 	do {
 		ret = scm_call2_noretry(smc_id, desc);
 		if (ret == -EBUSY) {
@@ -9347,7 +9350,7 @@ static int qseecom_probe(struct platform_device *pdev)
 						UNLOAD_APP_KT_SLEEP);
 
 	if (!qseecom.qsee_perf_client)
-		pr_err("Unable to register bus client\n");
+		pr_debug("Unable to register bus client\n");
 
 	atomic_set(&qseecom.qseecom_state, QSEECOM_STATE_READY);
 	return 0;
@@ -9523,7 +9526,7 @@ static int qseecom_suspend(struct platform_device *pdev, pm_message_t state)
 
 static int qseecom_resume(struct platform_device *pdev)
 {
-	int mode = 0;
+	int mode = LOW;
 	int ret = 0;
 	struct qseecom_clk *qclk;
 
@@ -9533,10 +9536,6 @@ static int qseecom_resume(struct platform_device *pdev)
 
 	mutex_lock(&qsee_bw_mutex);
 	mutex_lock(&clk_access_lock);
-	if (qseecom.cumulative_mode >= HIGH)
-		mode = HIGH;
-	else
-		mode = qseecom.cumulative_mode;
 
 	if (qseecom.cumulative_mode != INACTIVE) {
 		ret = msm_bus_scale_client_update_request(

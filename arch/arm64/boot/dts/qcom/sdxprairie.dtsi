@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -125,6 +125,12 @@
 			compatible = "shared-dma-pool";
 			reusable;
 			size = <0x400000>;
+		};
+
+		subsys_backup_region: subsys_backup_region {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0xC00000>;
 		};
 	};
 
@@ -572,6 +578,9 @@
 		qcom,ipa-wdi3-holb-5g = <15>;
 		qcom,msm-bus,num-cases = <5>;
 		qcom,msm-bus,num-paths = <5>;
+		qcom,wan-aggr-time-limit = <200>;
+		qcom,lan-aggr-time-limit = <200>;
+		qcom,rndis-aggr-time-limit = <200>;
 		qcom,msm-bus,vectors-KBps =
 		/* No vote */
 		<MSM_BUS_MASTER_IPA MSM_BUS_SLAVE_SNOC_MEM_NOC_GC 0 0>,
@@ -1627,6 +1636,12 @@
 		qcom,status-out-gpio = <&tlmm 63 0x00>;
 		qcom,status-out2-gpio = <&tlmm 66 0x00>;
 		status = "disabled";
+	};
+
+	subsys_backup: qcom,subsys-backup {
+		compatible = "qcom,subsys-backup";
+		qcom,buf-size = <0x600000>;
+		memory-region = <&subsys_backup_region>;
 	};
 };
 
