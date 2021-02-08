@@ -2,9 +2,8 @@
 
 Required properties:
 - compatible :
-	* "fsl,irq_reqs-s32gen1"
-	* "fsl,opad0_reqs-s32gen1"
-	* "fsl,ipad0_reqs-s32gen1"
+	* "fsl,s32gen1-siul2-gpio"
+	* "fsl,s32g274a-siul2-gpio"
 - interrupts : Should be the port interrupt shared by all 32 EIRQs
 - gpio-controller : Marks the device node as a gpio controller.
 - #gpio-cells : Should be two.  The first cell is the pin number and
