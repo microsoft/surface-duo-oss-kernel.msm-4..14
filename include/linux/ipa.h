@@ -1727,6 +1727,9 @@ void ipa_set_client(int index, enum ipacm_client_enum client, bool uplink);
 
 enum ipacm_client_enum ipa_get_client(int pipe_idx);
 
+int ipa_get_default_aggr_time_limit(enum ipa_client_type client,
+	u32 *default_aggr_time_limit);
+
 bool ipa_get_client_uplink(int pipe_idx);
 
 /*
@@ -2526,6 +2529,12 @@ static inline void ipa_set_client(int index, enum ipacm_client_enum client,
 }
 
 static inline enum ipacm_client_enum ipa_get_client(int pipe_idx)
+{
+	return -EPERM;
+}
+
+static inline int ipa_get_default_aggr_time_limit(enum ipa_client_type client,
+	u32 *default_aggr_time_limit)
 {
 	return -EPERM;
 }
