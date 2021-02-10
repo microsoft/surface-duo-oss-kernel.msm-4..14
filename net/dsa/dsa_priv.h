@@ -191,12 +191,33 @@ static inline bool dsa_port_offloads_netdev(struct dsa_port *dp,
 	/* Switchdev offloading can be configured on: */
 
 	if (dev == dp->slave)
-		/* DSA ports directly connected to a bridge. */
+		/* DSA ports directly connected to a bridge, and event
+		 * was emitted for the ports themselves.
+		 */
+		return true;
+
+	if (dp->bridge_dev == dev)
+		/* DSA ports connected to a bridge, and event was emitted
+		 * for the bridge.
+		 */
 		return true;
 
 	if (dp->lag_dev == dev)
 		/* DSA ports connected to a bridge via a LAG */
 		return true;
+
+	return false;
+}
+
+/* Returns true if any port of this tree offloads the given net_device */
+static inline bool dsa_tree_offloads_netdev(struct dsa_switch_tree *dst,
+					    struct net_device *dev)
+{
+	struct dsa_port *dp;
+
+	list_for_each_entry(dp, &dst->ports, list)
+		if (dsa_port_offloads_netdev(dp, dev))
+			return true;
 
 	return false;
 }
