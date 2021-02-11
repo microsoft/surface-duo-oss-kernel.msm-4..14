@@ -2182,7 +2182,7 @@ static void __exit cnss_exit(void)
 	cnss_debug_deinit();
 }
 
-module_init(cnss_initialize);
+late_initcall(cnss_initialize);
 module_exit(cnss_exit);
 
 MODULE_LICENSE("GPL v2");

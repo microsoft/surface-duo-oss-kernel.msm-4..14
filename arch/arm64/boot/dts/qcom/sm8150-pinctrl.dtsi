@@ -5111,6 +5111,7 @@
 			config {
 				pins = "gpio172";
 				drive-strength = <2>;
+				output-low;
 				bias-pull-down;
 			};
 		};
