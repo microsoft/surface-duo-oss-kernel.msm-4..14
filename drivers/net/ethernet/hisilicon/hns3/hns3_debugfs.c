@@ -389,6 +389,9 @@ static void hns3_dbg_dev_specs(struct hnae3_handle *h)
 		 kinfo->tc_info.num_tc);
 	dev_info(priv->dev, "MAX INT QL: %u\n", dev_specs->int_ql_max);
 	dev_info(priv->dev, "MAX INT GL: %u\n", dev_specs->max_int_gl);
+	dev_info(priv->dev, "MAX frame size: %u\n", dev_specs->max_frm_size);
+	dev_info(priv->dev, "MAX TM RATE: %uMbps\n", dev_specs->max_tm_rate);
+	dev_info(priv->dev, "MAX QSET number: %u\n", dev_specs->max_qset_num);
 }
 
 static ssize_t hns3_dbg_cmd_read(struct file *filp, char __user *buffer,
@@ -493,9 +496,6 @@ static ssize_t hns3_dbg_read(struct file *filp, char __user *buffer,
 	char *cmd_buf, *read_buf;
 	ssize_t size = 0;
 	int ret = 0;
-
-	if (!filp->f_path.dentry->d_iname)
-		return -EINVAL;
 
 	read_buf = kzalloc(HNS3_DBG_READ_LEN, GFP_KERNEL);
 	if (!read_buf)
