@@ -1320,7 +1320,7 @@ CONFIG_DMA_CMA                                  note<LP#1362261>
 CONFIG_FW_LOADER                                policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'y'}>
 CONFIG_FIRMWARE_IN_KERNEL                       policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'n'}>
 CONFIG_EXTRA_FIRMWARE                           policy<{'amd64': '""', 'arm64': '""', 'armhf': '""', 'i386': '""', 'ppc64el': '""', 's390x': '""'}>
-CONFIG_FW_LOADER_USER_HELPER_FALLBACK           policy<{'amd64': 'n', 'arm64': '-', 'armhf': '-', 'i386': 'n', 'ppc64el': 'n', 's390x': 'n'}>
+CONFIG_FW_LOADER_USER_HELPER_FALLBACK           policy<{'amd64': 'n', 'arm64': 'y', 'armhf': '-', 'i386': 'n', 'ppc64el': 'n', 's390x': 'n'}>
 #
 CONFIG_FW_LOADER_USER_HELPER_FALLBACK           mark<ENFORCED> note<LP#1398458>
 
@@ -10731,13 +10731,6 @@ CONFIG_STATIC_USERMODEHELPER                    policy<{'amd64': 'n', 'arm64': '
 CONFIG_SECURITY_TOMOYO_INSECURE_BUILTIN_SETTING policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'ppc64el': 'n', 's390x': 'n'}>
 CONFIG_SECURITY_SAFESETID                       policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'y'}>
 
-# Menu: Security options >> Enable different security models >> Basic module for enforcing kernel lockdown
-CONFIG_SECURITY_LOCKDOWN_LSM                    policy<{'arm64': 'y', 'armhf': 'y'}>
-CONFIG_SECURITY_LOCKDOWN_LSM_EARLY              policy<{'arm64': 'y', 'armhf': 'y'}>
-
-CONFIG_SECURITY_LOCKDOWN_LSM                    mark<ENFORCED>
-CONFIG_SECURITY_LOCKDOWN_LSM_EARLY              mark<ENFORCED>
-
 # Menu: Security options >> Enable different security models >> Basic module for enforcing kernel lockdown >> Kernel default lockdown mode
 CONFIG_LOCK_DOWN_KERNEL_FORCE_NONE              policy<{'arm64': 'y', 'armhf': 'y'}>
 CONFIG_LOCK_DOWN_KERNEL_FORCE_INTEGRITY         policy<{'arm64': 'n', 'armhf': 'n'}>
@@ -11259,11 +11252,6 @@ CONFIG_OMAP3_SDRC_AC_TIMING                     policy<{'armhf-generic': 'n'}>
 CONFIG_MACH_OMAP_GENERIC                        policy<{'armhf': 'y'}>
 
 # Menu: System Type >> W90P910 Machines >> Architecture: arm
-
-# Menu: Ubuntu Supplied Third-Party Device Drivers
-CONFIG_HIO                                      policy<{'amd64': 'm', 'arm64': 'n', 'armhf': 'n', 'i386': 'm', 'ppc64el': 'n'}>
-#
-CONFIG_HIO                                      mark<ENFORCED> note <LP:1635594>
 
 # Menu: Virtualization
 CONFIG_VIRTUALIZATION                           policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'y'}>
