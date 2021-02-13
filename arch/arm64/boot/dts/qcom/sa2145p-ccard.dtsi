@@ -74,23 +74,6 @@
 	/delete-node/ mdss_hdmi_ddc_suspend;
 };
 
-&ethqos_hw {
-	pinctrl-names = "dev-emac-mdc", "dev-emac-mdio",
-		"dev-emac-rgmii_txd0_state", "dev-emac-rgmii_txd1_state",
-		"dev-emac-rgmii_txd2_state", "dev-emac-rgmii_txd3_state",
-		"dev-emac-rgmii_txc_state",  "dev-emac-rgmii_tx_ctl_state",
-		"dev-emac-rgmii_rxd0_state", "dev-emac-rgmii_rxd1_state",
-		"dev-emac-rgmii_rxd2_state", "dev-emac-rgmii_rxd3_state",
-		"dev-emac-rgmii_rxc_state", "dev-emac-rgmii_rx_ctl_state",
-		"dev-emac-phy_intr", "dev-emac-phy_reset_state";
-
-	rxc-skew-ps = <660>;
-	io-macro-info {
-		/delete-property/ sdcc-usr-ctl;
-		rx-dll-bypass;
-	};
-};
-
 &gpu_bw_tbl {
 	status = "disabled";
 };
