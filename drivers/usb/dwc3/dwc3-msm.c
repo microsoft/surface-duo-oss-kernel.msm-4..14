@@ -342,6 +342,7 @@ struct dwc3_msm {
 	struct device_node *dwc3_node;
 	struct property *num_gsi_eps;
 	bool			dual_port;
+	bool			disable_host_mode_pm;
 };
 
 #define USB_HSPHY_3P3_VOL_MIN		3050000 /* uV */
@@ -4069,6 +4070,9 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	if (ret)
 		goto err;
 
+	mdwc->disable_host_mode_pm = of_property_read_bool(node,
+				"qcom,disable-host-mode-pm");
+
 	mdwc->use_pdc_interrupts = of_property_read_bool(node,
 				"qcom,use-pdc-interrupts");
 
@@ -4655,6 +4659,14 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 				PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
 		/* start in perf mode for better performance initially */
 		msm_dwc3_perf_vote_update(mdwc, true);
+		/*
+		 * In some cases it is observed that USB PHY is not going into
+		 * suspend with host mode suspend functionality. Hence disable
+		 * XHCI's runtime PM here if disable_host_mode_pm is set.
+		 */
+		if (mdwc->disable_host_mode_pm)
+			pm_runtime_disable(&dwc->xhci->dev);
+
 		schedule_delayed_work(&mdwc->perf_vote_work,
 				msecs_to_jiffies(1000 * PM_QOS_SAMPLE_SEC));
 	} else {
