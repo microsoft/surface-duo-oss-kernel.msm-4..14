@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation 
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -85,6 +86,11 @@ static void dsi_setup_trigger_controls(struct dsi_ctrl_hw *ctrl,
 	reg |= (cfg->te_mode == DSI_TE_ON_EXT_PIN) ? BIT(31) : 0;
 	reg |= (trigger_map[cfg->dma_cmd_trigger] & 0x7);
 	reg |= (trigger_map[cfg->mdp_cmd_trigger] & 0x7) << 4;
+	/* MS_CHANGE start */
+	if (cfg->block_dma_within_frame) {
+		reg |= BIT(12); // set BLOCK_DMA_WITHIN_FRAME to 1
+	}
+	/* MS_CHANGE end */
 	DSI_W32(ctrl, DSI_TRIG_CTRL, reg);
 }
 
@@ -367,7 +373,10 @@ void dsi_ctrl_hw_cmn_setup_cmd_stream(struct dsi_ctrl_hw *ctrl,
 				     struct dsi_mode_info *mode,
 				     u32 h_stride,
 				     u32 vc_id,
-				     struct dsi_rect *roi)
+					 /* MS_CHANGE start */
+				     struct dsi_rect *roi,
+					 u32 idle_ctrl)
+					 /* MS_CHANGE end */
 {
 	u32 width_final, stride_final;
 	u32 height_final;
@@ -453,6 +462,17 @@ void dsi_ctrl_hw_cmn_setup_cmd_stream(struct dsi_ctrl_hw *ctrl,
 		data |= 0x1;
 		DSI_W32(ctrl, DSI_COMMAND_MODE_NULL_INSERTION_CTRL, data);
 	}
+	/* MS_CHANGE start */
+	/* Write length and enable fileds in DSI_0_COMMAND_MODE_MDP_IDLE_CTRL
+	 * register Set LP11 delay.
+	 * length = 9:0 bits (length in pclock cycles).
+	 * Enable = 14:12 bits
+	 */
+	if (mode->dsc_enabled && mode->dsc && idle_ctrl > 0) {
+        idle_ctrl |= 0x1 << 12;
+        DSI_W32(ctrl, DSI_COMMAND_MODE_MDP_IDLE_CTRL, idle_ctrl);
+    }
+	/* MS_CHANGE end */
 
 	pr_debug("ctrl %d stream_ctrl 0x%x stream_total 0x%x\n", ctrl->index,
 			stream_ctrl, stream_total);
@@ -554,7 +574,12 @@ void dsi_ctrl_hw_cmn_cmd_engine_setup(struct dsi_ctrl_hw *ctrl,
 	DSI_W32(ctrl, DSI_COMMAND_MODE_MDP_CTRL, reg);
 
 	reg = DSI_R32(ctrl, DSI_COMMAND_MODE_MDP_CTRL2);
-	reg |= BIT(16);
+	/* MS_CHANGE start */
+	/*Only enable burst mode if idle_ctrl is 0*/
+	if(cfg->idle_ctrl == 0) {
+	    reg |= BIT(16);
+	}
+	/* MS_CHANGE end */
 	DSI_W32(ctrl, DSI_COMMAND_MODE_MDP_CTRL2, reg);
 
 	reg = cfg->wr_mem_start & 0xFF;

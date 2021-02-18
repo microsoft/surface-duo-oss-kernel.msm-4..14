@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2015 Texas Instruments Incorporated - http://www.ti.com/
  *	Andrew F. Davis <afd@ti.com>
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -18,6 +19,7 @@
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <asm/unaligned.h>
+#include <linux/slab.h>  // MSCHANGE allocating memory for DMA write to ExtFg
 
 #include <linux/power/bq27xxx_battery.h>
 
@@ -122,11 +124,16 @@ static int bq27xxx_battery_i2c_bulk_write(struct bq27xxx_device_info *di,
 {
 	struct i2c_client *client = to_i2c_client(di->dev);
 	struct i2c_msg msg;
-	u8 buf[33];
 	int ret;
+	u8 *buf = kmalloc_array(33, sizeof(u8), GFP_KERNEL); // MSCHANGE allocating memory for DMA write to ExtFg
+	if (!buf)
+		return -ENOMEM;
 
 	if (!client->adapter)
+	{
+		kfree(buf); // MSCHANGE allocating memory for DMA write to ExtFg
 		return -ENODEV;
+	}
 
 	buf[0] = reg;
 	memcpy(&buf[1], data, len);
@@ -137,6 +144,9 @@ static int bq27xxx_battery_i2c_bulk_write(struct bq27xxx_device_info *di,
 	msg.len = len + 1;
 
 	ret = i2c_transfer(client->adapter, &msg, 1);
+
+	kfree(buf); // MSCHANGE allocating memory for DMA write to ExtFg
+
 	if (ret < 0)
 		return ret;
 	if (ret != 1)

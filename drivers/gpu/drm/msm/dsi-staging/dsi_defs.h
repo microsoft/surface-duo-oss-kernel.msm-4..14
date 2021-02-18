@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -512,6 +513,7 @@ struct dsi_host_common_cfg {
 	bool force_hs_clk_lane;
 	enum dsi_phy_type phy_type;
 	struct dsi_split_link_config split_link;
+	bool block_dma_within_frame;/* MS_CHANGE */
 };
 
 /**
@@ -553,12 +555,14 @@ struct dsi_video_engine_cfg {
  * @wr_mem_continue:               DCS command for write_memory_continue.
  * @insert_dcs_command:            Insert DCS command as first byte of payload
  *                                 of the pixel data.
+ * @idle_ctrl:                     Number of pclk cycles to insert
  */
 struct dsi_cmd_engine_cfg {
 	u32 max_cmd_packets_interleave;
 	u32 wr_mem_start;
 	u32 wr_mem_continue;
 	bool insert_dcs_command;
+	u32 idle_ctrl;/* MS_CHANGE */
 };
 
 /**

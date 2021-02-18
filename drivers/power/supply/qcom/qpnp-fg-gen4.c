@@ -1,4 +1,5 @@
 /* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2438,6 +2439,138 @@ static void get_batt_psy_props(struct fg_dev *fg)
 	}
 }
 
+// MSCHANGE
+// queries properties from pack1 and pack2 FGs and returns a unified value
+#define ABS_DIFF(v1, v2)  (((v1) >= (v2)) ? ((v1) - (v2)) : ((v2) - (v1)))
+#define REPORT_RSOC_FULL 100
+#define MAX_TOLERABLE_SOC_JUMP  10
+static int MSE_combined_batteries_get_property(struct fg_dev *fg, 
+						enum power_supply_property psp,
+						int *val)											
+{
+	union power_supply_propval prop_pack1_total_capacity = {0, };
+	union power_supply_propval prop_pack2_total_capacity = {0, };
+	union power_supply_propval prop_pack1_now_capacity = {0, };
+	union power_supply_propval prop_pack2_now_capacity = {0, };
+
+	static int previous_combined_rsoc = INT_MIN;
+	int current_capacity = 0;
+	int total_capacity = 0;
+	int raw_combined_rsoc = 0;
+
+	static int previous_total_capacity = INT_MIN;
+	static int previous_now_capacity = INT_MIN;
+	
+	int rc = 0;
+	
+	if (!pack1_fg_psy_initialized(fg) || !pack2_fg_psy_initialized(fg)) {
+		pr_err("either pack1_fg_psy_initialized or pack2_fg_psy_initialized returned FALSE");
+		return -ENODATA;
+	}
+	
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CAPACITY:
+		//real battery query and calculation of RSOC
+		if (power_supply_get_property(fg->pack1_fg, POWER_SUPPLY_PROP_CHARGE_FULL, &prop_pack1_total_capacity) || 
+		    power_supply_get_property(fg->pack2_fg, POWER_SUPPLY_PROP_CHARGE_FULL, &prop_pack2_total_capacity) ||
+		    power_supply_get_property(fg->pack1_fg, POWER_SUPPLY_PROP_CHARGE_NOW, &prop_pack1_now_capacity) || 
+		    power_supply_get_property(fg->pack2_fg, POWER_SUPPLY_PROP_CHARGE_NOW, &prop_pack2_now_capacity)) {
+			pr_err("Could not read pack1 or/and pack2 capacities, returning previous value\n");
+			raw_combined_rsoc = previous_combined_rsoc;
+			rc = 0;
+		} else {
+			current_capacity = (prop_pack1_now_capacity.intval + prop_pack2_now_capacity.intval);
+			total_capacity = (prop_pack1_total_capacity.intval + prop_pack2_total_capacity.intval);
+			if ((total_capacity - current_capacity) > (total_capacity / 100)) {
+				raw_combined_rsoc = ((current_capacity * 100) + (total_capacity >> 1))/total_capacity;
+			} else {
+				raw_combined_rsoc = (current_capacity * 100) / total_capacity;
+			}
+			// Fuelgauge readings are found to be inaccurate at times. Protect against abnormal jumps by applying boundry checks and allowing
+			// soc jumps within a small range of MAX_TOLERABLE_SOC_JUMP
+			if ((raw_combined_rsoc < 0) ||
+			    (raw_combined_rsoc > REPORT_RSOC_FULL) ||
+			    ((previous_combined_rsoc != INT_MIN) && (ABS_DIFF(raw_combined_rsoc, previous_combined_rsoc) > MAX_TOLERABLE_SOC_JUMP))) {
+				pr_err("calculated combined rsoc:%d Previous reported combined rsoc:%d outside of allowed error, ignoring\n", 
+					raw_combined_rsoc, previous_combined_rsoc);
+				raw_combined_rsoc = previous_combined_rsoc;
+			} else {
+				previous_combined_rsoc = raw_combined_rsoc; // Update previous_combined_rsoc to be used in case of errors.
+			}
+		}
+		*val = raw_combined_rsoc;
+		break;
+	
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		if (power_supply_get_property(fg->pack1_fg, POWER_SUPPLY_PROP_CHARGE_FULL, &prop_pack1_total_capacity) || 
+		    power_supply_get_property(fg->pack2_fg, POWER_SUPPLY_PROP_CHARGE_FULL, &prop_pack2_total_capacity)) {
+			pr_err("Could not read pack1 or/and pack2 prop charge full\n");
+			total_capacity = previous_total_capacity;
+			rc = 0;
+		} else {
+			total_capacity = (prop_pack1_total_capacity.intval + prop_pack2_total_capacity.intval);
+			previous_total_capacity = total_capacity;
+		}
+		*val = total_capacity;
+		break;
+
+	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
+		if (power_supply_get_property(fg->pack1_fg, POWER_SUPPLY_PROP_CHARGE_NOW, &prop_pack1_now_capacity) || 
+		    power_supply_get_property(fg->pack2_fg, POWER_SUPPLY_PROP_CHARGE_NOW, &prop_pack2_now_capacity)) {
+			pr_err("Could not read pack1 or/and pack2 charge now\n");
+			current_capacity = previous_now_capacity;
+			rc = 0;
+		} else {
+			current_capacity = (prop_pack1_now_capacity.intval + prop_pack2_now_capacity.intval);
+			previous_now_capacity = current_capacity;
+		}
+		*val = current_capacity;
+		break;
+
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+	case POWER_SUPPLY_PROP_CURRENT_NOW:
+	case POWER_SUPPLY_PROP_TEMP:
+	case POWER_SUPPLY_PROP_CHARGE_NOW:
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
+	case POWER_SUPPLY_PROP_POWER_AVG:
+	case POWER_SUPPLY_PROP_REAL_CAPACITY:
+	case POWER_SUPPLY_PROP_CAPACITY_RAW:
+	case POWER_SUPPLY_PROP_CC_SOC:
+	case POWER_SUPPLY_PROP_RESISTANCE:
+	case POWER_SUPPLY_PROP_ESR_ACTUAL:
+	case POWER_SUPPLY_PROP_ESR_NOMINAL:
+	case POWER_SUPPLY_PROP_VOLTAGE_OCV:
+	case POWER_SUPPLY_PROP_VOLTAGE_AVG:
+	case POWER_SUPPLY_PROP_RESISTANCE_ID:
+	case POWER_SUPPLY_PROP_BATTERY_TYPE:
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
+	case POWER_SUPPLY_PROP_CHARGE_NOW_RAW:
+	case POWER_SUPPLY_PROP_CHARGE_COUNTER_SHADOW:
+	case POWER_SUPPLY_PROP_CYCLE_COUNTS:
+	case POWER_SUPPLY_PROP_SOC_REPORTING_READY:
+	case POWER_SUPPLY_PROP_CLEAR_SOH:
+	case POWER_SUPPLY_PROP_SOH:
+	case POWER_SUPPLY_PROP_DEBUG_BATTERY:
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
+	case POWER_SUPPLY_PROP_CALIBRATE:
+	case POWER_SUPPLY_PROP_TIME_TO_FULL_AVG:
+	case POWER_SUPPLY_PROP_CC_STEP:
+	case POWER_SUPPLY_PROP_CC_STEP_SEL:
+	case POWER_SUPPLY_PROP_BATT_AGE_LEVEL:
+	case POWER_SUPPLY_PROP_SCALE_MODE_EN:
+	case POWER_SUPPLY_PROP_POWER_NOW:
+	default:
+		pr_err("unsupported property %d\n", psp);
+		rc = -EINVAL;
+		break;
+	}
+	if (rc < 0)
+		return -ENODATA;
+	return 0;
+}
+
 static int fg_gen4_esr_soh_update(struct fg_dev *fg)
 {
 	struct fg_gen4_chip *chip = container_of(fg, struct fg_gen4_chip, fg);
@@ -4187,6 +4320,10 @@ static int fg_psy_get_property(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CAPACITY:
 		rc = fg_gen4_get_prop_capacity(fg, &pval->intval);
+		// MSCHANGE combined RSOC calculation for dual batteries
+		if (!is_debug_batt_id(fg)) {  // do not query extfg in cases of debug battery
+			rc = MSE_combined_batteries_get_property(fg, psp, &pval->intval);
+		}
 		break;
 	case POWER_SUPPLY_PROP_REAL_CAPACITY:
 		rc = fg_gen4_get_prop_real_capacity(fg, &pval->intval);
@@ -4254,9 +4391,17 @@ static int fg_psy_get_property(struct power_supply *psy,
 		rc = fg_gen4_get_nominal_capacity(chip, &temp);
 		if (!rc)
 			pval->intval = (int)temp;
+		// MSCHANGE combined charge full for dual batteries
+		if (!is_debug_batt_id(fg)) {  // do not query extfg in cases of debug battery
+			rc = MSE_combined_batteries_get_property(fg, psp, &pval->intval);
+		}
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
 		rc = fg_gen4_get_charge_counter(chip, &pval->intval);
+		// MSCHANGE combined charge now calculation for dual batteries
+		if (!is_debug_batt_id(fg)) {  // do not query extfg in cases of debug battery
+			rc = MSE_combined_batteries_get_property(fg, psp, &pval->intval);
+		}
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_COUNTER_SHADOW:
 		rc = fg_gen4_get_charge_counter_shadow(chip, &pval->intval);

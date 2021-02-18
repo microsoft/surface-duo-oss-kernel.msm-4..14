@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -281,6 +282,43 @@ static const struct tadc_pt tadc_therm_3450b_68k[] = {
 	{ 1712127,	-40000 },
 };
 
+// MSCHANGE adding interpolation tables for therm1 and therm2
+static const struct tadc_pt tadc_therm_4250b_100k[] = {
+	{ 3121,		120000 },
+	{ 3643,		115000 },
+	{ 4170,		110000 },
+	{ 4810,		105000 },
+	{ 5675,		100000 },
+	{ 6555,		95000 },
+	{ 7676,		90000 },
+	{ 9168,		85000 },
+	{ 10822,	80000 },
+	{ 12775,	75000 },
+	{ 15315,	70000 },
+	{ 18381,	65000 },
+	{ 22195,	60000 },
+	{ 27047,	55000 },
+	{ 32987,	50000 },
+	{ 40659,	45000 },
+	{ 50367,	40000 },
+	{ 62798,	35000 },
+	{ 78708,	30000 },
+	{ 99610,	25000 },
+	{ 127050,	20000 },
+	{ 163239,	15000 },
+	{ 211246,	10000 },
+	{ 276470,	5000 },
+	{ 365454,	0 },
+	{ 491907,	-5000 },
+	{ 664179,	-10000 },
+	{ 903921,	-15000 },
+	{ 1247368,	-20000 },
+	{ 1761818,	-25000 },
+	{ 2460000,	-30000 },
+	{ 3557142,	-35000 },
+	{ 5289473,	-40000 },
+};
+
 static bool tadc_is_reg_locked(struct tadc_chip *chip, u16 reg)
 {
 	if ((reg & 0xFF00) == chip->tadc_cmp_base)
@@ -525,6 +563,7 @@ static int tadc_do_conversion(struct tadc_chip *chip, u8 channels, s16 *adc)
 
 	if (get_effective_result(chip->tadc_disable_votable)) {
 		/* leave it back in completed state */
+		pr_err("TADC has been disabled by a vote");  // MSCHANGE print in error condition
 		complete_all(&chip->eoc_complete);
 		rc = -ENODATA;
 		goto unlock;
@@ -556,6 +595,7 @@ static int tadc_do_conversion(struct tadc_chip *chip, u8 channels, s16 *adc)
 		 * has completed conversion
 		 */
 		if (val[0] != channels) {
+			pr_err("channel has not completed conversion, status is %d", val[0]);  // MSCHANGE print in error condition
 			rc = -ETIMEDOUT;
 			goto unlock;
 		}
@@ -878,13 +918,14 @@ static int tadc_write_raw(struct iio_dev *indio_dev,
 	return 0;
 }
 
-static irqreturn_t handle_eoc(int irq, void *dev_id)
+// MSCHANGE we're not registering for any interrupts
+/*static irqreturn_t handle_eoc(int irq, void *dev_id)
 {
 	struct tadc_chip *chip = dev_id;
 
 	complete_all(&chip->eoc_complete);
 	return IRQ_HANDLED;
-}
+}*/
 
 static int tadc_disable_vote_callback(struct votable *votable,
 			void *data, int disable, const char *client)
@@ -917,7 +958,19 @@ static int tadc_disable_vote_callback(struct votable *votable,
 			pr_err("Couldn't enable direct test mode rc=%d\n", rc);
 			return rc;
 		}
+		// MSCHANGE disabling TADC module
+		rc = tadc_write(chip, TADC_EN_CTL_REG(chip), 0x0);
+		if (rc < 0) {
+			pr_err("Couldn't disable TADC module rc=%d\n", rc);
+			return rc;
+		}
 	} else {
+		// MSCHANGE enabling TADC module
+		rc = tadc_write(chip, TADC_EN_CTL_REG(chip), 0x80);
+		if (rc < 0) {
+			pr_err("Couldn't enable TADC module rc=%d\n", rc);
+			return rc;
+		}
 		rc = tadc_write(chip, TADC_ADC_DIRECT_TST(chip), 0x00);
 		if (rc < 0) {
 			pr_err("Couldn't disable direct test mode rc=%d\n", rc);
@@ -1015,6 +1068,11 @@ static int tadc_set_therm_table(struct tadc_chan_data *chan_data, u32 beta,
 	if (beta == 3450 && rtherm == 68000) {
 		chan_data->table = tadc_therm_3450b_68k;
 		chan_data->tablesize = ARRAY_SIZE(tadc_therm_3450b_68k);
+		return 0;
+	}
+	if (beta == 4250 && rtherm == 100000) {  // MSCHANGE we have different interpolation table
+		chan_data->table = tadc_therm_4250b_100k;
+		chan_data->tablesize = ARRAY_SIZE(tadc_therm_4250b_100k);
 		return 0;
 	}
 
@@ -1185,7 +1243,7 @@ static int tadc_probe(struct platform_device *pdev)
 	struct device_node *node = pdev->dev.of_node;
 	struct iio_dev *indio_dev;
 	struct tadc_chip *chip;
-	int rc, irq;
+	int rc;  // MSCHANGE we're not registering for any interrupts
 
 	indio_dev = devm_iio_device_alloc(&pdev->dev, sizeof(*chip));
 	if (!indio_dev)
@@ -1248,7 +1306,8 @@ static int tadc_probe(struct platform_device *pdev)
 		goto destroy_votable;
 	}
 
-	irq = of_irq_get_byname(node, "eoc");
+	// MSCHANGE we're not registering for any interrupts
+	/*irq = of_irq_get_byname(node, "eoc");
 	if (irq < 0) {
 		pr_err("Couldn't get eoc irq rc=%d\n", irq);
 		goto destroy_votable;
@@ -1259,7 +1318,7 @@ static int tadc_probe(struct platform_device *pdev)
 	if (rc < 0) {
 		pr_err("Couldn't request irq %d rc=%d\n", irq, rc);
 		goto destroy_votable;
-	}
+	}*/
 
 	indio_dev->dev.parent = chip->dev;
 	indio_dev->name = pdev->name;
