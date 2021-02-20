@@ -938,13 +938,11 @@ static int uvc_init(void)
 {
 	return usb_function_register(&uvcusb_func);
 }
-module_init(uvc_init);
 
 static void __exit uvc_exit(void)
 {
 	usb_function_unregister(&uvcusb_func);
 }
-module_exit(uvc_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Laurent Pinchart");
