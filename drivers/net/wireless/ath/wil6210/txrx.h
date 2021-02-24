@@ -560,6 +560,12 @@ static inline int wil_ring_is_full(struct wil_ring *ring)
 	return wil_ring_next_tail(ring) == ring->swhead;
 }
 
+static inline __be16 wil_skb_get_protocol(struct sk_buff *skb)
+{
+        struct ethhdr *eth = (void *)skb->data;
+        return eth->h_proto;
+}
+
 static inline bool wil_need_txstat(struct sk_buff *skb)
 {
 	struct ethhdr *eth = (void *)skb->data;
