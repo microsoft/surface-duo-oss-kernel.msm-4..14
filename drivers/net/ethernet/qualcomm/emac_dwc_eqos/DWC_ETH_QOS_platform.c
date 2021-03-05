@@ -101,7 +101,7 @@ module_param(phy_interrupt_en, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 MODULE_PARM_DESC(phy_interrupt_en,
 		"Enable PHY interrupt [0-DISABLE, 1-ENABLE]");
 
-struct ip_params pparams = {0};
+struct ip_params pparams = {{0}};
 #ifdef DWC_ETH_QOS_BUILTIN
 /*!
  * \brief API to extract MAC Address from given string
@@ -115,7 +115,6 @@ void DWC_ETH_QOS_extract_macid(char *mac_addr)
 	char *input = NULL;
 	int i = 0;
 	UCHAR mac_id = 0;
-	int ret;
 
 	if (!mac_addr)
 		return;
@@ -201,6 +200,7 @@ static int __init set_early_ethernet_mac(char* mac_addr)
 __setup("ermac=", set_early_ethernet_mac);
 #endif
 
+/*
 static ssize_t read_io_macro_reg_dump(struct file *file,
 	char __user *user_buf, size_t count, loff_t *ppos)
 {
@@ -239,6 +239,7 @@ static ssize_t read_io_macro_reg_dump(struct file *file,
 	kfree(buf);
 	return ret_cnt;
 }
+*/
 
 static ssize_t read_phy_reg_dump(struct file *file,
 	char __user *user_buf, size_t count, loff_t *ppos)
@@ -1442,7 +1443,7 @@ static int DWC_ETH_QOS_panic_notifier(struct notifier_block *this,
 		gDWC_ETH_QOS_prv_data->emac_reg_base_address =
 			(unsigned int *)kzalloc(dwc_eth_qos_res_data.emac_mem_size, GFP_KERNEL);
 		EMACINFO("emac register mem 0x%p\n", gDWC_ETH_QOS_prv_data->emac_reg_base_address);
-			memcpy(gDWC_ETH_QOS_prv_data->emac_reg_base_address, dwc_eth_qos_base_addr,
+			memcpy(gDWC_ETH_QOS_prv_data->emac_reg_base_address, (const void *)dwc_eth_qos_base_addr,
 				dwc_eth_qos_res_data.emac_mem_size);
 
 		if(size_iomacro_regs > 0) {
@@ -1450,7 +1451,7 @@ static int DWC_ETH_QOS_panic_notifier(struct notifier_block *this,
 				(unsigned int *)kzalloc(size_iomacro_regs, GFP_KERNEL);
 			EMACINFO("rgmii register mem 0x%p\n", gDWC_ETH_QOS_prv_data->rgmii_reg_base_address);
 			if (gDWC_ETH_QOS_prv_data->rgmii_reg_base_address != NULL)
-				memcpy(gDWC_ETH_QOS_prv_data->rgmii_reg_base_address, dwc_rgmii_io_csr_base_addr,
+				memcpy(gDWC_ETH_QOS_prv_data->rgmii_reg_base_address, (const void *)dwc_rgmii_io_csr_base_addr,
 					size_iomacro_regs);
 		}
 	}
@@ -1724,13 +1725,13 @@ void is_ipv6_NW_stack_ready(struct work_struct *work)
 
 int DWC_ETH_QOS_add_ipv6addr(struct DWC_ETH_QOS_prv_data *pdata)
 {
-	int ret = -EFAULT;;
+	int ret;
 #ifdef DWC_ETH_QOS_BUILTIN
 	struct in6_ifreq ir6;
 	char* prefix;
 	struct ip_params *ip_info = &pparams;
 	struct net *net = dev_net(pdata->dev);
-
+	ret = -EFAULT;
 	EMACDBG("\n");
 	if (!net || !net->genl_sock || !net->genl_sock->sk_socket) {
 		EMACERR("Sock is null, unable to assign ipv6 address\n");
@@ -1765,6 +1766,8 @@ int DWC_ETH_QOS_add_ipv6addr(struct DWC_ETH_QOS_prv_data *pdata)
 #endif
 		EMACKPI("M - Ethernet Assigned IPv6 address");
 	}
+#else
+	ret = -EFAULT;
 #endif
 	return ret;
 }
@@ -1857,7 +1860,6 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 	struct desc_if_struct *desc_if = NULL;
 	UCHAR tx_q_count = 0, rx_q_count = 0;
 	u32 dma_bit_mask = EMAC_DEFAULT_BIT_ADDRESSING;
-	int phydata = 0;
 
 	EMACDBG("--> DWC_ETH_QOS_configure_netdevice\n");
 
