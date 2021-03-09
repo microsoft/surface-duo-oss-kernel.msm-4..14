@@ -1381,6 +1381,16 @@ static int vidioc_reqbufs(struct file *file, void *fh,
 		if (b->count < 1 || dev->buffers_number < 1)
 			return 0;
 
+	            /* trigger start stream poll event */
+                spin_lock_bh(&dev->lock);
+                if (dev->streamon_check == 0) {
+                       dev->streamon_complete = 1;
+                       dev->close_complete = 0;
+                       dev->stream_close_check = 0;
+                       wake_up_all(&dev->write_event);
+                }
+                spin_unlock_bh(&dev->lock);
+
 		if (b->count > dev->buffers_number)
 			b->count = dev->buffers_number;
 
@@ -1693,14 +1703,6 @@ static int vidioc_streamon(struct file *file,
 		opener->type = READER;
 		if (!dev->ready_for_capture)
 			return -EIO;
-		spin_lock_bh(&dev->lock);
-		if (dev->streamon_check == 0) {
-			dev->streamon_complete = 1;
-			dev->close_complete = 0;
-			dev->stream_close_check = 0;
-			wake_up_all(&dev->write_event);
-		}
-		spin_unlock_bh(&dev->lock);
 		return 0;
 	default:
 		return -EINVAL;
