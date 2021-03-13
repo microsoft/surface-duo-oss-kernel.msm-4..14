@@ -2186,7 +2186,7 @@ void resume_console(void)
 {
 	if (!console_suspend_enabled)
 		return;
-	place_marker("M - System Resume Started");
+	update_marker("M - System Resume Started");
 	down_console_sem();
 	console_suspended = 0;
 	console_unlock();
