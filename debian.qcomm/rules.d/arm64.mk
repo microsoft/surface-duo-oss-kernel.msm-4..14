@@ -3,8 +3,8 @@ build_arch	= arm64
 header_arch	= arm64
 defconfig	= defconfig
 flavours	= qcomm
-build_image	= Image
-kernel_file	= arch/$(build_arch)/boot/Image
+build_image	= Image-dtb
+kernel_file	= arch/$(build_arch)/boot/Image-dtb
 install_file	= vmlinuz
 no_dumpfile	= true
 
