@@ -6,10 +6,11 @@ and thus inherits all the common properties defined in designware-pcie.txt.
 Required properties:
 - compatible:
 	- "fsl,s32v234-pcie", for S32V234 SoCs
-	- "fsl,s32gen1-pcie", for S32Gen1 SoCs
+	- "fsl,s32gen1-pcie", for S32Gen1 SoCs RC mode
+	- "fsl,s32gen1-pcie-ep", for S32Gen1 SoCs EP mode
 - reg: base address and length of the PCIe controller
 - interrupts: A list of interrupt outputs of the controller. Must contain an
-  entry for each entry in the interrupt-names property.
+  entry for each item in the interrupt-names property.
 - interrupt-names: Must include the following entries:
 	- "msi": The interrupt that is asserted when an MSI is received
 Optional:
