@@ -25,3 +25,5 @@ do_doc_package	= false
 do_source_package= false
 do_dkms_wireguard = true
 do_zfs = false
+
+skipretpoline	= true
