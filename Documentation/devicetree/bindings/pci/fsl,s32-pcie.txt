@@ -12,6 +12,20 @@ Required properties:
   entry for each entry in the interrupt-names property.
 - interrupt-names: Must include the following entries:
 	- "msi": The interrupt that is asserted when an MSI is received
+Optional:
+- msi-parent: Use this option pointing to the GIC controller node which will
+  handle the MSIs. This property can be used only in Root Complex case.
+  By default, MSIs are handled by iMSI-RX -Integrated MSI Receiver [AXI Bridge]-,
+  an integrated MSI reception module in AXI Bridge which detects and terminates
+  inbound MSI requests (received on the RX wire). These MSIs will no longer appear
+  on the AXI bus. The disadvantage of this approach is that only one hardware
+  interrupt can be used, the one named "msi" from the interrupt list, which will
+  make impossible MSIs balancing between several cores.
+  If one wants to use more than one hardware interrupt, iMSI-RX should be skipped
+  and MSIs should be generated as SPIs.
+  This can be achived by adding the "msi-parent" property. The msi-parent
+  should be declared as "msi-controller" and the list of available SPIs that
+  can be used will be declared using "mbi-ranges".
 
 Example:
 
@@ -34,5 +48,7 @@ Example:
 				<0 0 0 2 &gic 0 107 4>,
 				<0 0 0 3 &gic 0 106 4>,
 				<0 0 0 4 &gic 0 105 4>;
+
+		/* msi-parent = <&gic>; */
 		status = "disabled";
 	};
