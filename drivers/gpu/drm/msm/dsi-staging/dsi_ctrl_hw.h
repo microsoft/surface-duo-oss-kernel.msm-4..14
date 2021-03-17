@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -433,6 +434,7 @@ struct dsi_ctrl_hw_ops {
 	 * @mode:              Pointer to mode information.
 	 * @h_stride:          Horizontal stride in bytes.
 	 * @vc_id:             stream_id.
+	 * @idle_ctrl          pclk cycles
 	 *
 	 * Setup parameters for command mode pixel stream size.
 	 */
@@ -440,7 +442,10 @@ struct dsi_ctrl_hw_ops {
 				 struct dsi_mode_info *mode,
 				 u32 h_stride,
 				 u32 vc_id,
-				 struct dsi_rect *roi);
+				 /* MS_CHANGE start */
+				 struct dsi_rect *roi,
+				 u32 idle_ctrl);
+				 /* MS_CHANGE end*/
 
 	/**
 	 * ctrl_en() - enable DSI controller engine

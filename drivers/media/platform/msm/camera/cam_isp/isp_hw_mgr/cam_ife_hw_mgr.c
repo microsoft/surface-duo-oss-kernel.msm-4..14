@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -6334,7 +6335,10 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 	}
 	if (j == 0) {
 		CAM_ERR(CAM_ISP, "no valid IFE HW");
-		return -EINVAL;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		return -EINVAL;
+		return -EPROBE_DEFER;
+/* MSCHANGE End */
 	}
 
 	/* fill csid hw intf information */
@@ -6345,7 +6349,10 @@ int cam_ife_hw_mgr_init(struct cam_hw_mgr_intf *hw_mgr_intf, int *iommu_hdl)
 	}
 	if (!j) {
 		CAM_ERR(CAM_ISP, "no valid IFE CSID HW");
-		return -EINVAL;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		return -EINVAL;
+		return -EPROBE_DEFER;
+/* MSCHANGE End */
 	}
 
 	cam_ife_hw_mgr_sort_dev_with_caps(&g_ife_hw_mgr);

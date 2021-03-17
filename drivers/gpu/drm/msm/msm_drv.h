@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
+ * Copyright (c) 2020 Microsoft Corporation
  * Author: Rob Clark <robdclark@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -498,6 +499,7 @@ struct msm_mode_info {
  * @roi_caps:           Region of interest capability info
  * @qsync_min_fps	Minimum fps supported by Qsync feature
  * @te_source		vsync source pin information
+ * @is_builtin          Set to true if this is built in display
  */
 struct msm_display_info {
 	int intf_type;
@@ -522,6 +524,7 @@ struct msm_display_info {
 
 	uint32_t qsync_min_fps;
 	uint32_t te_source;
+	bool is_builtin;/*MSCHANGE*/
 };
 
 #define MSM_MAX_ROI	4

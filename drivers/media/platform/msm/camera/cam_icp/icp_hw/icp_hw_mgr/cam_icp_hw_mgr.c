@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -5297,6 +5298,8 @@ static int cam_icp_mgr_init_devs(struct device_node *of_node)
 		if (!child_dev_intf) {
 			CAM_ERR(CAM_ICP, "no child device");
 			of_node_put(child_node);
+			/* MSCHANGE Handle errors properly to support Deferring initialization*/
+			rc = -EPROBE_DEFER;
 			if (!icp_hw_mgr.ipe1_enable)
 				continue;
 			goto compat_hw_name_failed;

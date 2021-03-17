@@ -1,4 +1,10 @@
 #
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
 # Input misc drivers configuration
 #
 menuconfig INPUT_MISC
@@ -889,4 +895,17 @@ config INPUT_HISI_POWERKEY
 	  To compile this driver as a module, choose M here: the
 	  module will be called hisi_powerkey.
 
+config INPUT_DA7280_HAPTICS
+	tristate "Dialog Semiconductor DA7280 haptics support"
+	depends on INPUT && I2C
+	select INPUT_FF_MEMLESS
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the Dialog DA7280 haptics driver.
+	  The haptics can be controlled by i2c communication,
+	  or by PWM input, or by GPI.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called da7280.
+	  
 endif

@@ -1,4 +1,11 @@
 #
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
+#
 # Hardware monitoring chip drivers configuration
 #
 
@@ -861,6 +868,16 @@ tristate "MAX31722 temperature sensor"
 
 	  This driver can also be built as a module. If so, the module
 	  will be called max31722.
+
+config SENSORS_MAX34417
+tristate "MAX34417 power monitor"
+	depends on I2C
+	help
+	  Support for the Maxim MAX34417 current and voltage monitor
+	  used to determine power consumption.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called max34417.
 
 config SENSORS_MAX6639
 	tristate "Maxim MAX6639 sensor chip"

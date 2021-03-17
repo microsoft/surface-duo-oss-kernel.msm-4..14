@@ -1,4 +1,5 @@
 /* Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -53,6 +54,8 @@ enum {
 #define ENABLE_TRICKLE_BIT			BIT(2)
 #define ENABLE_PRE_CHARGING_BIT			BIT(1)
 #define ENABLE_FULLON_MODE_BIT			BIT(0)
+#define DISABLE_CHARGING_BIT			BIT(6)  // MSCHANGE enabling smb5-reg
+#define CHARGING_ENABLE_BIT				BIT(4)  // MSCHANGE enabling smb5-reg
 
 #define BATTERY_CHARGER_STATUS_7_REG		(CHGR_BASE + 0x0D)
 #define BAT_TEMP_STATUS_SOFT_LIMIT_MASK		GENMASK(5, 4)
@@ -75,6 +78,10 @@ enum {
 #define VBAT_BASED_RECHG_BIT			BIT(2)
 #define SOC_BASED_RECHG_BIT			GENMASK(2, 1)
 #define CHARGER_INHIBIT_BIT			BIT(0)
+#define CHG_EN_POLARITY_BIT			BIT(6)   // MSCHANGE enabling smb5-reg
+#define CHG_EN_SRC_BIT				BIT(7)   // MSCHANGE enabling smb5-reg
+
+#define CFG_REG						(CHGR_BASE + 0x53)
 
 #define CHGR_FAST_CHARGE_CURRENT_CFG_REG	(CHGR_BASE + 0x61)
 
@@ -108,6 +115,7 @@ enum {
 #define CHGR_ADC_RECHARGE_THRESHOLD_LSB_REG	(CHGR_BASE + 0x7F)
 
 #define JEITA_EN_CFG_REG			(CHGR_BASE + 0x90)
+#define JEITA_EN_HOT_HL_BIT			BIT(4) // MSCHANGE: Disable HW jeita
 #define JEITA_EN_HOT_SL_FCV_BIT			BIT(3)
 #define JEITA_EN_COLD_SL_FCV_BIT		BIT(2)
 #define JEITA_EN_HOT_SL_CCC_BIT			BIT(1)
@@ -514,6 +522,8 @@ enum {
 #define WATCHDOG_TRIGGER_AFP_EN_BIT		BIT(7)
 #define BARK_WDOG_INT_EN_BIT			BIT(6)
 #define WDOG_TIMER_EN_ON_PLUGIN_BIT		BIT(1)
+#define WDOG_TIMER_EN_BIT				BIT(0)  // MSCHANGE enabling smb5-reg
+#define BITE_WDOG_INT_EN_BIT			BIT(5)  // MSCHANGE enabling smb5-reg
 
 #define SNARL_BARK_BITE_WD_CFG_REG		(MISC_BASE + 0x53)
 #define BITE_WDOG_DISABLE_CHARGING_CFG_BIT	BIT(7)
@@ -552,7 +562,13 @@ enum {
 
 #define SMB_REG_H_THRESHOLD_MSB_REG		(MISC_BASE + 0XBC)
 
+#define CFG_BUCKBOOST_FREQ_SELECT_BUCK_REG	(MISC_BASE + 0xA0)   // MSCHANGE enabling smb5-reg
+
 /* SDAM regs */
 #define MISC_PBS_RT_STS_REG			(MISC_PBS_BASE + 0x10)
 #define PULSE_SKIP_IRQ_BIT			BIT(4)
+
+#define ENG_SDCDC_CFG7_REG			(MISC_BASE + 0xC6)     // MSCHANGE enabling smb5-reg
+#define ENG_SDCDC_BST_SET_POINT_MASK		GENMASK(7, 6)  // MSCHANGE enabling smb5-reg
+
 #endif /* __SMB5_CHARGER_REG_H */

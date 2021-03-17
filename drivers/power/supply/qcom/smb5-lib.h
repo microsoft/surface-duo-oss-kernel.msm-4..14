@@ -1,4 +1,5 @@
 /* Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,6 +25,7 @@
 #include <linux/usb/class-dual-role.h>
 #include "storm-watch.h"
 #include "battery.h"
+#include "ms-chg.h"   // MSCHANGE enabling discrete charging circuit
 
 enum print_reason {
 	PR_INTERRUPT	= BIT(0),
@@ -356,6 +358,7 @@ struct smb_params {
 	struct smb_chg_param	freq_switcher;
 	struct smb_chg_param	aicl_5v_threshold;
 	struct smb_chg_param	aicl_cont_threshold;
+	struct smb_chg_param	freq_buck;  // MSCHANGE enabling smb5-lib
 };
 
 struct parallel_params {
@@ -410,6 +413,7 @@ struct smb_charger {
 	struct power_supply		*wls_psy;
 	struct power_supply		*cp_psy;
 	enum power_supply_type		real_charger_type;
+	struct power_supply_desc	usb_psy_desc;
 
 	/* dual role class */
 	struct dual_role_phy_instance	*dual_role;
@@ -466,6 +470,7 @@ struct smb_charger {
 	struct delayed_work	role_reversal_check;
 	struct delayed_work	pr_swap_detach_work;
 	struct delayed_work	pr_lock_clear_work;
+	struct delayed_work	MSEChg_Hw_work;  // MSCHANGE charger heartbeat
 
 	struct alarm		lpd_recheck_timer;
 	struct alarm		moisture_protection_alarm;
@@ -605,6 +610,9 @@ struct smb_charger {
 	int			dcin_uv_count;
 	ktime_t			dcin_uv_last_time;
 	int			last_wls_vout;
+
+	/* MSE discrete HW config */
+	struct	MSEHw_Config MSEHw_Config;  // MSCHANGE enabling MSE discrete charging circuit
 };
 
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val);
@@ -718,6 +726,8 @@ int smblib_get_prop_usb_present(struct smb_charger *chg,
 				union power_supply_propval *val);
 int smblib_get_prop_usb_online(struct smb_charger *chg,
 				union power_supply_propval *val);
+int smblib_get_prop_usb_connected(struct smb_charger *chg,
+				    union power_supply_propval *val);  // MSCHANGE disable parallel charging when USB is disconnected
 int smblib_get_prop_usb_suspend(struct smb_charger *chg,
 				union power_supply_propval *val);
 int smblib_get_prop_usb_voltage_max(struct smb_charger *chg,
