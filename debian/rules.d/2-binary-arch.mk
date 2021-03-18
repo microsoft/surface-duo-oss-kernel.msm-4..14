@@ -15,6 +15,10 @@ ifneq ($(gcc),)
 kmake += CC=$(CROSS_COMPILE)$(gcc)
 endif
 
+ifeq ($(do_use_clang),true)
+kmake += CC="clang" DISTCC_HOSTS="clang"
+endif
+
 shlibdeps_opts = $(if $(CROSS_COMPILE),-- -l$(CROSS_COMPILE:%-=/usr/%)/lib)
 
 debian/scripts/fix-filenames: debian/scripts/fix-filenames.c
