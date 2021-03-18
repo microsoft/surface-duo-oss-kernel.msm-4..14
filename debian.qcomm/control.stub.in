@@ -26,7 +26,7 @@ Build-Depends:
  libaudit-dev <!stage1>,
  bc <!stage1>,
  gawk <!stage1>,
- device-tree-compiler [powerpc] <!stage1>,
+ device-tree-compiler [arm64 powerpc] <!stage1>,
  u-boot-tools [powerpc] <!stage1>,
  libc6-dev-ppc64 [powerpc] <!stage1>,
  libudev-dev <!stage1>,
