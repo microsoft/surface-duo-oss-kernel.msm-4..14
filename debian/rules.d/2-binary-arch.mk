@@ -19,6 +19,10 @@ ifeq ($(do_use_clang),true)
 kmake += CC="clang" DISTCC_HOSTS="clang"
 endif
 
+ifeq ($(do_use_ext_dtc),true)
+kmake += "DTC_EXT=dtc"
+endif
+
 shlibdeps_opts = $(if $(CROSS_COMPILE),-- -l$(CROSS_COMPILE:%-=/usr/%)/lib)
 
 debian/scripts/fix-filenames: debian/scripts/fix-filenames.c
