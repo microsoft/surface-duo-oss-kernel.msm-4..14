@@ -36,8 +36,6 @@ Build-Depends:
  uuid-dev <!stage1>,
  dkms <!stage1>,
  curl <!stage1>,
- clang <!stage1>,
- lld <!stage1>,
 Build-Depends-Indep:
  xmlto <!stage1>,
  docbook-utils <!stage1>,

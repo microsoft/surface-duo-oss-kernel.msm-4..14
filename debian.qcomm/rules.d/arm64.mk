@@ -26,5 +26,4 @@ do_dkms_wireguard = true
 do_zfs = false
 
 skipretpoline	= true
-do_use_clang	= true
 do_use_ext_dtc	= true
