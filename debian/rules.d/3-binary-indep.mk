@@ -117,13 +117,6 @@ ifeq ($(do_tools_common),true)
 
 	install -m755 debian/tools/generic $(toolsbin)/perf
 
-	install -m755 debian/tools/generic $(toolssbin)/bpftool
-	make -C $(builddir)/tools/tools/bpf/bpftool doc
-	install -m644 $(builddir)/tools/tools/bpf/bpftool/Documentation/*.8 \
-		$(toolsman)/man8
-	install -m644 $(builddir)/tools/tools/bpf/bpftool/bash-completion/bpftool \
-		$(toolsbashcomp)
-
 	install -m755 debian/tools/generic $(toolsbin)/x86_energy_perf_policy
 	install -m755 debian/tools/generic $(toolsbin)/turbostat
 
