@@ -28,6 +28,7 @@ $(stampdir)/stamp-prepare-%: config-prepare-check-%
 	@echo Debug: $@
 	@touch $@
 $(stampdir)/stamp-prepare-tree-%: target_flavour = $*
+$(stampdir)/stamp-prepare-tree-%: cc = $(call custom_override,compiler,$*)
 $(stampdir)/stamp-prepare-tree-%: $(commonconfdir)/config.common.$(family) $(archconfdir)/config.common.$(arch) $(archconfdir)/config.flavour.% debian/scripts/fix-filenames
 	@echo Debug: $@
 	install -d $(builddir)/build-$*
@@ -48,6 +49,7 @@ build-%: $(stampdir)/stamp-build-%
 
 # Do the actual build, including image and modules
 $(stampdir)/stamp-build-%: target_flavour = $*
+$(stampdir)/stamp-build-%: cc = $(call custom_override,compiler,$*)
 $(stampdir)/stamp-build-%: bldimg = $(call custom_override,build_image,$*)
 $(stampdir)/stamp-build-%: $(stampdir)/stamp-prepare-%
 	@echo Debug: $@ build_image $(build_image) bldimg $(bldimg)
@@ -106,6 +108,7 @@ install-%: kernfile = $(call custom_override,kernel_file,$*)
 install-%: instfile = $(call custom_override,install_file,$*)
 install-%: hdrdir = $(CURDIR)/debian/$(basepkg)-$*/usr/src/$(basepkg)-$*
 install-%: target_flavour = $*
+install-%: cc = $(call custom_override,compiler,$*)
 install-%: MODHASHALGO=sha512
 install-%: MODSECKEY=$(builddir)/build-$*/certs/signing_key.pem
 install-%: MODPUBKEY=$(builddir)/build-$*/certs/signing_key.x509
