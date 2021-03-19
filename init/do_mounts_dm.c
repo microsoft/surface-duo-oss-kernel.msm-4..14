@@ -26,6 +26,9 @@
 #define DM_FIELD_SEP " "
 #define DM_LINE_SEP ","
 #define DM_ANY_SEP DM_FIELD_SEP DM_LINE_SEP
+static char dm_earlyservices[512] __initdata;
+static int dm_minors=0;
+
 
 /*
  * When the device-mapper and any targets are compiled into the kernel
@@ -284,7 +287,7 @@ static struct dm_device * __init dm_parse_args(void)
 		 * in the order they are found in the arg
 		 * string.
 		 */
-		dev->minor = i;
+		dev->minor = dm_minors++;
 		str = dm_parse_device(dev, str);
 		if (!str)	/* NULL indicates error in parsing, bail */
 			goto error;
@@ -459,7 +462,46 @@ dm_create_fail:
 	dm_setup_cleanup(devices);
 }
 
+static int __init dm_es_setup(char *line)
+{
+        strlcpy(dm_earlyservices, line, sizeof(dm_earlyservices));
+        return 0;
+}
 __setup("dm=", dm_setup);
+__setup("dm1=", dm_es_setup);
+
+void __init dm_run_es_setup(void)
+{
+        struct dm_option opt;
+        unsigned long num_devices;
+        char *str = &dm_earlyservices[0];
+
+        if (!str) {
+                DMDEBUG("dm_earlyservices is NULL");
+		return;
+        }
+        opt.next =str;
+        if (!get_dm_option(&opt, DM_FIELD_SEP))
+                 DMDEBUG("dm_earlyservices number field  is NULL");
+
+        if (isdigit(opt.start[0])) {    /* XXX: Optional number field */
+                num_devices = simple_strtoul(opt.start, NULL, 10);
+                str = opt.next;
+        } else {
+                num_devices = 1;
+                /* Don't advance str */
+        }
+        if (num_devices > DM_MAX_DEVICES) {
+                DMDEBUG("too many devices %lu > %d",
+                        num_devices, DM_MAX_DEVICES);
+        }
+        dm_setup_args.str =str;
+        dm_setup_args.num_devices = num_devices;
+        DMINFO("will configure %lu devices", num_devices);
+        dm_setup_drives();
+
+}
+
 
 void __init dm_run_setup(void)
 {
