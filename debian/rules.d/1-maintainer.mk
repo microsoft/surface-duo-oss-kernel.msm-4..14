@@ -95,7 +95,6 @@ printenv:
 	@echo " do_tools_host             = $(do_tools_host)"
 	@echo "do_cloud_tools            = $(do_cloud_tools)"
 	@echo " do_tools_hyperv           = $(do_tools_hyperv)"
-	@echo "do_use_clang              = $(do_use_clang)"
 	@echo "do_use_ext_dtc            = $(do_use_ext_dtc)"
 	@echo "any_signed                = $(any_signed)"
 	@echo " uefi_signed               = $(uefi_signed)"

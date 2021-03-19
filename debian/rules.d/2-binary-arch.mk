@@ -15,10 +15,6 @@ ifneq ($(gcc),)
 kmake += CC=$(CROSS_COMPILE)$(gcc)
 endif
 
-ifeq ($(do_use_clang),true)
-kmake += CC="clang" DISTCC_HOSTS="clang"
-endif
-
 ifeq ($(do_use_ext_dtc),true)
 kmake += "DTC_EXT=dtc"
 endif
