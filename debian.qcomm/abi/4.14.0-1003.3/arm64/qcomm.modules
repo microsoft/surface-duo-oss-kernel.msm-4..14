@@ -2,6 +2,7 @@
 6pack
 8021q
 8250_aspeed_vuart
+8250_dw
 8250_men_mcb
 8255
 842
@@ -113,6 +114,7 @@ adf4350
 adf7242
 adfs
 adi
+adiantum
 adis16080
 adis16130
 adis16136
@@ -153,6 +155,7 @@ adt7475
 adt7x10
 adummy
 adutux
+adv7511
 adxl34x
 adxl34x-i2c
 adxl34x-spi
@@ -221,6 +224,7 @@ arizona-ldo1
 arizona-micsupp
 arizona-spi
 ark3116
+arm64-reloc-test
 arm_big_little
 arm_mhu
 arm_scpi
@@ -261,6 +265,7 @@ ath9k_htc
 ath9k_hw
 ati_remote
 ati_remote2
+atlantic-fwd
 atlas-ph-sensor
 atm
 atmel-flexcom
@@ -268,6 +273,7 @@ atmel-hlcdc
 atmel_captouch
 atmel_mxt_ts
 atmtcp
+atomic64_test
 atusb
 atxp1
 au0828
@@ -432,6 +438,7 @@ ch7006
 ch9200
 chacha20-neon
 chacha20poly1305
+chacha_generic
 chaoskey
 charlcd
 chipone_icn8318
@@ -652,6 +659,7 @@ ds2782_battery
 ds3000
 ds620
 dsa_core
+dsa_loop
 dsbr100
 dt9812
 dumb-vga-dac
@@ -710,6 +718,7 @@ dw_mmc-k3
 dw_mmc-pltfm
 dw_wdt
 dwc-xlgmac
+dwc2
 dynapro
 e3x0-button
 e4000
@@ -868,6 +877,7 @@ g_ether
 g_hid
 g_mass_storage
 g_midi
+g_multi
 g_ncm
 g_nokia
 g_printer
@@ -916,6 +926,7 @@ gl518sm
 gl520sm
 gl620a
 gluebi
+gnss
 go7007
 go7007-loader
 go7007-usb
@@ -938,6 +949,7 @@ gpio-da9055
 gpio-dln2
 gpio-dwapb
 gpio-fan
+gpio-generic
 gpio-grgpio
 gpio-ir-recv
 gpio-ir-tx
@@ -951,6 +963,7 @@ gpio-max732x
 gpio-max77620
 gpio-mc33880
 gpio-menz127
+gpio-mockup
 gpio-pca953x
 gpio-pcf857x
 gpio-pisosr
@@ -1050,6 +1063,8 @@ hdlc_raw_eth
 hdlc_x25
 hdlcd
 hdlcdrv
+hdma
+hdma_mgmt
 hdpvr
 hfcsusb
 hfs
@@ -1143,6 +1158,7 @@ hid-sensor-trigger
 hid-sjoy
 hid-sony
 hid-speedlink
+hid-steam
 hid-steelseries
 hid-sunplus
 hid-tivo
@@ -1204,6 +1220,7 @@ i2c-cros-ec-tunnel
 i2c-demux-pinctrl
 i2c-diolan-u2c
 i2c-dln2
+i2c-emev2
 i2c-gpio
 i2c-hid
 i2c-kempld
@@ -1380,6 +1397,7 @@ ir-sony-decoder
 ir-usb
 ir-xmp-decoder
 ir35221
+irqbypass
 iscsi_boot_sysfs
 iscsi_target_mod
 iscsi_tcp
@@ -1526,6 +1544,8 @@ lineage-pem
 linear
 lis3lv02d
 lis3lv02d_i2c
+lis3lv02d_spi
+lkdtm
 lkkbd
 llc2
 lm25066
@@ -1559,6 +1579,7 @@ lms283gf05
 lms501kf03
 lnbp21
 lnbp22
+locktorture
 lp
 lp3943
 lp3971
@@ -1779,6 +1800,7 @@ mma9551_core
 mma9553
 mmc35240
 mmc_spi
+mmc_test
 mms114
 mn88472
 mn88473
@@ -1794,6 +1816,8 @@ mpls_gso
 mpls_iptunnel
 mpls_router
 mpoa
+mpq-adapter
+mpq-dmx-hw-plugin
 mpr121_touchkey
 mpu3050
 mrf24j40
@@ -1807,6 +1831,8 @@ ms_sensors_i2c
 mscc
 msi001
 msi2500
+msm-geni-ir
+msm_11ad_proxy
 msp3400
 mspro_block
 mt2060
@@ -1952,6 +1978,7 @@ nhc_ipv6
 nhc_mobility
 nhc_routing
 nhc_udp
+nhpoly1305
 ni_usb6501
 nilfs2
 nlmon
@@ -2101,6 +2128,7 @@ phy-gpio-vbus-usb
 phy-isp1301
 phy-pxa-28nm-hsic
 phy-pxa-28nm-usb2
+phy-qcom-usb-hs
 phy-qcom-usb-hsic
 phy-tahvo
 phy-tusb1210
@@ -2181,6 +2209,8 @@ qcaux
 qcom-emac
 qcom-spmi-iadc
 qcom-spmi-vadc
+qcom_glink_rpm
+qcom_spmi-regulator
 qcserial
 qemu_fw_cfg
 qinfo_probe
@@ -2194,6 +2224,7 @@ qsemi
 qt1010
 qt1070
 qt2160
+qti-can
 quatech2
 quota_v1
 r8188eu
@@ -2340,12 +2371,14 @@ rc-winfast-usbii-deluxe
 rc-zx-irdec
 rc5t583-regulator
 rcuperf
+rcutorture
 rdma_cm
 rdma_ucm
 rds
 rds_rdma
 rds_tcp
 realtek
+reboot-mode
 redboot
 redrat3
 regmap-w1
@@ -2419,6 +2452,7 @@ rtc-ds1685
 rtc-ds1742
 rtc-ds2404
 rtc-ds3232
+rtc-efi
 rtc-em3027
 rtc-fm3130
 rtc-ftrtc010
@@ -2615,6 +2649,7 @@ sm501fb
 sm_ftl
 smb347-charger
 smc
+smc91x
 smm665
 smsc
 smsc47b397
@@ -2632,18 +2667,22 @@ snd-aloop
 snd-bcd2000
 snd-dummy
 snd-hrtimer
+snd-mixer-oss
 snd-mpu401
 snd-mpu401-uart
 snd-mtpav
 snd-mts64
+snd-pcm-oss
 snd-portman2x4
 snd-seq
 snd-seq-dummy
 snd-seq-midi
 snd-seq-midi-event
+snd-seq-oss
 snd-seq-virmidi
 snd-serial-u16550
 snd-soc-ac97
+snd-soc-acp-pcm
 snd-soc-adau-utils
 snd-soc-adau1701
 snd-soc-adau1761
@@ -2944,10 +2983,12 @@ tef6862
 teranetics
 test_bpf
 test_firmware
+test_kmod
 test_module
 test_power
 test_static_key_base
 test_static_keys
+test_sysctl
 test_udelay
 test_user_copy
 tgr192
@@ -3041,6 +3082,7 @@ tsl2550
 tsl2563
 tsl2583
 tsl4531
+tspp
 tsys01
 tsys02d
 ttm
@@ -3089,6 +3131,7 @@ uio_dmem_genirq
 uio_pdrv_genirq
 uio_pruss
 uleds
+ulpi
 umem
 ums-alauda
 ums-cypress
@@ -3155,6 +3198,7 @@ uwb
 v4l2-flash-led-class
 v4l2-fwnode
 v4l2-tpg
+v4l2loopback
 vcan
 vcnl4000
 vctrl-regulator
@@ -3182,11 +3226,21 @@ videobuf-vmalloc
 videobuf2-dma-contig
 videobuf2-dma-sg
 vim2m
+vimc
+vimc-debayer
+vimc_capture
+vimc_common
+vimc_scaler
+vimc_sensor
+vimc_streamer
 viperboard
 viperboard_adc
+virt_wifi
 virtio-gpu
 virtio-rng
+virtio_balloon
 virtio_blk
+virtio_console
 virtio_crypto
 virtio_input
 virtio_net
@@ -3363,4 +3417,5 @@ zpa2326
 zpa2326_i2c
 zpa2326_spi
 zr364xx
+zstd
 zx-tdm
