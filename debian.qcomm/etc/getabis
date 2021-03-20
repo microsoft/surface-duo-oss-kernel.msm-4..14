@@ -1,11 +1,23 @@
-repo_list=(
-	"http://archive.ubuntu.com/ubuntu/pool/main/l/linux-qcomm"
-	"http://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux-qcomm"
-	"http://archive.ubuntu.com/ubuntu/pool/universe/l/linux-qcomm"
-	"http://ports.ubuntu.com/ubuntu-ports/pool/universe/l/linux-qcomm"
-	"http://ppa.launchpad.net/canonical-kernel-team/ppa/ubuntu/pool/main/l/linux-qcomm"
-	"http://ppa.launchpad.net/canonical-kernel-team/unstable/ubuntu/pool/main/l/linux-qcomm"
-)
+getabis_ppa="${HOME}/.getabis.focal-qcomm"
+
+if ! [ -e "${getabis_ppa}" ] ; then
+	cat <<EOF >&2
+Error: No private PPA URL(s) found, unable to fetch ABI information.
+
+This kernel is built and delivered using private PPA(s). You need to add the
+PPA repo URL(s) (including the username and password) to the file
+${getabis_ppa}.
+
+One URL per line, like:
+
+https://<user>:<pass>@private-ppa.launchpad.net/<ppa-team>/<ppa-name>/ubuntu
+
+EOF
+	exit 1
+fi
+
+readarray -t repo_list < <(sed "s,\s*$,/pool/main/l/linux-qcomm," \
+		"${getabis_ppa}")
 
 package_prefixes linux-buildinfo
 
