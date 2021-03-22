@@ -1,6 +1,6 @@
 /*
  * NXP S32GEN1 reboot driver
- * Copyright 2018 NXP
+ * Copyright 2018,2021 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -19,6 +19,7 @@
 #include <linux/of_device.h>
 #include <linux/of_address.h>
 #include <asm/system_misc.h>
+#include <linux/mfd/syscon.h>
 
 /* MC_ME_CTL */
 #define MC_ME_CTL_KEY(mc_me)		((mc_me) + 0x00000000)
@@ -39,11 +40,8 @@
 
 #define MC_RGM_FRET_VALUE		(0xF)
 
-#define OF_MATCH_MC_RGM		0
-#define OF_MATCH_MC_ME		1
-
 static const struct of_device_id s32gen1_reboot_of_match[] = {
-	{ .compatible = "fsl,s32gen1-reset", .data = (void *) 0 },
+	{ .compatible = "fsl,s32gen1-prstc", .data = (void *) 0 },
 	{}
 };
 
@@ -98,15 +96,16 @@ static int s32gen1_reboot_probe(struct platform_device *pdev)
 	if (of == NULL)
 		return -ENODEV;
 
-	s32gen1_reboot_priv.mc_me = of_iomap(pdev->dev.of_node, OF_MATCH_MC_ME);
-	if (!s32gen1_reboot_priv.mc_me) {
+	s32gen1_reboot_priv.mc_me =
+		syscon_regmap_lookup_by_compatible("fsl,s32gen1-mc_me");
+	if (IS_ERR(s32gen1_reboot_priv.mc_rgm)) {
 		dev_err(&pdev->dev, "Can not map resource\n");
 		return -ENODEV;
 	}
 
-	s32gen1_reboot_priv.mc_rgm = of_iomap(pdev->dev.of_node,
-					      OF_MATCH_MC_RGM);
-	if (!s32gen1_reboot_priv.mc_rgm) {
+	s32gen1_reboot_priv.mc_rgm =
+		syscon_regmap_lookup_by_compatible("fsl,s32gen1-rgm");
+	if (IS_ERR(s32gen1_reboot_priv.mc_rgm)) {
 		iounmap(s32gen1_reboot_priv.mc_me);
 		dev_err(&pdev->dev, "Can not map resource\n");
 		return -ENODEV;
@@ -126,7 +125,7 @@ static int s32gen1_reboot_probe(struct platform_device *pdev)
 static struct platform_driver s32gen1_reboot_driver = {
 	.probe = s32gen1_reboot_probe,
 	.driver = {
-		.name = "s32gen1-reset",
+		.name = "s32gen1-power-reset",
 		.of_match_table = s32gen1_reboot_of_match,
 	},
 };
