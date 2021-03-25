@@ -3764,6 +3764,9 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 err_clk:
 	clk_disable_unprepare(ethqos->rgmii_clk);
 
+	if (ethqos->bus_hdl)
+		msm_bus_scale_unregister_client(ethqos->bus_hdl);
+
 err_mem:
 	stmmac_remove_config_dt(pdev, plat_dat);
 
@@ -3781,6 +3784,9 @@ static int qcom_ethqos_remove(struct platform_device *pdev)
 
 	ret = stmmac_pltfr_remove(pdev);
 	clk_disable_unprepare(ethqos->rgmii_clk);
+
+	if (ethqos->bus_hdl)
+		msm_bus_scale_unregister_client(ethqos->bus_hdl);
 
 	if (phy_intr_en)
 		free_irq(ethqos->phy_intr, ethqos);
