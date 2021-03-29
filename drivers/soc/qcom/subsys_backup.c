@@ -694,9 +694,10 @@ static int hyp_assign_buffers(struct subsys_backup *backup_dev, int dest,
 				int src)
 {
 	int ret;
-	int src_vmids[1] = {src};
-	int dest_vmids[1] = {dest};
-	int dest_perms[1] = {PERM_READ|PERM_WRITE};
+	int src_vmids[2] = {src, NULL};
+	int dest_vmids[2] = {dest, NULL};
+	int dest_perms[2] = {PERM_READ|PERM_WRITE, PERM_READ|PERM_WRITE};
+	int nr_src = 1, nr_dest = 1;
 
 	if (dest == VMID_HLOS)
 		dest_perms[0] |= PERM_EXEC;
@@ -704,17 +705,32 @@ static int hyp_assign_buffers(struct subsys_backup *backup_dev, int dest,
 	if (is_hyp_assigned(dest, backup_dev))
 		return 0;
 
-	ret = hyp_assign_phys(backup_dev->img_buf.paddr,
-			backup_dev->img_buf.total_size, src_vmids, 1,
-			dest_vmids, dest_perms, 1);
-	if (ret)
-		goto error_img_assign;
-
 	ret = hyp_assign_phys(backup_dev->scratch_buf.paddr,
-			backup_dev->scratch_buf.total_size, src_vmids, 1,
-			dest_vmids, dest_perms, 1);
+			backup_dev->scratch_buf.total_size, src_vmids, nr_src,
+			dest_vmids, dest_perms, nr_dest);
 	if (ret)
 		goto error_scratch_assign;
+
+
+	/*
+	 * To avoid zeroing out of image buffer after hyp-assign back to HLOS,
+	 * add the HLOS as the destination. This is to allow both MPSS and HLOS
+	 * have shared access to the image buffer.
+	 */
+	if (dest == VMID_MSS_MSA) {
+		dest_vmids[1] = VMID_HLOS;
+		dest_perms[1] |= PERM_EXEC;
+		nr_dest = 2;
+	} else {
+		nr_src = 2;
+		src_vmids[1] = VMID_HLOS;
+	}
+
+	ret = hyp_assign_phys(backup_dev->img_buf.paddr,
+			backup_dev->img_buf.total_size, src_vmids, nr_src,
+			dest_vmids, dest_perms, nr_dest);
+	if (ret)
+		goto error_img_assign;
 
 	if (dest == VMID_HLOS) {
 		backup_dev->img_buf.hyp_assigned_to_hlos = true;
@@ -725,15 +741,15 @@ static int hyp_assign_buffers(struct subsys_backup *backup_dev, int dest,
 	}
 
 	return 0;
-error_scratch_assign:
+error_img_assign:
 	if (dest != VMID_HLOS) {
-		ret = hyp_assign_phys(backup_dev->img_buf.paddr,
-				backup_dev->img_buf.total_size, dest_vmids, 1,
-				src_vmids, dest_perms, 1);
+		ret = hyp_assign_phys(backup_dev->scratch_buf.paddr,
+				backup_dev->scratch_buf.total_size, dest_vmids,
+				nr_src, src_vmids, dest_perms, nr_dest);
 		BUG_ON(ret);
 	}
 
-error_img_assign:
+error_scratch_assign:
 	dev_err(backup_dev->dev, "%s: Failed: %d\n", __func__, ret);
 	return ret;
 }
