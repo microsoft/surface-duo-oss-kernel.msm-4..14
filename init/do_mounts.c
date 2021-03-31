@@ -690,6 +690,7 @@ void __init prepare_namespace(void)
 
 	md_run_setup();
 	dm_run_setup();
+	dm_run_es_setup(); /*setup Early Services verity*/
 
 	if (saved_root_name[0]) {
 		root_device_name = saved_root_name;

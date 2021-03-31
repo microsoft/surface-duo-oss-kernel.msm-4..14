@@ -1128,6 +1128,17 @@ static noinline void __init kernel_init_freeable(void)
 	if (sys_access((const char __user *) ramdisk_execute_command, 0) != 0) {
 		ramdisk_execute_command = NULL;
 		prepare_namespace();
+	} else {
+		/*
+		 * wait for the known devices to complete their probing
+		 *
+		 * Note: this is a potential source of long boot delays.
+		 * For example, it is not atypical to wait 5 seconds here
+		 * for the touchpad of a laptop to initialize.
+		 */
+		wait_for_device_probe();
+
+		dm_run_es_setup(); /* setup Early Services verity */
 	}
 	launch_early_services();
 
