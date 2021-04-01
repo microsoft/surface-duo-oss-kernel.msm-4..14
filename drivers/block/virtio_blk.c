@@ -343,10 +343,17 @@ static blk_status_t virtio_queue_rq(struct blk_mq_hw_ctx *hctx,
 
 	retval = virtblk_handle_ice(vblk, req);
 	if (retval != BLK_STS_OK) {
-		if (retval == BLK_STS_RESOURCE)
+		if (retval == BLK_STS_RESOURCE) {
 			blk_mq_run_hw_queue(hctx, true);
+			spin_lock_irqsave(&vblk->vqs[qid].lock, flags);
+			virtqueue_kick_prepare(vblk->vqs[qid].vq);
+			spin_unlock_irqrestore(&vblk->vqs[qid].lock, flags);
+			virtqueue_notify(vblk->vqs[qid].vq);
+		} else
+			pr_err("%s: virtblk_handle_ice failed (%d)", __func__, retval);
 		return retval;
 	}
+
 	blk_mq_start_request(req);
 
 	num = blk_rq_map_sg(hctx->queue, req, vbr->sg);
@@ -363,6 +370,12 @@ static blk_status_t virtio_queue_rq(struct blk_mq_hw_ctx *hctx,
 	else
 		err = virtblk_add_req(vblk->vqs[qid].vq, vbr, vbr->sg, num);
 	if (err) {
+		bool ice_activated;
+		int ret = pfk_load_key_end(req->bio, &ice_activated);
+
+		if (ice_activated && ret != 0)
+			pr_err("%s:  pfk_load_key_end returned %d\n", __func__, ret);
+
 		virtqueue_kick(vblk->vqs[qid].vq);
 		blk_mq_stop_hw_queue(hctx);
 		spin_unlock_irqrestore(&vblk->vqs[qid].lock, flags);
