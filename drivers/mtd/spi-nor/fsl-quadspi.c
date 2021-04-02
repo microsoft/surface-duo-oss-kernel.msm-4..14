@@ -604,6 +604,12 @@ static int fsl_qspi_nor_setup(struct fsl_qspi *q)
 
 #ifdef CONFIG_SOC_S32GEN1
 	enable_spi(q, true);
+
+	qspi_writel(q, QUADSPI_SFA_ADDR, q->iobase + QUADSPI_SFA1AD);
+	qspi_writel(q, QUADSPI_SFA_ADDR, q->iobase + QUADSPI_SFA2AD);
+	qspi_writel(q, QUADSPI_SFB_ADDR, q->iobase + QUADSPI_SFB1AD);
+	qspi_writel(q, QUADSPI_SFB_ADDR, q->iobase + QUADSPI_SFB2AD);
+
 	return 0;
 #endif
 
@@ -987,12 +993,6 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 
 		/* set the chip address for READID */
 		fsl_qspi_set_base_addr(q, nor);
-#ifdef CONFIG_SOC_S32GEN1
-		qspi_writel(q, QUADSPI_SFA_ADDR, q->iobase + QUADSPI_SFA1AD);
-		qspi_writel(q, QUADSPI_SFA_ADDR, q->iobase + QUADSPI_SFA2AD);
-		qspi_writel(q, QUADSPI_SFB_ADDR, q->iobase + QUADSPI_SFB1AD);
-		qspi_writel(q, QUADSPI_SFB_ADDR, q->iobase + QUADSPI_SFB2AD);
-#endif
 		ret = spi_nor_scan(nor, NULL, &hwcaps);
 		if (ret)
 			goto mutex_failed;
@@ -1072,12 +1072,12 @@ static int fsl_qspi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifndef CONFIG_SOC_S32GEN1
 static int fsl_qspi_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	return 0;
 }
 
-#ifndef CONFIG_SOC_S32GEN1
 static int fsl_qspi_resume(struct platform_device *pdev)
 {
 	int ret;
@@ -1095,17 +1095,57 @@ static int fsl_qspi_resume(struct platform_device *pdev)
 
 	return 0;
 }
+#else
+static int __maybe_unused quadspi_suspend(struct device *dev)
+{
+	struct fsl_qspi *q = dev_get_drvdata(dev);
+
+	/* We switch QSPI to SPI mode before suspend to RAM,
+	 * in order to correctly reinitialize QSPI for DTR-OPI
+	 * mode, after resume, in case of read operation.
+	 */
+	enable_spi(q, true);
+
+	q->luts_next_config = 0;
+	memset(q->lut_configs, 0, sizeof(q->lut_configs));
+
+	return 0;
+}
+
+static int __maybe_unused quadspi_resume(struct device *dev)
+{
+	struct fsl_qspi *q = dev_get_drvdata(dev);
+	int ret;
+
+	ret = fsl_qspi_clk_prep_enable(q);
+	if (ret) {
+		dev_err(dev, "Failed to enable clock\n");
+		return ret;
+	}
+
+	fsl_qspi_nor_setup(q);
+	fsl_qspi_nor_setup_last(q);
+
+	fsl_qspi_clk_disable_unprep(q);
+
+	return ret;
+}
+
+static SIMPLE_DEV_PM_OPS(quadspi_pm_ops, quadspi_suspend, quadspi_resume);
 #endif
 
 static struct platform_driver fsl_qspi_driver = {
 	.driver = {
 		.name	= "fsl-quadspi",
 		.of_match_table = fsl_qspi_dt_ids,
+#ifdef CONFIG_SOC_S32GEN1
+		.pm = &quadspi_pm_ops,
+#endif
 	},
 	.probe          = fsl_qspi_probe,
 	.remove		= fsl_qspi_remove,
-	.suspend	= fsl_qspi_suspend,
 #ifndef CONFIG_SOC_S32GEN1
+	.suspend	= fsl_qspi_suspend,
 	.resume		= fsl_qspi_resume,
 #endif
 };
