@@ -330,6 +330,11 @@
 #define QUADSPI_FLAG_REGMAP_ENDIAN_BIG	BIT(0)
 #define QUADSPI_FLAG_PREV_READ_MEM		BIT(1)
 
+#define MAX_OPCODE 0xff
+#define MAX_LUTS 80
+#define LUTS_PER_CONFIG 5
+#define MAX_LUTS_CONFIGS (MAX_LUTS / LUTS_PER_CONFIG)
+
 #define FSL_QSPI_MAX_CHIP   4
 
 enum fsl_qspi_devtype {
@@ -341,6 +346,13 @@ enum fsl_qspi_devtype {
 	FSL_QUADSPI_S32V234,
 	FSL_QUADSPI_S32GEN1,
 	FSL_QUADSPI_LS2080A,
+};
+
+struct lut_config {
+	bool enabled;
+	u32 conf[MAX_LUTS_CONFIGS];
+	u8 fill;
+	u8 index;
 };
 
 struct fsl_qspi_devtype_data {
@@ -372,9 +384,11 @@ struct fsl_qspi {
 	struct pm_qos_request pm_qos_req;
 #ifdef CONFIG_SOC_S32GEN1
 	const struct spi_mem_op *s32gen1_mem_op;
+	struct lut_config lut_configs[MAX_OPCODE];
 	bool ddr_mode;
 	u32 num_pads;
 	u32 flags;
+	u8 luts_next_config;
 #endif
 };
 

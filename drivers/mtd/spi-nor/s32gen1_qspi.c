@@ -15,11 +15,6 @@
 
 #define LUT_INVALID_INDEX -1
 #define LUT_STOP_CMD 0x0
-#define MAX_OPCODE 0xff
-
-#define MAX_LUTS 80
-#define LUTS_PER_CONFIG 5
-#define MAX_LUTS_CONFIGS (MAX_LUTS / LUTS_PER_CONFIG)
 
 /* JESD216D.01 */
 #define SPINOR_OP_RDCR2		0x71
@@ -32,13 +27,6 @@
 #define QUADSPI_LUT(x)	(QUADSPI_LUT_BASE + (x) * 4)
 
 #define QUADSPI_S32GEN1_HIGH_FREQUENCY_VALUE	200000000
-
-struct lut_config {
-	bool enabled;
-	u32 conf[MAX_LUTS_CONFIGS];
-	u8 fill;
-	u8 index;
-};
 
 struct qspi_op {
 	const struct spi_mem_op *op;
@@ -56,9 +44,6 @@ struct qspi_config {
 	u32 flash2_size;
 	u32 dlpr;
 };
-
-static u8 luts_next_config;
-static struct lut_config lut_configs[MAX_OPCODE];
 
 #ifdef CONFIG_SPI_FLASH_MACRONIX
 /* JESD216D.01 operations used for DTR OPI switch */
@@ -411,7 +396,7 @@ static bool add_op_to_lutdb(struct fsl_qspi *q,
 	u16 lut;
 	int status;
 
-	lut_conf = &lut_configs[opcode];
+	lut_conf = &q->lut_configs[opcode];
 	lut_conf->fill = 0;
 
 	if (!fill_qspi_cmd(q, op, lut_conf))
@@ -437,8 +422,8 @@ static bool add_op_to_lutdb(struct fsl_qspi *q,
 	append_lut(lut_conf, LUT_STOP_CMD);
 
 	if (!lut_conf->index) {
-		lut_conf->index = luts_next_config;
-		luts_next_config++;
+		lut_conf->index = q->luts_next_config;
+		q->luts_next_config++;
 	}
 	*index = lut_conf->index;
 
@@ -451,7 +436,7 @@ static void set_lut(struct fsl_qspi *q, u8 index, u8 opcode)
 	u32 lutaddr;
 	void __iomem *base = q->iobase;
 
-	iter = &lut_configs[opcode].conf[0];
+	iter = &q->lut_configs[opcode].conf[0];
 	iterb = iter;
 
 	lutaddr = index * LUTS_PER_CONFIG;
@@ -461,7 +446,7 @@ static void set_lut(struct fsl_qspi *q, u8 index, u8 opcode)
 	qspi_writel(q, QUADSPI_LCKER_UNLOCK, base + QUADSPI_LCKCR);
 
 	while (((*iter & GENMASK(15, 0)) != LUT_STOP_CMD) &&
-	       (iter - iterb < sizeof(lut_configs[opcode].conf))) {
+	       (iter - iterb < sizeof(q->lut_configs[opcode].conf))) {
 		qspi_writel(q, *iter, base + QUADSPI_LUT(lutaddr));
 		iter++;
 		lutaddr++;
@@ -478,15 +463,15 @@ static bool enable_op(struct fsl_qspi *q, const struct spi_mem_op *op)
 	u8 lut_index;
 	u8 opcode = op->cmd.opcode;
 
-	if (luts_next_config >= MAX_LUTS_CONFIGS)
+	if (q->luts_next_config >= MAX_LUTS_CONFIGS)
 		return false;
 
-	if (!lut_configs[opcode].enabled) {
+	if (!q->lut_configs[opcode].enabled) {
 		if (!add_op_to_lutdb(q, op, &lut_index))
 			return false;
 
 		set_lut(q, lut_index, opcode);
-		lut_configs[opcode].enabled = true;
+		q->lut_configs[opcode].enabled = true;
 	}
 
 	return true;
@@ -506,18 +491,19 @@ static bool enable_operators(struct fsl_qspi *q,
 		cfg = ops[i].cfg;
 
 		/* In case it's already enabled */
-		lut_configs[op->cmd.opcode].enabled = false;
+		q->lut_configs[op->cmd.opcode].enabled = false;
 		res = enable_op(q, op);
-		*cfg = lut_configs[op->cmd.opcode].index;
+		*cfg = q->lut_configs[op->cmd.opcode].index;
 
-		if (!res || !lut_configs[op->cmd.opcode].enabled)
+		if (!res || !q->lut_configs[op->cmd.opcode].enabled)
 			return false;
 	}
 
 	return true;
 }
 
-static void disable_operators(struct qspi_op *ops, size_t n_ops)
+static void disable_operators(struct fsl_qspi *q,
+		struct qspi_op *ops, size_t n_ops)
 {
 	size_t i;
 	const struct spi_mem_op *op;
@@ -525,7 +511,7 @@ static void disable_operators(struct qspi_op *ops, size_t n_ops)
 	for (i = 0; i < n_ops; i++) {
 		op = ops[i].op;
 
-		lut_configs[op->cmd.opcode].enabled = false;
+		q->lut_configs[op->cmd.opcode].enabled = false;
 	}
 }
 
@@ -592,7 +578,7 @@ static int memory_enable_ddr(struct fsl_qspi *q)
 
 	qspi_writel(q, mcr2, base + QUADSPI_MCR);
 
-	disable_operators(ops, ARRAY_SIZE(ops));
+	disable_operators(q, ops, ARRAY_SIZE(ops));
 	udelay(400);
 
 	return 0;
@@ -851,7 +837,7 @@ static int memory_reset(struct fsl_qspi *q)
 
 	/* Reset recovery time after a read operation */
 	udelay(40);
-	disable_operators(ops, ARRAY_SIZE(ops));
+	disable_operators(q, ops, ARRAY_SIZE(ops));
 
 	return 0;
 }
@@ -1135,11 +1121,11 @@ int s32gen1_exec_op(struct spi_nor *nor, const struct spi_mem_op *op)
 	if (!s32gen1_supports_op(nor, op))
 		return -1;
 
-	enabled = lut_configs[op->cmd.opcode].enabled;
+	enabled = q->lut_configs[op->cmd.opcode].enabled;
 	if (!enabled)
 		return -1;
 
-	lut_cfg = lut_configs[op->cmd.opcode].index;
+	lut_cfg = q->lut_configs[op->cmd.opcode].index;
 	if (lut_cfg == LUT_INVALID_INDEX)
 		return -1;
 
