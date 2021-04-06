@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 //
 // Copyright 2013-2016 Freescale Semiconductor, Inc.
-// Copyright 2018, 2020 NXP
+// Copyright 2018, 2020-2021 NXP
 //
 // Freescale DSPI driver
 // This file contains a driver for the Freescale DSPI
@@ -954,6 +954,22 @@ static const struct of_device_id fsl_dspi_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, fsl_dspi_dt_ids);
 
+static void dspi_init(struct fsl_dspi *dspi)
+{
+	unsigned int mcr = SPI_MCR_PCSIS(dspi->pcs_mask);
+
+	if (dspi->devtype_data->xspi_mode)
+		mcr |= SPI_MCR_XSPI;
+	if (!spi_controller_is_slave(dspi->ctlr))
+		mcr |= SPI_MCR_MASTER;
+
+	regmap_write(dspi->regmap, SPI_MCR, mcr);
+	regmap_write(dspi->regmap, SPI_SR, SPI_SR_CLEAR);
+	if (dspi->devtype_data->xspi_mode)
+		regmap_write(dspi->regmap, SPI_CTARE(0),
+			     SPI_CTARE_FMSZE(0) | SPI_CTARE_DTCP(1));
+}
+
 #ifdef CONFIG_PM_SLEEP
 static int dspi_suspend(struct device *dev)
 {
@@ -980,6 +996,11 @@ static int dspi_resume(struct device *dev)
 	if (ret)
 		return ret;
 	spi_controller_resume(dspi->ctlr);
+
+	if (dspi->devtype_data == &s32_data ||
+		dspi->devtype_data == &s32_slave_data)
+		dspi_init(dspi);
+
 	if (dspi->irq)
 		enable_irq(dspi->irq);
 
@@ -1093,22 +1114,6 @@ static const struct regmap_config dspi_regmap_config[] = {
 		.max_register	= 0x2,
 	},
 };
-
-static void dspi_init(struct fsl_dspi *dspi)
-{
-	unsigned int mcr = SPI_MCR_PCSIS(dspi->pcs_mask);
-
-	if (dspi->devtype_data->xspi_mode)
-		mcr |= SPI_MCR_XSPI;
-	if (!spi_controller_is_slave(dspi->ctlr))
-		mcr |= SPI_MCR_MASTER;
-
-	regmap_write(dspi->regmap, SPI_MCR, mcr);
-	regmap_write(dspi->regmap, SPI_SR, SPI_SR_CLEAR);
-	if (dspi->devtype_data->xspi_mode)
-		regmap_write(dspi->regmap, SPI_CTARE(0),
-			     SPI_CTARE_FMSZE(0) | SPI_CTARE_DTCP(1));
-}
 
 static int dspi_slave_abort(struct spi_master *master)
 {
