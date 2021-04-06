@@ -45,6 +45,7 @@ static int root_wait;
 #ifdef CONFIG_EARLY_SERVICES
 static char saved_modem_name[64];
 static char saved_early_userspace[64];
+static char *early_userspace_dev;
 static char init_prog[128] = "/early_services/init_early";
 static char *init_prog_argv[2] = { init_prog, NULL };
 static int es_status; /*1= es mount is success 0= es failed to run*/
@@ -650,10 +651,19 @@ RETRY:
 void launch_early_services(void)
 {
 	int rc = 0;
+	dev_t EARLY_USERSPACE_DEV;
 
+	early_userspace_dev = saved_early_userspace;
+	EARLY_USERSPACE_DEV = name_to_dev_t(early_userspace_dev);
+	if (strncmp(early_userspace_dev, "/dev/", 5) == 0)
+		early_userspace_dev += 5;
+	if (EARLY_USERSPACE_DEV == 0)
+		return;
 	devtmpfs_mount("dev");
-	rc = mount_partition(saved_early_userspace, EARLY_SERVICES_MOUNT_POINT);
+	rc = create_dev("/dev/early_userspace" , EARLY_USERSPACE_DEV);
+
 	if (!rc) {
+		rc = mount_partition("/dev/early_userspace", EARLY_SERVICES_MOUNT_POINT);
 		place_marker("Early Services Partition ready");
 		rc = call_usermodehelper(init_prog, init_prog_argv, NULL, 0);
 		if (!rc) {
