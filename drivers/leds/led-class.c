@@ -420,7 +420,7 @@ static void __exit leds_exit(void)
 	class_destroy(leds_class);
 }
 
-subsys_initcall(leds_init);
+early_subsys_initcall(leds_init, EARLY_SUBSYS_1, EARLY_INIT_LEVEL2);
 module_exit(leds_exit);
 
 MODULE_AUTHOR("John Lenz, Richard Purdie");

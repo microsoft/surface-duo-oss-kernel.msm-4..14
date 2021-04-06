@@ -267,7 +267,7 @@ static int __init sdhci_pltfm_drv_init(void)
 
 	return 0;
 }
-module_init(sdhci_pltfm_drv_init);
+early_module_init(sdhci_pltfm_drv_init, EARLY_SUBSYS_1, EARLY_INIT_LEVEL2);
 
 static void __exit sdhci_pltfm_drv_exit(void)
 {

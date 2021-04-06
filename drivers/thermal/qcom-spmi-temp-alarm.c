@@ -463,7 +463,23 @@ static struct platform_driver qpnp_tm_driver = {
 	.probe  = qpnp_tm_probe,
 	.remove = qpnp_tm_remove,
 };
-module_platform_driver(qpnp_tm_driver);
+early_module_platform_driver(qpnp_tm_driver, EARLY_SUBSYS_7, EARLY_INIT_LEVEL2);
+
+static DECLARE_COMPLETION(qpnp_tm_driver_start);
+
+static int __init qpnp_tm_driver_sync(void)
+{
+	complete(&qpnp_tm_driver_start);
+	return 0;
+}
+device_initcall_sync(qpnp_tm_driver_sync);
+
+static int __init qpnp_tm_driver_wait(void)
+{
+	wait_for_completion(&qpnp_tm_driver_start);
+	return 0;
+}
+early_init(qpnp_tm_driver_wait, EARLY_SUBSYS_7, EARLY_INIT_LEVEL1);
 
 MODULE_ALIAS("platform:spmi-temp-alarm");
 MODULE_DESCRIPTION("QPNP PMIC Temperature Alarm driver");

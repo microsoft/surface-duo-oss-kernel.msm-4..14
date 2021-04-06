@@ -889,6 +889,9 @@ static int selinux_set_mnt_opts(struct super_block *sb,
 		}
 	}
 
+	if (sb->s_magic == OVERLAYFS_SUPER_MAGIC)
+		sbsec->behavior = SECURITY_FS_USE_XATTR;
+
 	/*
 	 * If this is a user namespace mount and the filesystem type is not
 	 * explicitly whitelisted, then no contexts are allowed on the command

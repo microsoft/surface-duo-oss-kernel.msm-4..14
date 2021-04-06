@@ -4416,7 +4416,7 @@ static void __exit mmc_blk_exit(void)
 	unregister_blkdev(MMC_BLOCK_MAJOR, "mmc");
 }
 
-module_init(mmc_blk_init);
+early_module_init(mmc_blk_init, EARLY_SUBSYS_1, EARLY_INIT_LEVEL2);
 module_exit(mmc_blk_exit);
 
 MODULE_LICENSE("GPL");

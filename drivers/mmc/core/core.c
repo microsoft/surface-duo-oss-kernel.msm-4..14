@@ -4705,7 +4705,7 @@ mmc_latency_hist_sysfs_exit(struct mmc_host *host)
 }
 #endif
 
-subsys_initcall(mmc_init);
+early_subsys_initcall(mmc_init, EARLY_SUBSYS_1, EARLY_INIT_LEVEL1);
 module_exit(mmc_exit);
 
 MODULE_LICENSE("GPL");

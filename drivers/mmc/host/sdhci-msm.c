@@ -4683,6 +4683,8 @@ static bool sdhci_msm_is_bootdevice(struct device *dev)
 	return true;
 }
 
+static DECLARE_COMPLETION(root_dev_ready);
+
 static int sdhci_msm_probe(struct platform_device *pdev)
 {
 	const struct sdhci_msm_offset *msm_host_offset;
@@ -5180,8 +5182,10 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		       mmc_hostname(host->mmc), __func__, ret);
 		device_remove_file(&pdev->dev, &msm_host->auto_cmd21_attr);
 	}
-	if (sdhci_msm_is_bootdevice(&pdev->dev))
+	if (sdhci_msm_is_bootdevice(&pdev->dev)) {
 		mmc_flush_detect_work(host->mmc);
+		complete(&root_dev_ready);
+	}
 
 	/* Successful initialization */
 	goto out;
@@ -5539,7 +5543,17 @@ static struct platform_driver sdhci_msm_driver = {
 	},
 };
 
-module_platform_driver(sdhci_msm_driver);
+static int root_dev_ready_wait(void)
+{
+	if (strnstr(saved_command_line, ".sdhci",
+		strlen(saved_command_line)))
+		wait_for_completion(&root_dev_ready);
+	return 0;
+}
+early_init(root_dev_ready_wait, EARLY_SUBSYS_1, EARLY_INIT_LEVEL3);
+
+early_module_platform_driver(sdhci_msm_driver, EARLY_SUBSYS_1,
+EARLY_INIT_LEVEL2);
 
 MODULE_DESCRIPTION("Qualcomm Technologies, Inc. Secure Digital Host Controller Interface driver");
 MODULE_LICENSE("GPL v2");

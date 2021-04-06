@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/proxy-consumer.h>
+#include <linux/crash_dump.h>
 
 struct proxy_consumer {
 	struct list_head	list;
@@ -213,6 +214,9 @@ static int __init regulator_proxy_consumer_remove_all(void)
 {
 	struct proxy_consumer *consumer;
 	struct proxy_consumer *temp;
+
+	if (is_kdump_kernel())
+	  return 0;
 
 	mutex_lock(&proxy_consumer_list_mutex);
 	proxy_consumers_removed = true;

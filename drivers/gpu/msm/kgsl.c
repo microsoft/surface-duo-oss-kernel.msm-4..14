@@ -4345,6 +4345,8 @@ kgsl_mmap_memstore(struct kgsl_device *device, struct vm_area_struct *vma)
 	if (vma->vm_flags & VM_WRITE)
 		return -EPERM;
 
+	vma->vm_flags &= ~VM_MAYWRITE;
+
 	if (memdesc->size  !=  vma_size) {
 		KGSL_MEM_ERR(device, "memstore bad size: %d should be %llu\n",
 			     vma_size, memdesc->size);
@@ -5218,7 +5220,7 @@ err:
 	return result;
 }
 
-module_init(kgsl_core_init);
+early_module_init(kgsl_core_init, EARLY_SUBSYS_2, EARLY_INIT_LEVEL4);
 module_exit(kgsl_core_exit);
 
 MODULE_DESCRIPTION("MSM GPU driver");

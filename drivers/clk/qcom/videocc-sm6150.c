@@ -424,7 +424,8 @@ static int __init video_cc_sm6150_init(void)
 {
 	return platform_driver_register(&video_cc_sm6150_driver);
 }
-subsys_initcall(video_cc_sm6150_init);
+early_subsys_initcall(video_cc_sm6150_init, EARLY_SUBSYS_PLATFORM,
+EARLY_INIT_LEVEL5);
 
 static void __exit video_cc_sm6150_exit(void)
 {
