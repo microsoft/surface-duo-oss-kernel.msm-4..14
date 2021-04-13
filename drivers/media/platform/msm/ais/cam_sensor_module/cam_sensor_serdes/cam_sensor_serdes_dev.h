@@ -107,6 +107,18 @@ static struct ais_sensor_cmd_i2c_wr_array i2c_write_sequence[] = {
 		.count = 2,
 		.wr_array = io_expander_reset,
 	},
+        {
+                .i2c_config = {
+                        .slave_addr = 0xc4,
+                        .i2c_freq_mode = I2C_CUSTOM_MODE,
+                        .cmd_type = 0,
+                },
+                .addr_type = CAMERA_SENSOR_I2C_TYPE_WORD,
+                .data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+                .reserved = 0,
+                .count = 1,
+               .wr_array = serializer_alias,
+        },
 	{
 		.i2c_config = {
 			.slave_addr = 0x82,
