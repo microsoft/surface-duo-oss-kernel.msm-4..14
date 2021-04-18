@@ -72,6 +72,23 @@ parts:
         organize:
             lib/firmware: firmware
 
+    firmware-nxp:
+        plugin: dump
+        source: https://github.com/NXP/imx-firmware.git
+        source-type: git
+        source-tag: rel_imx_5.4.70_2.3.0
+        organize:
+            'cyw-wifi-bt/1CX_CYW4356/*': firmware/brcm/
+            'cyw-wifi-bt/1FD_CYW4359/*': firmware/brcm/
+            'cyw-wifi-bt/1MW_CYW43455/*': firmware/brcm/
+            'brcm/': firmware/brcm/
+            'nxp/FwImage_8997/*': firmware/nxp/
+            'nxp/FwImage_8987/*': firmware/nxp/
+            'nxp/wifi_mod_para.conf': firmware/nxp/
+        stage:
+            - firmware/brcm
+            - firmware/nxp
+
 build-packages:
     - bison
     - device-tree-compiler
