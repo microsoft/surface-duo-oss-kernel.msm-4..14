@@ -89,6 +89,16 @@ parts:
             - firmware/brcm
             - firmware/nxp
 
+    firmware-qca:
+        plugin: nil
+        override-pull: |
+            wget https://www.nxp.com/lgfiles/NMG/MAD/YOCTO/firmware-qca-3.0.2.bin \
+                 -O firmware-qca.bin
+        override-build: |
+            chmod +x firmware-qca.bin
+            ./firmware-qca.bin --force --auto-accept
+            cp -r firmware-*/1PJ_QCA9377-3_LEA_3.0/lib/firmware ${SNAPCRAFT_PART_INSTALL}
+
 build-packages:
     - bison
     - device-tree-compiler
