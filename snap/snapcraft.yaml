@@ -65,6 +65,17 @@ parts:
             - -modules/*/build
             - -modules/*/source
 
+    qcacld:
+        plugin: dump
+        source: https://source.codeaurora.org/external/imx/qcacld-2.0-imx
+        source-type: git
+        source-tag: rel_imx_5.4.70_2.3.0
+        source-depth: 1
+        organize:
+           '*': qcacld/
+        prime:
+            - -*
+
     firmware:
         plugin: nil
         stage-packages:
@@ -118,6 +129,16 @@ parts:
         stage:
             - firmware/brcm
             - firmware/nxp
+
+    firmware-qca:
+        plugin: nil
+        override-pull: |
+            wget https://www.nxp.com/lgfiles/NMG/MAD/YOCTO/firmware-qca-3.0.2.bin \
+                 -O firmware-qca.bin
+        override-build: |
+            chmod +x firmware-qca.bin
+            ./firmware-qca.bin --force --auto-accept
+            cp -r firmware-*/1PJ_QCA9377-3_LEA_3.0/lib/firmware ${SNAPCRAFT_PART_INSTALL}
 
 build-packages:
     - dpkg-dev
