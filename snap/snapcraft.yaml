@@ -19,6 +19,8 @@ architectures:
 
 parts:
     kernel:
+        after:
+            - qcacld
         plugin: kernel
         source: .
         kdefconfig: [ "snappy_defconfig" ]
