@@ -18,6 +18,8 @@ architectures:
 
 parts:
     kernel:
+        after:
+            - qcacld
         plugin: x-kernel
         source: .
         kdefconfig: [ "snappy_defconfig" ]
@@ -30,6 +32,26 @@ parts:
         override-build: |
             snapcraftctl build
             snapcraftctl set-version $(git describe --tags | cut -c 12-42)
+            # build out of the tree qca9377 driver
+            cp -r ${SNAPCRAFT_STAGE}/qcacld .
+            cd ${SNAPCRAFT_PART_BUILD}/qcacld
+            make_module() {
+              make -j $(nproc) \
+                 ARCH=${SNAPCRAFT_TARGET_ARCH} CROSS_COMPILE=${SNAPCRAFT_ARCH_TRIPLET}- \
+                 KERNEL_SRC=${SNAPCRAFT_PART_SRC} \
+                 CONFIG_CFG80211_INTERNAL_REGDB=y CONFIG_HDD_WLAN_WAIT_TIME=10000 \
+                 CONFIG_LINUX_QCMBR=y CONFIG_NON_QC_PLATFORM=y CONFIG_PMF_SUPPORT=y \
+                 TARGET_BUILD_VARIANT=user CONFIG_CLD_HL_SDIO_CORE=y \
+                 CONFIG_FEATURE_COEX_PTA_CONFIG_ENABLE=y CONFIG_PER_VDEV_TX_DESC_POOL=1 \
+                 CONFIG_QCA_LL_TX_FLOW_CT=1 CONFIG_QCA_SUPPORT_TXRX_DRIVER_TCP_DEL_ACK=y \
+                 CONFIG_WLAN_FEATURE_FILS=y CONFIG_WLAN_WAPI_MODE_11AC_DISABLE=y \
+                 MODNAME=qca9377 SAP_AUTH_OFFLOAD=1 \
+                 KERNEL_PATH=${SNAPCRAFT_PART_SRC} \
+                 O=${SNAPCRAFT_PART_BUILD} \
+                 KBUILD_EXTRA_SYMBOLS="" "$@"
+            }
+            make_module
+            make_module INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH=${SNAPCRAFT_PART_INSTALL} modules_install
         organize:
             kernel.img: Image
 
