@@ -9,6 +9,14 @@ grade: stable
 confinement: strict
 type: kernel
 
+architectures:
+  - build-on: amd64
+    run-on: armhf, arm64
+  - build-on: armhf
+    run-on: armhf
+  - build-on: arm64
+    run-on: arm64
+
 parts:
   kernel:
     plugin: kernel
