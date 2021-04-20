@@ -68,6 +68,10 @@ parts:
             make_module INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH=${SNAPCRAFT_PART_INSTALL} modules_install
         organize:
             kernel.img: Image
+        prime:
+            - -initrd.img*
+            - -Image*
+            - -dtbs
 
     firmware:
         plugin: nil
@@ -219,6 +223,20 @@ parts:
             - usr/bin/fde-reveal-key
         prime:
             - meta/
+
+
+    fit-image:
+        after:
+            - kernel
+            - test-keys
+        plugin: nil
+        override-build: |
+            cp ${SNAPCRAFT_PROJECT_DIR}/kernel_*.its ${SNAPCRAFT_STAGE}
+            # include key dir in case there are keys available
+            mkimage \
+                -f ${SNAPCRAFT_STAGE}/kernel_${SNAPCRAFT_TARGET_ARCH}.its \
+                -r ${SNAPCRAFT_PART_INSTALL}/kernel.img \
+                -k ${SNAPCRAFT_STAGE}/signing-key
 
 build-packages:
     - bison

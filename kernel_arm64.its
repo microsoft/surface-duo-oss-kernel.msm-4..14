@@ -1,0 +1,94 @@
+/*
+ * U-Boot uImage source file with multiple kernels, ramdisks and FDT blobs
+ */
+
+/dts-v1/;
+
+/ {
+	description = "Ubuntu Core kernel, ramdisk and FDT blobs for i.MX8M board family";
+	#address-cells = <1>;
+
+	images {
+		kernel-ubuntu {
+			description = "ubuntu-kernel";
+			data = /incbin/("./Image");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			load =  <0x40480000>;
+			entry = <0x40480000>;
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+
+		ramdisk-uc {
+			description = "Ubuntu-Core-ramdisk";
+			data = /incbin/("./initrd.img");
+			type = "ramdisk";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			load =  <0x43800000>;
+			entry = <0x43800000>;
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+
+		fdt-imx8mm-evk {
+			description = "i.MX8M-Mini_evk";
+			data = /incbin/("./dtbs/freescale/imx8mm-evk.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			load =  <0x43000000>;
+			entry = <0x43000000>;
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+
+		fdt-imx8mp-evk {
+			description = "i.MX8M-Plus_evk";
+			data = /incbin/("./dtbs/freescale/imx8mp-evk.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			load =  <0x43000000>;
+			entry = <0x43000000>;
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+	};
+
+	configurations {
+	default = "imx8mm-evk.dtb";
+
+		imx8mm-evk.dtb {
+			description = "i.MX8M Mini evk";
+			kernel = "kernel-ubuntu";
+			ramdisk = "ramdisk-uc";
+			fdt = "fdt-imx8mm-evk";
+			signature@1 {
+				algo = "sha256,rsa2048";
+				key-name-hint="dev-key";
+				sign-images="fdt","kernel", "ramdisk";
+			};
+		};
+
+		imx8mp-evk.dtb {
+			description = "i.MX8M Plus evk";
+			kernel = "kernel-ubuntu";
+			ramdisk = "ramdisk-uc";
+			fdt = "fdt-imx8mp-evk";
+			signature@1 {
+				algo = "sha256,rsa2048";
+				key-name-hint="dev-key";
+				sign-images="fdt","kernel", "ramdisk";
+			};
+		};
+	};
+};
