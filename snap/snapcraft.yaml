@@ -224,6 +224,15 @@ parts:
         prime:
             - meta/
 
+    test-keys:
+        plugin: dump
+        source: https://git.launchpad.net/~ondrak/+git/dev-keys
+        source-type: git
+        source-branch: master
+        organize:
+            '*': signing-key/
+        prime:
+            - -*
 
     fit-image:
         after:
