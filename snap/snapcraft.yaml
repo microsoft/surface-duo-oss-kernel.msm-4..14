@@ -16,6 +16,7 @@ parts:
     kernel:
         after:
             - firmware
+            - optee-fde
         plugin: x-kernel
         source: .
         kdefconfig: [ "snappy_defconfig" ]
@@ -24,6 +25,9 @@ parts:
             arm64: Image
         kernel-initrd-flavour: edge
         kernel-initrd-compression: gz
+        kernel-initrd-addons:
+            - usr/bin/fde-reveal-key
+            - usr/lib/libteec.so*
         override-build: |
             snapcraftctl build
             kernel_version=$(make kernelversion)
