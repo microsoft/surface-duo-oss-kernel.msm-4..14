@@ -132,6 +132,35 @@ parts:
             ./firmware-qca.bin --force --auto-accept
             cp -r firmware-*/1PJ_QCA9377-3_LEA_3.0/lib/firmware ${SNAPCRAFT_PART_INSTALL}
 
+    optee-os:
+        plugin: dump
+        source: https://github.com/OP-TEE/optee_os.git
+        source-type: git
+        source-tag: 3.10.0
+        override-build: |
+            # we are building optee-os only to get build export dependency to build REE app
+            # so precise configs are esential
+            if [ "${SNAPCRAFT_TARGET_ARCH}" = "arm64" ]; then
+                export CROSS_COMPILE_ta_arm64="${SNAPCRAFT_ARCH_TRIPLET}-"
+                export CFG_ARM64_core="y"
+                export PLATFORM="vexpress-qemu_armv8a"
+                export CFG_USER_TA_TARGETS="ta_arm64"
+            elif [ "${SNAPCRAFT_TARGET_ARCH}" = "armhf" ]; then
+                export CROSS_COMPILE_ta_arm32="${SNAPCRAFT_ARCH_TRIPLET}-"
+                export PLATFORM="vexpress-qemu_virt"
+                export CFG_USER_TA_TARGETS="ta_arm32"
+            fi
+            export CROSS_COMPILE="${SNAPCRAFT_ARCH_TRIPLET}-"
+            export CROSS_COMPILE_core="${SNAPCRAFT_ARCH_TRIPLET}-"
+            export DEBUG=0
+            export CFG_TEE_CORE_LOG_LEVEL=1
+            export CFG_TEE_TA_LOG_LEVEL=1
+            export CFG_TEE_BENCHMARK=n
+            make O=${SNAPCRAFT_PART_BUILD}/out -j$(nproc)
+            cp -r out/export-ta_arm* ${SNAPCRAFT_PART_INSTALL}/export-ta_arm
+        prime:
+            - -*
+
 build-packages:
     - bison
     - device-tree-compiler
