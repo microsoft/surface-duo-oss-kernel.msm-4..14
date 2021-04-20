@@ -21,6 +21,7 @@ parts:
     kernel:
         after:
             - qcacld
+            - optee-fde
         plugin: kernel
         source: .
         kdefconfig: [ "snappy_defconfig" ]
@@ -29,6 +30,9 @@ parts:
         kernel-initrd-core-base: core20
         kernel-initrd-flavour: edge
         kernel-initrd-compression: gz
+        kernel-initrd-addons:
+            - usr/bin/fde-reveal-key
+            - usr/lib/libteec.so*
         override-build: |
             snapcraftctl build
             mkdir -p ${SNAPCRAFT_PART_INSTALL}/lib
