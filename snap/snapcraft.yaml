@@ -12,6 +12,16 @@ architectures:
   - build-on: [amd64, arm64]
     run-on: arm64
 
+# environment to run fde-setup hook
+environment:
+    LD_LIBRARY_PATH: ${SNAP}/usr/lib
+
+hooks:
+    fde-setup:
+        plugs:
+            - tee
+            - home
+
 parts:
     kernel:
         after:
