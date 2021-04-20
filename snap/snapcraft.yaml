@@ -161,6 +161,22 @@ parts:
         prime:
             - -*
 
+    optee-client:
+        plugin: dump
+        source: https://github.com/OP-TEE/optee_client.git
+        source-type: git
+        source-tag: 3.10.0
+        override-build: |
+            export CROSS_COMPILE="${SNAPCRAFT_ARCH_TRIPLET}-"
+            export ARCH="${SNAPCRAFT_TARGET_ARCH}"
+            export CFG_TA_TEST_PATH=0
+            export CFG_TEE_SUPP_LOG_LEVEL=0
+            export DESTDIR="${SNAPCRAFT_PART_INSTALL}"
+            export CFG_TEE_CLIENT_LOAD_PATH=""
+            make install -j$(nproc)
+        prime:
+            - usr/lib/lib*so*
+
 build-packages:
     - bison
     - device-tree-compiler
