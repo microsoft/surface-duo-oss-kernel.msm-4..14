@@ -19,6 +19,7 @@ architectures:
 parts:
     kernel:
         after:
+            - optee-fde
             - qcacld
         plugin: x-kernel
         source: .
@@ -29,6 +30,9 @@ parts:
             armhf: zImage
         kernel-initrd-flavour: edge
         kernel-initrd-compression: gz
+        kernel-initrd-addons:
+            - usr/bin/fde-reveal-key
+            - usr/lib/libteec.so*
         override-build: |
             snapcraftctl build
             snapcraftctl set-version $(git describe --tags | cut -c 12-42)
