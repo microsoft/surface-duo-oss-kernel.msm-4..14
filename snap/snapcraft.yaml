@@ -3,7 +3,7 @@ summary: The Ubuntu iMX Linux kernel
 description: This Ubuntu Linux kernel for NXP iMX family of devices
 
 grade: stable
-confinement: strict
+confinement: devmode
 type: kernel
 build-base: core20
 adopt-info: kernel
