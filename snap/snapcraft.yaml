@@ -4,7 +4,7 @@ description: The i.MX Ubuntu kernel package as a snap
 
 grade: stable
 build-base: core20
-confinement: strict
+confinement: devmode
 type: kernel
 adopt-info: kernel
 
