@@ -1,0 +1,69 @@
+/*
+ * U-Boot uImage source file with multiple kernels, ramdisks and FDT blobs
+ */
+
+/dts-v1/;
+
+/ {
+	description = "Ubuntu Core kernel, ramdisk and FDT blobs for i.MX8M board family";
+	#address-cells = <1>;
+
+	images {
+		kernel-ubuntu {
+			description = "ubuntu-kernel";
+			data = /incbin/("./Image");
+			type = "kernel";
+			arch = "arm";
+			os = "linux";
+			compression = "none";
+			load =  <0x80800000>;
+			entry = <0x80800000>;
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+
+		ramdisk-uc {
+			description = "Ubuntu-Core-ramdisk";
+			data = /incbin/("./initrd.img");
+			type = "ramdisk";
+			arch = "arm";
+			os = "linux";
+			compression = "none";
+			load =  <0x83800000>;
+			entry = <0x83800000>;
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+
+		fdt-imx6sx-sdb {
+			description = "i.MX6SoloX-SabreSD";
+			data = /incbin/("./dtbs/imx6sx-sdb.dtb");
+			type = "flat_dt";
+			arch = "armhf";
+			compression = "none";
+			load =  <0x43000000>;
+			entry = <0x43000000>;
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+	};
+
+	configurations {
+		default = "imx6sx-sdb.dtb";
+
+		imx6sx-sdb.dtb {
+			description = "i.MX6SoloX-Sabre Smart Devices";
+			kernel = "kernel-ubuntu";
+			ramdisk = "ramdisk-uc";
+			fdt = "fdt-imx6sx-sdb";
+			signature@1 {
+				algo = "sha256,rsa2048";
+				key-name-hint="dev-key";
+				sign-images="fdt","kernel", "ramdisk";
+			};
+		};
+	};
+};
