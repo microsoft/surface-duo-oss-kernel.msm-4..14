@@ -75,11 +75,15 @@ parts:
             - config-*
             - dtbs
             - initrd.img
-            - kernel.img
+            - Image
             - lib
             - modules
             - -modules/*/build
             - -modules/*/source
+        prime:
+            - -initrd.img
+            - -Image
+            - -dtbs
 
     qcacld:
         plugin: dump
@@ -233,6 +237,17 @@ parts:
             - usr/bin/fde-reveal-key
         prime:
             - meta/
+
+
+    fit-image:
+        after:
+            - kernel
+            - test-keys
+        plugin: nil
+        override-build: |
+            cp ${SNAPCRAFT_PROJECT_DIR}/kernel.its ${SNAPCRAFT_STAGE}
+            # include key dir in case there are keys available
+            mkimage -f ${SNAPCRAFT_STAGE}/kernel.its -r ${SNAPCRAFT_PART_INSTALL}/kernel.img -k ${SNAPCRAFT_STAGE}/signing-key
 
 build-packages:
     - dpkg-dev
