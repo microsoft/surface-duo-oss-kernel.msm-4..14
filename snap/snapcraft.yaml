@@ -188,6 +188,38 @@ parts:
         prime:
             - usr/lib/lib*so*
 
+    optee-fde:
+        after:
+            - optee-os
+            - optee-client
+        plugin: nil
+        source: git+ssh://git.launchpad.net/~ondrak/+git/optee-uc-fde
+        source-type: git
+        source-branch: master
+        override-build: |
+            # we are not using TA build here (early TA is used), so
+            # it does not matter what key is used to sign built TA
+            # support cross build
+            if [ "${SNAP_ARCH}" != "arm64" ]; then
+                echo "Cross building for arm64"
+                export CROSS_COMPILE="aarch64-linux-gnu-"
+            fi
+            export ARCH="arm64"
+            export TA_DEV_KIT_DIR="${SNAPCRAFT_STAGE}/export-ta_arm64"
+            export CFG_TEE_CLIENT_LOG_LEVEL="1"
+            export OPTEE_CLIENT_EXPORT="${SNAPCRAFT_STAGE}/usr"
+            export DESTDIR=${SNAPCRAFT_PART_INSTALL}
+            export O="${SNAPCRAFT_PART_BUILD}/out"
+            make -j$(nproc)
+            make install
+        organize:
+            usr/bin/fde-setup: meta/hooks/fde-setup
+        stage:
+            - meta/
+            - usr/bin/fde-reveal-key
+        prime:
+            - meta/
+
 build-packages:
     - dpkg-dev
     - u-boot-tools
@@ -197,3 +229,4 @@ build-packages:
     - bison
     - initramfs-tools-core
     - wget
+    - libjson-c-dev:arm64
