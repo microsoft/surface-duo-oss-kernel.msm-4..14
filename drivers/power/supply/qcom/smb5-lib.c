@@ -1,4 +1,5 @@
 /* Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -692,7 +693,7 @@ int smblib_set_charge_param(struct smb_charger *chg,
 			    struct smb_chg_param *param, int val_u)
 {
 	int rc = 0;
-	u8 val_raw;
+	u8 val_raw; //MSCHANGE: Round up
 
 	if (param->set_proc) {
 		rc = param->set_proc(param, val_u, &val_raw);
@@ -709,7 +710,7 @@ int smblib_set_charge_param(struct smb_charger *chg,
 		if (val_u < param->min_u)
 			val_u = param->min_u;
 
-		val_raw = (val_u - param->min_u) / param->step_u;
+		val_raw = (((val_u - param->min_u) + (param->step_u >> 1))/ param->step_u); //MSCHANGE: Round up
 	}
 
 	rc = smblib_write(chg, param->reg, val_raw);
@@ -1665,6 +1666,11 @@ static int smblib_chg_disable_vote_callback(struct votable *votable, void *data,
 {
 	struct smb_charger *chg = data;
 	int rc;
+	union power_supply_propval pval_pl = {0, }; //MSCHANGE: prevent discharging when bucking
+
+	if(chg->pl.psy)
+		power_supply_set_property(chg->pl.psy,
+					  POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX, &pval_pl);
 
 	rc = smblib_masked_write(chg, CHARGING_ENABLE_CMD_REG,
 				 CHARGING_ENABLE_CMD_BIT,
@@ -2322,7 +2328,6 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 		return -EINVAL;
 
 	chg->system_temp_level = val->intval;
-
 	if (chg->system_temp_level == chg->thermal_levels)
 		return vote(chg->chg_disable_votable,
 			THERMAL_DAEMON_VOTER, true, 0);
@@ -2653,7 +2658,8 @@ int smblib_disable_hw_jeita(struct smb_charger *chg, bool disable)
 	mask = JEITA_EN_COLD_SL_FCV_BIT
 		| JEITA_EN_HOT_SL_FCV_BIT
 		| JEITA_EN_HOT_SL_CCC_BIT
-		| JEITA_EN_COLD_SL_CCC_BIT,
+		| JEITA_EN_COLD_SL_CCC_BIT
+		| JEITA_EN_HOT_HL_BIT; // MSCHANGE: Disable HW jeita
 	rc = smblib_masked_write(chg, JEITA_EN_CFG_REG, mask,
 			disable ? 0 : mask);
 	if (rc < 0) {
@@ -3188,6 +3194,28 @@ int smblib_get_prop_usb_online(struct smb_charger *chg,
 
 	val->intval = (stat & USE_USBIN_BIT) &&
 		      (stat & VALID_INPUT_POWER_SOURCE_STS_BIT);
+
+	return rc;
+}
+
+// MSCHANGE disable parallel charging when USB is disconnected
+// get the true state of USB connect/disconnect
+int smblib_get_prop_usb_connected(struct smb_charger *chg,
+				    union power_supply_propval *val)
+{
+	int rc = 0;
+	u8 stat;
+	rc = smblib_read(chg, POWER_PATH_STATUS_REG, &stat);  // this is the register which consistently reflects the actual state of usb connect/disconnect
+	if (rc < 0) {
+		smblib_err(chg, "Couldn't read POWER_PATH_STATUS rc=%d\n",
+			rc);
+		return rc;
+	}
+	smblib_dbg(chg, PR_REGISTER, "POWER_PATH_STATUS = 0x%02x\n",
+		   stat);
+	val->intval = (stat & USE_USBIN_BIT) &&
+		      (stat & VALID_INPUT_POWER_SOURCE_STS_BIT);
+	
 	return rc;
 }
 
@@ -5112,7 +5140,7 @@ void smblib_usb_plugin_hard_reset_locked(struct smb_charger *chg)
 	}
 
 	vbus_rising = (bool)(stat & USBIN_PLUGIN_RT_STS_BIT);
-
+	
 	if (vbus_rising) {
 		/* Remove FCC_STEPPER 1.5A init vote to allow FCC ramp up */
 		if (chg->fcc_stepper_enable)
@@ -5258,7 +5286,7 @@ irqreturn_t usb_plugin_irq_handler(int irq, void *data)
 {
 	struct smb_irq_data *irq_data = data;
 	struct smb_charger *chg = irq_data->parent_data;
-
+	
 	if (chg->pd_hard_reset)
 		smblib_usb_plugin_hard_reset_locked(chg);
 	else
@@ -5943,6 +5971,12 @@ irqreturn_t typec_state_change_irq_handler(int irq, void *data)
 	if (chg->sink_src_mode != UNATTACHED_MODE
 			&& (typec_mode != chg->typec_mode))
 		smblib_handle_rp_change(chg, typec_mode);
+
+	if (chg->typec_mode == typec_mode) { // MSCHANGE forcing apsd detection for charging icon issue
+		//Force port re-detection
+		smblib_rerun_apsd(chg);
+	}
+
 	chg->typec_mode = typec_mode;
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: cc-state-change; Type-C %s detected\n",
@@ -6696,12 +6730,13 @@ static void bms_update_work(struct work_struct *work)
 
 static void pl_update_work(struct work_struct *work)
 {
-	union power_supply_propval prop_val;
+	// union power_supply_propval prop_val;  MSCHANGE enabling parallel charging
 	struct smb_charger *chg = container_of(work, struct smb_charger,
 						pl_update_work);
-	int rc;
+	// int rc;  // MSCHANGE
 
-	if (chg->smb_temp_max == -EINVAL) {
+	// MSCHANGE enabling parallel charging
+	/*if (chg->smb_temp_max == -EINVAL) {
 		rc = smblib_get_thermal_threshold(chg,
 					SMB_REG_H_THRESHOLD_MSB_REG,
 					&chg->smb_temp_max);
@@ -6713,6 +6748,7 @@ static void pl_update_work(struct work_struct *work)
 	}
 
 	prop_val.intval = chg->smb_temp_max;
+
 	rc = power_supply_set_property(chg->pl.psy,
 				POWER_SUPPLY_PROP_CHARGER_TEMP_MAX,
 				&prop_val);
@@ -6720,7 +6756,7 @@ static void pl_update_work(struct work_struct *work)
 		dev_err(chg->dev, "Couldn't set POWER_SUPPLY_PROP_CHARGER_TEMP_MAX rc=%d\n",
 				rc);
 		return;
-	}
+	}*/
 
 	if (chg->sec_chg_selected == POWER_SUPPLY_CHARGER_SEC_CP)
 		return;
@@ -7547,7 +7583,7 @@ static void smblib_iio_deinit(struct smb_charger *chg)
 
 int smblib_init(struct smb_charger *chg)
 {
-	union power_supply_propval prop_val;
+	// union power_supply_propval prop_val;  // MSCHANGE enabling parallel charging
 	int rc = 0;
 
 	mutex_init(&chg->smb_lock);
@@ -7660,8 +7696,10 @@ int smblib_init(struct smb_charger *chg)
 						smblib_err(chg, "Couldn't config pl charger rc=%d\n",
 							rc);
 				}
-
-				if (chg->smb_temp_max == -EINVAL) {
+				
+				// MSCHANGE enabling parallel charging
+				
+				/*if (chg->smb_temp_max == -EINVAL) {
 					rc = smblib_get_thermal_threshold(chg,
 						SMB_REG_H_THRESHOLD_MSB_REG,
 						&chg->smb_temp_max);
@@ -7671,7 +7709,7 @@ int smblib_init(struct smb_charger *chg)
 						return rc;
 					}
 				}
-
+				
 				prop_val.intval = chg->smb_temp_max;
 				rc = power_supply_set_property(chg->pl.psy,
 					POWER_SUPPLY_PROP_CHARGER_TEMP_MAX,
@@ -7680,7 +7718,7 @@ int smblib_init(struct smb_charger *chg)
 					dev_err(chg->dev, "Couldn't set POWER_SUPPLY_PROP_CHARGER_TEMP_MAX rc=%d\n",
 							rc);
 					return rc;
-				}
+				}*/
 			}
 		}
 

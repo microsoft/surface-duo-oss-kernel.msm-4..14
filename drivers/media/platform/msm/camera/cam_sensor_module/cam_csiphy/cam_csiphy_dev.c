@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -201,6 +202,8 @@ csiphy_unregister_subdev:
 csiphy_no_resource:
 	mutex_destroy(&new_csiphy_dev->mutex);
 	kfree(new_csiphy_dev->ctrl_reg);
+	/* MSCHANGE Handle errors properly to support Deferring initialization*/
+	new_csiphy_dev->ctrl_reg = NULL;
 	devm_kfree(&pdev->dev, new_csiphy_dev);
 	return rc;
 }

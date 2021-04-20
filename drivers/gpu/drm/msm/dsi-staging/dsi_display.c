@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,6 +19,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/err.h>
+#include <soc/qcom/socinfo.h>/*MSCHANGE*/
 
 #include "msm_drv.h"
 #include "sde_connector.h"
@@ -43,15 +45,44 @@
 
 #define DSI_CLOCK_BITRATE_RADIX 10
 #define MAX_TE_SOURCE_ID  2
+/*MSCHANGE start*/
+#define MAX_PLATFORM_TYPES 13
+#define BEST_PLATFORM_TYPE 0x12
+/*MSCHANGE end*/
 
 DEFINE_MUTEX(dsi_display_clk_mutex);
 
 static char dsi_display_primary[MAX_CMDLINE_PARAM_LEN];
 static char dsi_display_secondary[MAX_CMDLINE_PARAM_LEN];
 static struct dsi_display_boot_param boot_displays[MAX_DSI_ACTIVE_DISPLAY] = {
-	{.boot_param = dsi_display_primary},
-	{.boot_param = dsi_display_secondary},
+	/* MS_CHANGE start */
+	{.boot_param = "dsi_lg_v2_amoled_dsc_cmd_c3_display:"},
+	{.boot_param = "dsi_lg_v2_amoled_dsc_cmd_r2_display:"},
+	/* MS_CHANGE end */
 };
+
+/*MSCHANGE start*/
+struct display_platform_type {
+	char* name;
+    uint32_t type;
+};
+
+static struct display_platform_type platform_types[MAX_PLATFORM_TYPES] = {
+	{"_ev1_5", 0x06},/* Ev1 but treated as Ev1.5 */
+	{"_ev1_5", 0x07},/* Ev1 but treated as Ev1.5 */
+	{"_ev1_5", 0x08},/* Ev1 but treated as Ev1.5 */
+	{"_ev1_5", 0x09},
+	{"_ev1_5", 0x0a},
+	{"_ev2", 0x0b},
+	{"_ev2", 0x0c},
+	{"_ev2", 0x0d},
+	{"_ev2", 0x0e},
+	{"_ev2", 0x0f},
+	{"_dv", 0x10},
+	{"_dv", 0x11},
+	{"_dv", 0x12},
+};
+/*MSCHANGE end*/
 
 static const struct of_device_id dsi_display_dt_match[] = {
 	{.compatible = "qcom,dsi-display"},
@@ -2204,6 +2235,10 @@ static int dsi_display_parse_boot_display_selection(void)
 	char *pos = NULL;
 	char disp_buf[MAX_CMDLINE_PARAM_LEN] = {'\0'};
 	int i, j;
+	/*MSCHANGE start*/
+	uint32_t platform_subtype = 0;
+	int k, platform_index;
+	/*MSCHANGE end*/
 
 	for (i = 0; i < MAX_DSI_ACTIVE_DISPLAY; i++) {
 		strlcpy(disp_buf, boot_displays[i].boot_param,
@@ -2219,6 +2254,24 @@ static int dsi_display_parse_boot_display_selection(void)
 
 		for (j = 0; (disp_buf + j) < pos; j++)
 			boot_displays[i].name[j] = *(disp_buf + j);
+
+		/*MSCHANGE start*/
+		platform_subtype =  socinfo_get_platform_subtype();
+		/* If we dont know the platform or exceeds the best then we use the best we have */
+		if (platform_subtype < 0x06 || platform_subtype > BEST_PLATFORM_TYPE) {
+			platform_subtype = BEST_PLATFORM_TYPE;
+		}
+		/* Look for the right display */
+		for (platform_index = 0; platform_index < MAX_PLATFORM_TYPES; platform_index++) {
+			if (platform_subtype == platform_types[platform_index].type) {
+				for (k = 0; k < strlen(platform_types[platform_index].name) ; k++) {
+					boot_displays[i].name[j] = platform_types[platform_index].name[k];
+					j++;
+				}
+				break;
+			}
+		}
+		/*MSCHANGE end*/
 
 		boot_displays[i].name[j] = '\0';
 
@@ -5688,10 +5741,19 @@ static int dsi_display_ext_get_info(struct drm_connector *connector,
 
 	info->is_connected = connector->status != connector_status_disconnected;
 
-	if (!strcmp(display->dsi_type, "primary"))
+	/*MSCHANGE start*/
+	if (!strcmp(display->dsi_type, "primary")) {
 		info->is_primary = true;
-	else
+		info->is_builtin = true;
+	}
+	else if (!strcmp(display->dsi_type, "secondary")) {
+		info->is_builtin = true;
 		info->is_primary = false;
+	} else {
+		info->is_builtin = false;
+		info->is_primary = false;
+	}
+	/*MSCHANGE end*/
 
 	info->capabilities |= (MSM_DISPLAY_CAP_VID_MODE |
 		MSM_DISPLAY_CAP_EDID | MSM_DISPLAY_CAP_HOT_PLUG);
@@ -6045,8 +6107,19 @@ int dsi_display_get_info(struct drm_connector *connector,
 	info->is_connected = true;
 	info->is_primary = false;
 
-	if (!strcmp(display->dsi_type, "primary"))
+	/*MSCHANGE start*/
+	if (!strcmp(display->dsi_type, "primary")) {
 		info->is_primary = true;
+		info->is_builtin = true;
+	}
+	else if (!strcmp(display->dsi_type, "secondary")) {
+		info->is_builtin = true;
+		info->is_primary = false;
+	} else {
+		info->is_builtin = false;
+		info->is_primary = false;
+	}
+	/*MSCHANGE end*/
 
 	info->width_mm = phy_props.panel_width_mm;
 	info->height_mm = phy_props.panel_height_mm;

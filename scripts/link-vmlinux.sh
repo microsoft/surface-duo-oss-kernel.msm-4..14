@@ -1,5 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2020 Microsoft Corporation
 #
 # link vmlinux
 #
@@ -124,7 +125,7 @@ modpost_link()
 		info LD vmlinux.o
 	fi
 
-	${LD} ${LDFLAGS} -r -o ${1} $(modversions) ${objects}
+	${LD} -verbose ${LDFLAGS} -r -o ${1} $(modversions) ${objects}
 }
 
 # If CONFIG_LTO_CLANG is selected, we postpone running recordmcount until
@@ -150,7 +151,7 @@ vmlinux_link()
 
 	if [ "${SRCARCH}" != "um" ]; then
 		local ld=${LD}
-		local ldflags="${LDFLAGS} ${LDFLAGS_vmlinux}"
+		local ldflags="-verbose ${LDFLAGS} ${LDFLAGS_vmlinux}"
 
 		if [ -n "${LDFINAL_vmlinux}" ]; then
 			ld=${LDFINAL_vmlinux}

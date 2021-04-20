@@ -1,0 +1,134 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
+
+
+&qupv3_se19_i2c { // Power Monitors R2
+	status = "ok";
+
+	max1: max34417@12 {
+		compatible = "maxim,max34417";
+		reg = <0x12>;
+		vdd-supply = <&pm8150l_l10>;
+		vio-supply = <&pm8150_s4>;
+
+		channels {
+			max1_ch0: channel@0 {
+				label = "Touch_D5";
+				sense-resistor-milliohm = <50>;
+				reg = <0>;
+			};
+			max1_ch1: channel@1 {
+				label = "DISPLAY_R2";
+				sense-resistor-milliohm = <50>;
+				reg = <1>;
+			};
+			max1_ch2: channel@2 {
+				label = "WIFI_3V3_TX";
+				sense-resistor-milliohm = <50>;
+				reg = <2>;
+			};
+			max1_ch3: channel@3 {
+				label = "BOB_V3";
+				sense-resistor-milliohm = <10>;
+				reg = <3>;
+			};
+		};
+	};
+
+	max5: max34417@1a {
+		compatible = "maxim,max34417";
+		reg = <0x1a>;
+		vdd-supply = <&pm8150l_l10>;
+		vio-supply = <&pm8150_s4>;
+
+		channels {
+			max5_ch0: channel@0 {
+				label = "SOC_DIGITAL_IO";
+				sense-resistor-milliohm = <20>;
+				reg = <0>;
+			};
+			max5_ch1: channel@1 {
+				label = "R2_IMEM";
+				sense-resistor-milliohm = <25>;
+				reg = <1>;
+			};
+			max5_ch2: channel@2 {
+				label = "GFX_CORE";
+				sense-resistor-milliohm = <20>;
+				reg = <2>;
+			};
+			max5_ch3: channel@3 {
+				label = "R2_DDR";
+				sense-resistor-milliohm = <100>;
+				reg = <3>;
+			};
+		};
+	};
+
+	max7: max34417@1e {
+		compatible = "maxim,max34417";
+		reg = <0x1e>;
+		vdd-supply = <&pm8150l_l10>;
+		vio-supply = <&pm8150_s4>;
+
+		channels {
+			max7_ch0: channel@0 {
+				label = "TOTAL_SYSTEM";
+				sense-resistor-milliohm = <10>;
+				reg = <0>;
+			};
+			max7_ch1: channel@1 {
+				label = "WIFI_LTE_1V3";
+				sense-resistor-milliohm = <10>;
+				reg = <1>;
+			};
+			max7_ch2: channel@2 {
+				label = "USB_VBUS";
+				sense-resistor-milliohm = <10>;
+				reg = <2>;
+			};
+			max7_ch3: channel@3 {
+				label = "UVS_1V8";
+				sense-resistor-milliohm = <50>;
+				reg = <3>;
+			};
+		};
+	};
+};
+
+&qupv3_se1_i2c { // Power Monitors C3
+	status = "ok";
+
+	max6: max34417@1c {
+		compatible = "maxim,max34417";
+		reg = <0x1c>;
+
+		channels {
+			max6_ch0: channel@0 {
+				label = "VSYS_POWER";
+				sense-resistor-milliohm = <20>;
+				reg = <0>;
+			};
+			max6_ch1: channel@1 {
+				label = "Display_Power";
+				sense-resistor-milliohm = <50>;
+				reg = <1>;
+			};
+			max6_ch2: channel@2 {
+				label = "Touch_Boost_Power";
+				sense-resistor-milliohm = <100>;
+				reg = <2>;
+			};
+			max6_ch3: channel@3 {
+				label = "Touch_1V8_Power";
+				sense-resistor-milliohm = <50>;
+				reg = <3>;
+			};
+		};
+	};
+};

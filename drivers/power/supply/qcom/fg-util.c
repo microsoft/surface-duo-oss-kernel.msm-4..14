@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -415,6 +416,38 @@ bool batt_psy_initialized(struct fg_dev *fg)
 	/* batt_psy is initialized, set the fcc and fv */
 	fg_notify_charger(fg);
 
+	return true;
+}
+
+//  MSCHANGE  
+//	struct power_supply *pack1_fg initialization
+bool pack1_fg_psy_initialized(struct fg_dev *fg)
+{
+	if (fg->pack1_fg)
+		return true;
+
+	fg->pack1_fg = devm_power_supply_get_by_phandle(fg->dev,"ms,pack1_fg");
+	if (!fg->pack1_fg) {
+		pr_err("failed to register pack1_fg rc = %ld\n",
+				PTR_ERR(fg->pack1_fg));
+		return false;
+	}
+	return true;
+}
+
+//  MSCHANGE  
+//	struct power_supply *pack2_fg initialization
+bool pack2_fg_psy_initialized(struct fg_dev *fg)
+{
+	if (fg->pack2_fg)
+		return true;
+
+	fg->pack2_fg = devm_power_supply_get_by_phandle(fg->dev,"ms,pack2_fg");
+	if (!fg->pack2_fg) {
+		pr_err("failed to register pack2_fg rc = %ld\n",
+				PTR_ERR(fg->pack2_fg));
+		return false;
+	}
 	return true;
 }
 

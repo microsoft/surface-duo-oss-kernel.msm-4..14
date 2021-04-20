@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -56,7 +57,10 @@ int cam_cpas_get_cpas_hw_version(uint32_t *hw_version)
 
 	if (!CAM_CPAS_INTF_INITIALIZED()) {
 		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
-		return -ENODEV;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		return -ENODEV;
+		return -EPROBE_DEFER;
+/* MSCHANGE End */
 	}
 
 	if (!hw_version) {
@@ -334,7 +338,10 @@ int cam_cpas_register_client(
 
 	if (!CAM_CPAS_INTF_INITIALIZED()) {
 		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
-		return -ENODEV;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		return -ENODEV;
+		return -EPROBE_DEFER;
+/* MSCHANGE End */
 	}
 
 	if (g_cpas_intf->hw_intf->hw_ops.process_cmd) {

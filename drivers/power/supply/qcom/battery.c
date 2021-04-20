@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -50,6 +51,20 @@
 #define FCC_VOTER			"FCC_VOTER"
 #define MAIN_FCC_VOTER			"MAIN_FCC_VOTER"
 #define PD_VOTER			"PD_VOTER"
+
+// MSCHANGE enabling USBIN USBIN
+#define MIN_PM8150B_LOAD_RESERVED  2500000 //uw
+#define MIN_SMB_LOAD_RESERVED  0 //uw
+#define MAX_USBIN_ON_HINGE     1000    //ma
+#define MAX_INPUT_CURRENT     5000000  //ua
+
+#define SLAVE_PCT_OVERRIDE(slave_pct_value)	(slave_pct_value <= 100 ? 1:0) // allow user to override the power distribution split
+
+struct power_distribution_table PowerDistributionTable[RATIO_MAX] =
+    {{ 500000,  RATIO_NONE },
+     { 900000,  RATIO_45_PERC },
+     { 2000000, RATIO_50_PERC },
+     { MAX_INPUT_CURRENT, RATIO_33_PERC }};
 
 struct pl_data {
 	int			pl_mode;
@@ -143,6 +158,7 @@ enum {
 	RESTRICT_CHG_ENABLE,
 	RESTRICT_CHG_CURRENT,
 	FCC_STEPPING_IN_PROGRESS,
+	SLAVE_PERCENTAGE, //MSCHANGE: Added slave_pct sysfs node
 };
 
 enum {
@@ -322,9 +338,31 @@ static void cp_configure_ilim(struct pl_data *chip, const char *voter, int ilim)
 	}
 }
 
+// MSCHANGE getting the ratio for the input current and the charge current based on total ICL
+static int get_slave_split_percentage(int totalinputcurrent)
+{
+	int ratio = 0;
+	int index;
+	//
+	// use a lookup table to get the appropriate split percentage
+	//
+	for (index = 0; index < RATIO_MAX; index++)
+	{
+		if (totalinputcurrent <= PowerDistributionTable[index].TotalCurrent)
+		{
+			ratio = (int)PowerDistributionTable[index].Ratio;
+			break;
+		}
+	}
+	return ratio;
+}
+
 /*******
  * ICL *
  ********/
+
+// MSCHANGE we have a different method of calculating the split ICL
+#if 0
 static int get_settled_split(struct pl_data *chip, int *main_icl_ua,
 				int *slave_icl_ua, int *total_settled_icl_ua)
 {
@@ -382,13 +420,88 @@ static int get_settled_split(struct pl_data *chip, int *main_icl_ua,
 
 	return 0;
 }
+#else
+static int get_settled_split(struct pl_data *chip, int *main_icl_ua,
+				int *slave_icl_ua, int *total_settled_icl_ua)
+{
+	int rc = 0;
+	int slave_icl_ma_local = 0;
+	int main_icl_ma_local = 0;
+	int total_icl_ma = 0;
+	int ratio = 0;
+	int total_current_ua = 0;
+
+	union power_supply_propval pval = {0, };
+	
+	if (!IS_USBIN(chip->pl_mode))
+		return -EINVAL;
+
+	if (!chip->main_psy)
+		return -EINVAL;
+	
+	if (!chip->usb_psy)
+		chip->usb_psy = power_supply_get_by_name("usb");
+	if (!chip->usb_psy) {
+		pr_err("Couldn't get usbpsy while splitting settled\n");
+		return -ENOENT;
+	}
+
+	// get overall icl
+	total_current_ua = get_effective_result_locked(chip->usb_icl_votable);
+	if (total_current_ua < 0) {
+		/* no client is voting, so get the total current from charger */
+		rc = power_supply_get_property(chip->usb_psy,
+			POWER_SUPPLY_PROP_HW_CURRENT_MAX, &pval);
+		if (rc < 0) {
+			pr_err("Couldn't get max current rc=%d\n", rc);
+			return rc;
+		}
+		total_current_ua = pval.intval;
+	}
+
+	total_icl_ma = total_current_ua / 1000;
+
+	ratio = get_slave_split_percentage(total_current_ua);
+	if(SLAVE_PCT_OVERRIDE(chip->slave_pct))
+	{
+		ratio = chip->slave_pct;
+	}
+
+	// Calculate Slave ICL from the selected ratio
+	slave_icl_ma_local = (total_icl_ma * ratio) / 100;
+
+	// cap slave ICL based on MAX current that can be sourced through hinge wires
+	if(slave_icl_ma_local > MAX_USBIN_ON_HINGE)
+	{
+		slave_icl_ma_local = MAX_USBIN_ON_HINGE;
+		pr_err("Capping slave charger ICL at %d mA", slave_icl_ma_local);
+	}
+	
+	// update the main and slave icls as needed
+	main_icl_ma_local = total_icl_ma - slave_icl_ma_local;
+	
+	*main_icl_ua = main_icl_ma_local * 1000;
+	*slave_icl_ua = slave_icl_ma_local * 1000;
+	*total_settled_icl_ua = total_icl_ma * 1000;
+
+	if (get_effective_result_locked(chip->pl_disable_votable)) {  // this means parallel charging has been disabled
+		*slave_icl_ua = 0;
+		*main_icl_ua = total_icl_ma * 1000;
+	}
+	
+	pr_info("Split total_icl_ma=%d total_settled_icl_ua= %d main_icl_ua=%d slave_icl_ua=%d\n",
+		total_icl_ma, *total_settled_icl_ua, *main_icl_ua, *slave_icl_ua);
+
+	return 0;
+}
+#endif
 
 static int validate_parallel_icl(struct pl_data *chip, bool *disable)
 {
 	int rc = 0;
 	int main_ua = 0, slave_ua = 0, total_settled_ua = 0;
 
-	if (!IS_USBIN(chip->pl_mode)
+	if (!IS_USBIN(chip->pl_mode) 
 		|| get_effective_result_locked(chip->pl_disable_votable))
 		return 0;
 
@@ -500,7 +613,10 @@ static ssize_t slave_pct_store(struct class *c, struct class_attribute *attr,
 	if (kstrtoul(ubuf, 10, &val))
 		return -EINVAL;
 
-	chip->slave_pct = val;
+	//MSCHANGE: Block userspace from changing slave_pct
+	return count;
+
+	chip->slave_pct = val; 
 
 	rc = validate_parallel_icl(chip, &disable);
 	if (rc < 0)
@@ -516,6 +632,35 @@ static ssize_t slave_pct_store(struct class *c, struct class_attribute *attr,
 }
 static struct class_attribute class_attr_slave_pct =
 		__ATTR(parallel_pct, 0644, slave_pct_show, slave_pct_store);
+
+//MSCHANGE: Added slave_pct sysfs node
+static ssize_t slave_percentage_store(struct class *c, struct class_attribute *attr,
+			const char *ubuf, size_t count)
+{
+	struct pl_data *chip = container_of(c, struct pl_data, qcom_batt_class);
+	int rc;
+	unsigned long val;
+	bool disable = false;
+
+	if (kstrtoul(ubuf, 10, &val))
+		return -EINVAL;
+
+	chip->slave_pct = val;
+
+	rc = validate_parallel_icl(chip, &disable);
+	if (rc < 0)
+		return rc;
+
+	vote(chip->pl_disable_votable, ICL_LIMIT_VOTER, disable, 0);
+	rerun_election(chip->fcc_votable);
+	rerun_election(chip->fv_votable);
+	if (IS_USBIN(chip->pl_mode))
+		split_settled(chip);
+
+	return count;
+}
+static struct class_attribute class_attr_slave_percentage =
+		__ATTR(slave_pct, 0644, slave_pct_show, slave_percentage_store);
 
 /************************
  * RESTRICTED CHARGIGNG *
@@ -607,6 +752,7 @@ static struct attribute *batt_class_attrs[] = {
 	[RESTRICT_CHG_CURRENT]	= &class_attr_restrict_cur.attr,
 	[FCC_STEPPING_IN_PROGRESS]
 				= &class_attr_fcc_stepping_in_progress.attr,
+	[SLAVE_PERCENTAGE]      = &class_attr_slave_percentage.attr, // MACHANGE: Added slave_pct sysfs node
 	NULL,
 };
 ATTRIBUTE_GROUPS(batt_class);
@@ -617,6 +763,9 @@ ATTRIBUTE_GROUPS(batt_class);
 #define EFFICIENCY_PCT	80
 #define STEP_UP 1
 #define STEP_DOWN -1
+
+// MSCHANGE we have a different method of calculating the split fcc
+#if 0
 static void get_fcc_split(struct pl_data *chip, int total_ua,
 			int *master_ua, int *slave_ua)
 {
@@ -674,6 +823,119 @@ static void get_fcc_split(struct pl_data *chip, int total_ua,
 			*master_ua = min(*master_ua, chip->main_fcc_max);
 	}
 }
+#else
+static void get_fcc_split(struct pl_data *chip, int total_ua,
+			int *master_ua, int *slave_ua)
+{
+	int rc = 0;
+	int slave_fcc_ma = 0;
+	int slave_fcc_cap_ma = 0;
+	int main_fcc_ma = 0;
+	int vbus_mv = 0;
+	int totalpower = 0;
+	int total_fcc_ma = 0;
+	int total_icl_ma = 0;
+	int ratio = 0;
+	int pm8150b_vbatt = 0;
+	int total_current_ua = 0;
+
+	union power_supply_propval pval = {0, };
+	
+	if (!chip->usb_psy)
+		chip->usb_psy = power_supply_get_by_name("usb");
+	
+	if(!chip->batt_psy)
+		chip->batt_psy = power_supply_get_by_name("battery");
+	
+	// get PM8150B VBATT in mV
+	rc = power_supply_get_property(chip->batt_psy,
+		POWER_SUPPLY_PROP_VOLTAGE_NOW, &pval);
+	if (rc < 0) {
+		pr_err("Couldn't get PM8150B voltage rc=%d\n", rc);
+		return;
+	}
+	pm8150b_vbatt = pval.intval / 1000;
+
+	// get overall fcc in mA
+	total_fcc_ma = total_ua / 1000;
+
+	// cache the VBUS voltage
+	rc = power_supply_get_property(chip->usb_psy,
+		POWER_SUPPLY_PROP_VOLTAGE_MAX, &pval); 
+	if (rc < 0) {
+		pr_err("Couldn't get  voltage rc=%d\n", rc);
+		return;
+	}
+	vbus_mv = pval.intval / 1000;
+
+	// get overall icl
+	total_current_ua = get_effective_result_locked(chip->usb_icl_votable);
+	if (total_current_ua < 0) {
+		/* no client is voting, so get the total current from charger */
+		rc = power_supply_get_property(chip->usb_psy,
+			POWER_SUPPLY_PROP_HW_CURRENT_MAX, &pval);
+		if (rc < 0) {
+			pr_err("Couldn't get max current rc=%d\n", rc);
+			return;
+		}
+		total_current_ua = pval.intval;
+	}
+
+	total_icl_ma = total_current_ua / 1000;
+
+	// total power available = VBUS * overall ICL
+	totalpower = vbus_mv * total_icl_ma;
+
+	// configure slave full charge current
+	ratio = get_slave_split_percentage(total_current_ua);
+	if(SLAVE_PCT_OVERRIDE(chip->slave_pct))
+	{
+		ratio = chip->slave_pct;
+	}
+	slave_fcc_ma = (total_fcc_ma * ratio) / 100;
+
+	if(slave_fcc_ma) 
+	{
+		// if total available totalpower at this moment is < MIN_PM8150B_LOAD_RESERVED + MIN_SMB_LOAD_RESERVED do not attempt parallel charging yet
+		if((totalpower <= (MIN_PM8150B_LOAD_RESERVED + MIN_SMB_LOAD_RESERVED)) &&
+		   (!(SLAVE_PCT_OVERRIDE(chip->slave_pct))))
+
+		{
+			slave_fcc_ma = 0;
+		}
+		else
+		{
+			// actual totalpower that can be allocated for charging: (VUSB * IUSB) - (MIN_PM8150B_LOAD_RESERVED + MIN_SMB_LOAD_RESERVED)
+			totalpower = totalpower - (MIN_PM8150B_LOAD_RESERVED + MIN_SMB_LOAD_RESERVED);
+
+			// calculate slave fcc cap
+			slave_fcc_cap_ma = totalpower / pm8150b_vbatt;
+
+			// cap slave fcc if needed
+			if((slave_fcc_ma > slave_fcc_cap_ma) &&
+			   (!(SLAVE_PCT_OVERRIDE(chip->slave_pct))))
+			{
+				slave_fcc_ma = slave_fcc_cap_ma;
+				pr_err ("Capping slave charger FCC at %d mA", slave_fcc_ma);
+			}
+		}
+	}
+
+	// update the main and slave fccs if needed
+	if(slave_fcc_ma < total_fcc_ma)
+	{
+		main_fcc_ma = total_fcc_ma - slave_fcc_ma;
+	}
+	else 
+	{
+		main_fcc_ma = 0;  // desired power distribution is such that SMB can source all of charge current
+	}
+
+	*master_ua = main_fcc_ma * 1000;
+	*slave_ua = slave_fcc_ma * 1000;
+	pr_info("total_fcc_ma is: %d and slave_fcc_ma is: %d and main_fcc_ma is: %d", total_fcc_ma, slave_fcc_ma, main_fcc_ma);
+}
+#endif
 
 static void get_main_fcc_config(struct pl_data *chip, int *total_fcc)
 {
@@ -828,7 +1090,7 @@ skip_fcc_step_update:
 		chip->step_fcc);
 }
 
-#define MINIMUM_PARALLEL_FCC_UA		500000
+#define MINIMUM_PARALLEL_FCC_UA		-1  // MSCHANGE enabling parallel charging
 #define PL_TAPER_WORK_DELAY_MS		500
 #define TAPER_RESIDUAL_PCT		90
 #define TAPER_REDUCTION_UA		200000
@@ -839,6 +1101,9 @@ static void pl_taper_work(struct work_struct *work)
 	union power_supply_propval pval = {0, };
 	int rc;
 	int fcc_ua, total_fcc_ua, master_fcc_ua, slave_fcc_ua = 0;
+
+	//MSCHANGE: No work to be done in primary charger's taper state
+	goto done;
 
 	chip->taper_entry_fv = get_effective_result(chip->fv_votable);
 	chip->taper_work_running = true;
@@ -1106,7 +1371,7 @@ static void fcc_stepper_work(struct work_struct *work)
 		parallel_fcc += chip->parallel_step_fcc_residual;
 		chip->parallel_step_fcc_residual = 0;
 	}
-
+ 
 	if (parallel_fcc < chip->slave_fcc_ua) {
 		/* Set parallel FCC */
 		if (chip->pl_psy && !chip->pl_disable) {
@@ -1133,7 +1398,7 @@ static void fcc_stepper_work(struct work_struct *work)
 			} else {
 				/* Set Parallel FCC */
 				pval.intval = parallel_fcc;
-				rc = power_supply_set_property(chip->pl_psy,
+ 				rc = power_supply_set_property(chip->pl_psy,
 				POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 					&pval);
 				if (rc < 0) {
@@ -1214,7 +1479,8 @@ static bool is_batt_available(struct pl_data *chip)
 	return true;
 }
 
-#define PARALLEL_FLOAT_VOLTAGE_DELTA_UV 50000
+//MSCHANGE: in USBIN-USBIN config, no need to set the delta FV
+#define PARALLEL_FLOAT_VOLTAGE_DELTA_UV 0
 static int pl_fv_vote_callback(struct votable *votable, void *data,
 			int fv_uv, const char *client)
 {
@@ -1307,7 +1573,7 @@ static int usb_icl_vote_callback(struct votable *votable, void *data,
 	 *	unvote USBIN_I_VOTER) the status_changed_work enables
 	 *	USBIN_I_VOTER based on settled current.
 	 */
-	if (icl_ua <= 1400000)
+	if (icl_ua <= 500000) //MSCHANGE:Enable Parallel charging above ICL=2.5w
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 	else
 		schedule_delayed_work(&chip->status_change_work,
@@ -1525,7 +1791,7 @@ static int pl_disable_vote_callback(struct votable *votable,
 			}
 		}
 
-		pl_dbg(chip, PR_PARALLEL, "master_fcc=%d slave_fcc=%d distribution=(%d/%d)\n",
+		pr_info("master_fcc=%d slave_fcc=%d distribution=(%d/%d)\n",  // MSCHANGE for debug purposes
 			master_fcc_ua, slave_fcc_ua,
 			(master_fcc_ua * 100) / total_fcc_ua,
 			(slave_fcc_ua * 100) / total_fcc_ua);
@@ -1639,7 +1905,7 @@ static bool is_parallel_available(struct pl_data *chip)
 
 	/* Disable autonomous votage increments for USBIN-USBIN */
 	if (IS_USBIN(chip->pl_mode)
-			&& (chip->wa_flags & FORCE_INOV_DISABLE_BIT)) {
+			&& (chip->wa_flags & FORCE_INOV_DISABLE_BIT)) {	
 		if (!chip->hvdcp_hw_inov_dis_votable)
 			chip->hvdcp_hw_inov_dis_votable =
 					find_votable("HVDCP_HW_INOV_DIS");
@@ -1670,14 +1936,32 @@ static bool is_parallel_available(struct pl_data *chip)
 			POWER_SUPPLY_PROP_PARALLEL_FCC_MAX, &pval);
 	if (!rc)
 		chip->pl_fcc_max = pval.intval;
-
+	
 	return true;
 }
 
 static void handle_main_charge_type(struct pl_data *chip)
 {
 	union power_supply_propval pval = {0, };
+	union power_supply_propval pval_usb_connected = {0, };  // MSCHANGE disable parallel charging when USB is disconnected
 	int rc;
+
+	// MSCHANGE charging icon
+	rc = power_supply_get_property(chip->usb_psy,
+				   POWER_SUPPLY_PROP_AUTHENTIC, &pval_usb_connected);
+	if (rc < 0)
+	{
+		pr_err("Couldn't get usb connected rc=%d\n", rc);
+		return;
+	}
+	if(pval_usb_connected.intval == 0)
+	{
+		vote(chip->pl_disable_votable, CHG_STATE_VOTER, true, 0);
+	}
+	else
+	{
+		vote(chip->pl_disable_votable, CHG_STATE_VOTER, false, 0);
+	}
 
 	rc = power_supply_get_property(chip->batt_psy,
 			       POWER_SUPPLY_PROP_CHARGE_TYPE, &pval);
@@ -1686,6 +1970,7 @@ static void handle_main_charge_type(struct pl_data *chip)
 		return;
 	}
 
+#if 0 //MSCHANGE: prevent discharging when bucking
 	/* not fast/not taper state to disables parallel */
 	if ((pval.intval != POWER_SUPPLY_CHARGE_TYPE_FAST)
 		&& (pval.intval != POWER_SUPPLY_CHARGE_TYPE_TAPER)) {
@@ -1693,6 +1978,7 @@ static void handle_main_charge_type(struct pl_data *chip)
 		chip->charge_type = pval.intval;
 		return;
 	}
+#endif
 
 	/* handle taper charge entry */
 	if (chip->charge_type == POWER_SUPPLY_CHARGE_TYPE_FAST
@@ -1764,10 +2050,10 @@ static void handle_settled_icl_change(struct pl_data *chip)
 	}
 	main_limited = pval.intval;
 
-	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 1400000)
+	if ((main_limited && (main_settled_ua + chip->pl_settled_ua) < 500000) //MSCHANGE:Enable Parallel charging above ICL=2.5w
 			|| (main_settled_ua == 0)
 			|| ((total_current_ua >= 0) &&
-				(total_current_ua <= 1400000)))
+				(total_current_ua <= 500000))) //MSCHANGE:Enable Parallel charging above ICL=2.5w
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, false, 0);
 	else
 		vote(chip->pl_enable_votable_indirect, USBIN_I_VOTER, true, 0);
@@ -1804,6 +2090,7 @@ static void handle_settled_icl_change(struct pl_data *chip)
 
 static void handle_parallel_in_taper(struct pl_data *chip)
 {
+#if 0 //MSCHANGE: Keep parallel charger irrespective if its internal state
 	union power_supply_propval pval = {0, };
 	int rc;
 
@@ -1829,6 +2116,7 @@ static void handle_parallel_in_taper(struct pl_data *chip)
 				true, 0);
 		return;
 	}
+#endif
 }
 
 static void handle_usb_change(struct pl_data *chip)
@@ -1948,6 +2236,7 @@ static void pl_config_init(struct pl_data *chip, int smb_version)
 	}
 }
 
+#define DISABLE_SLAVE_PCT_OVERRIDE_VALUE 120
 #define DEFAULT_RESTRICTED_CURRENT_UA	1000000
 int qcom_batt_init(struct charger_param *chg_param)
 {
@@ -1968,7 +2257,7 @@ int qcom_batt_init(struct charger_param *chg_param)
 	chip = kzalloc(sizeof(*chip), GFP_KERNEL);
 	if (!chip)
 		return -ENOMEM;
-	chip->slave_pct = 50;
+	chip->slave_pct = DISABLE_SLAVE_PCT_OVERRIDE_VALUE;   // MSCHANGE disabling user override of slave pct in the init
 	chip->chg_param = chg_param;
 	pl_config_init(chip, chg_param->smb_version);
 	chip->restricted_current = DEFAULT_RESTRICTED_CURRENT_UA;
@@ -2026,7 +2315,7 @@ int qcom_batt_init(struct charger_param *chg_param)
 		chip->pl_disable_votable = NULL;
 		goto destroy_votable;
 	}
-	vote(chip->pl_disable_votable, CHG_STATE_VOTER, true, 0);
+	//vote(chip->pl_disable_votable, CHG_STATE_VOTER, true, 0); //MSCHANGE: prevent discharging when bucking
 	vote(chip->pl_disable_votable, TAPER_END_VOTER, false, 0);
 	vote(chip->pl_disable_votable, PARALLEL_PSY_VOTER, true, 0);
 

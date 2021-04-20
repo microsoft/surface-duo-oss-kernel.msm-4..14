@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -965,7 +966,10 @@ int cam_hw_cdm_probe(struct platform_device *pdev)
 			cam_hw_cdm_irq, cdm_hw);
 	if (rc) {
 		CAM_ERR(CAM_CDM, "Failed to request platform resource");
-		goto destroy_non_secure_hdl;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		goto destroy_non_secure_hdl;
+		goto destroy_workqueue;
+/* MSCHANGE End */
 	}
 
 	cpas_parms.cam_cpas_client_cb = cam_cdm_cpas_cb;
@@ -1070,9 +1074,13 @@ release_platform_resource:
 	if (cam_soc_util_release_platform_resource(&cdm_hw->soc_info))
 		CAM_ERR(CAM_CDM, "Release platform resource failed");
 
+/* MSCHANGE Handle errors properly to support Deferring initialization*/
+destroy_workqueue:
 	flush_workqueue(cdm_core->work_queue);
 	destroy_workqueue(cdm_core->work_queue);
 destroy_non_secure_hdl:
+/* MSCHANGE Handle errors properly to support Deferring initialization*/
+	cam_smmu_ops(cdm_core->iommu_hdl.non_secure, CAM_SMMU_DETACH);
 	cam_smmu_set_client_page_fault_handler(cdm_core->iommu_hdl.non_secure,
 		NULL, cdm_hw);
 	if (cam_smmu_destroy_handle(cdm_core->iommu_hdl.non_secure))

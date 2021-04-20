@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -195,6 +196,8 @@ error_init_soc:
 error_match_dev:
 	kfree(jpeg_enc_dev->core_info);
 error_alloc_core:
+	/* MSCHANGE Handle errors properly to support Deferring initialization*/
+	platform_set_drvdata(pdev, NULL);
 	kfree(jpeg_enc_dev);
 error_alloc_dev:
 	kfree(jpeg_enc_dev_intf);
