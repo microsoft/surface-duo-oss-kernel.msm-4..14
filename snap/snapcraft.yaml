@@ -42,14 +42,12 @@ parts:
             snapcraftctl build
             kernel_version=$(make kernelversion)
             snapcraftctl set-version $(git describe --tags | cut -c 19-42)
-        stage:
-            - System.map-*
-            - config-*
-            - dtbs
-            - initrd.img
-            - kernel.img
-            - lib
-            - modules
+        organize:
+            kernel.img: Image
+        prime:
+            - -initrd.img*
+            - -Image*
+            - -dtbs
 
     firmware:
         plugin: nil
@@ -163,6 +161,19 @@ parts:
             '*': signing-key/
         prime:
             - -*
+
+    fit-image:
+        after:
+            - kernel
+            - test-keys
+        plugin: nil
+        override-build: |
+            cp ${SNAPCRAFT_PROJECT_DIR}/kernel_*.its ${SNAPCRAFT_STAGE}
+            # include key dir in case there are keys available
+            mkimage \
+                -f ${SNAPCRAFT_STAGE}/kernel_${SNAPCRAFT_TARGET_ARCH}.its \
+                -r ${SNAPCRAFT_PART_INSTALL}/kernel.img \
+                -k ${SNAPCRAFT_STAGE}/signing-key
 
 build-packages:
     - dpkg-dev

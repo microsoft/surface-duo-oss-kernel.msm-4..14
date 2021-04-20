@@ -1,0 +1,67 @@
+/*
+ * U-Boot uImage source file with multiple kernels, ramdisks and FDT blobs
+ */
+
+/dts-v1/;
+
+/ {
+	description = "Ubuntu Core kernel, ramdisk and FDT blobs for i.MX8M board family";
+	#address-cells = <1>;
+
+	images {
+		kernel-ubuntu {
+			description = "ubuntu-kernel";
+			data = /incbin/("./Image");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			load =  <0x80080000>;
+			entry = <0x80080000>;
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+
+		ramdisk-uc {
+			description = "Ubuntu-Core-ramdisk";
+			data = /incbin/("./initrd.img");
+			type = "ramdisk";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+
+		fsl-s32g274a-rdb2 {
+			description = "s32g274ardb2";
+			data = /incbin/("./dtbs/freescale/fsl-s32g274a-rdb2.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			hash-1 {
+				algo = "sha256";
+			};
+		};
+
+	};
+
+	configurations {
+	default = "fsl-s32g274a-rdb2.dtb";
+
+		fsl-s32g274a-rdb2.dtb {
+			description = "s32g274a-rdb2";
+			kernel = "kernel-ubuntu";
+			ramdisk = "ramdisk-uc";
+			fdt = "fsl-s32g274a-rdb2";
+			signature@1 {
+				algo = "sha256,rsa2048";
+				key-name-hint="dev-key";
+				sign-images="fdt","kernel", "ramdisk";
+			};
+		};
+
+	};
+};
