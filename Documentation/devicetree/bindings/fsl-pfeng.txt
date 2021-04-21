@@ -23,6 +23,7 @@ Optional properties:
 - fsl,fw-class-name : PFE CLASS firmware filename
 - fsl,fw-util-name : PFE UTIL firmware filename
 - fsl,pfeng-master-hif-channel : [slave only] The number of master's HIF channel (0-3)
+- phys : Serdes phys for sgmii interfaces
 
 Required subnode:
 - hif : specifies the PFE HIF channel
@@ -118,6 +119,10 @@ pfe@46080000 {
 		memory-region = <&pfe_reserved_bmu2>, <&pfe_reserved>, <&pfe_reserved_bdr>;
 		fsl,fw-class-name = "s32g_pfe_class.fw";
 		fsl,fw-util-name = "s32g_pfe_util.fw";
+		phys = <&serdes1 PHY_TYPE_XPCS 0 0>,
+			 <&serdes1 PHY_TYPE_XPCS 1 1>,
+			 <&serdes0 PHY_TYPE_XPCS 1 1>;
+		phy-names = "emac0_xpcs", "emac1_xpcs", "emac2_xpcs";
 
 		/* PFE_HIF_0 */
 		pfe_hif0: hif@0 {
