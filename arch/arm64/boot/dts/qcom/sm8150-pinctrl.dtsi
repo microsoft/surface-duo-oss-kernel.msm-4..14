@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -861,6 +861,18 @@
 					bias-pull-down;
 					output-low;
 				};
+			};
+		};
+
+		pinctrl_pps: ppsgrp {
+			mux {
+				pins = "gpio77";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio77";
+				bias-pull-down;
 			};
 		};
 
