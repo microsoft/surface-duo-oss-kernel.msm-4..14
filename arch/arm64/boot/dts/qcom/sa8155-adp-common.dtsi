@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -102,6 +102,14 @@
 		ssVreset-gpio = <&tlmm 11 1>;
 		ssVonoff-gpio = <&tlmm 39 1>;
 		ssVboot-gpio = <&tlmm 40 1>;
+	};
+
+	pps {
+		compatible = "pps-gpio";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_pps>;
+		gpios = <&tlmm 77 0>;
+		status = "ok";
 	};
 
 	qcom,turing@8300000 {
