@@ -193,8 +193,14 @@ struct qmi_info {
  * @scratch_buf: Scratch Buffer used by remote subsystem during the backup
  *		 or restore.
  * @qmi: Details of the QMI client on the kernel side.
+ * @request_handler_work: Worker thread to handle backup/restore indications.
  * @cdev: Device used by the Userspace to read/write the image buffer.
- * @open_count: Account open instances.
+ * @last_notif_sent: Event type of the last event that is sent to remote
+ *		     subsystem and userspace.
+ * @backup_type: Bakcup type received in the QMI indication.
+ * @remote_status: Status of backup/restore received from remote subsystem.
+ * @sysfs_dev: Device pointer to the sysfs device node.
+ * @open_count: Account open instances of cdev.
  */
 struct subsys_backup {
 	struct device *dev;
@@ -631,6 +637,59 @@ const char *status_to_str(enum qmi_remote_status remote_status)
 	}
 }
 
+static ssize_t event_show(struct device *dev, struct device_attribute *attr,
+				char *buf)
+{
+	struct subsys_backup *backup_dev = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+			event_to_str(backup_dev->last_notif_sent));
+}
+static DEVICE_ATTR_RO(event);
+
+static ssize_t backup_type_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct subsys_backup *backup_dev = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+			backup_type_to_str(backup_dev->backup_type));
+}
+static DEVICE_ATTR_RO(backup_type);
+
+static ssize_t remote_status_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct subsys_backup *backup_dev = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+			status_to_str(backup_dev->remote_status));
+}
+static DEVICE_ATTR_RO(remote_status);
+
+static struct attribute *subsys_backup_attrs[] = {
+	&dev_attr_event.attr,
+	&dev_attr_backup_type.attr,
+	&dev_attr_remote_status.attr,
+	NULL,
+};
+
+static struct attribute_group subsys_backup_attr_group = {
+	.attrs = subsys_backup_attrs,
+};
+
+static bool is_hyp_assigned(int dest, struct subsys_backup *backup_dev)
+{
+	/*
+	 * If already hyp assinged to the destination, return true.
+	 */
+	if ((dest == VMID_HLOS && backup_dev->img_buf.hyp_assigned_to_hlos) ||
+		(dest == VMID_MSS_MSA &&
+		!backup_dev->img_buf.hyp_assigned_to_hlos))
+		return true;
+	return false;
+}
+
 static int hyp_assign_buffers(struct subsys_backup *backup_dev, int dest,
 				int src)
 {
@@ -642,28 +701,20 @@ static int hyp_assign_buffers(struct subsys_backup *backup_dev, int dest,
 	if (dest == VMID_HLOS)
 		dest_perms[0] |= PERM_EXEC;
 
-	if ((dest == VMID_HLOS && backup_dev->img_buf.hyp_assigned_to_hlos &&
-		backup_dev->scratch_buf.hyp_assigned_to_hlos) ||
-		(dest == VMID_MSS_MSA &&
-		!backup_dev->img_buf.hyp_assigned_to_hlos
-		&& !backup_dev->scratch_buf.hyp_assigned_to_hlos))
+	if (is_hyp_assigned(dest, backup_dev))
 		return 0;
 
 	ret = hyp_assign_phys(backup_dev->img_buf.paddr,
 			backup_dev->img_buf.total_size, src_vmids, 1,
 			dest_vmids, dest_perms, 1);
 	if (ret)
-		goto error_hyp;
+		goto error_img_assign;
 
 	ret = hyp_assign_phys(backup_dev->scratch_buf.paddr,
 			backup_dev->scratch_buf.total_size, src_vmids, 1,
 			dest_vmids, dest_perms, 1);
-	if (ret && dest != VMID_HLOS) {
-		ret = hyp_assign_phys(backup_dev->img_buf.paddr,
-				backup_dev->img_buf.total_size, dest_vmids, 1,
-				src_vmids, dest_perms, 1);
-		goto error_hyp;
-	}
+	if (ret)
+		goto error_scratch_assign;
 
 	if (dest == VMID_HLOS) {
 		backup_dev->img_buf.hyp_assigned_to_hlos = true;
@@ -674,8 +725,15 @@ static int hyp_assign_buffers(struct subsys_backup *backup_dev, int dest,
 	}
 
 	return 0;
+error_scratch_assign:
+	if (dest != VMID_HLOS) {
+		ret = hyp_assign_phys(backup_dev->img_buf.paddr,
+				backup_dev->img_buf.total_size, dest_vmids, 1,
+				src_vmids, dest_perms, 1);
+		BUG_ON(ret);
+	}
 
-error_hyp:
+error_img_assign:
 	dev_err(backup_dev->dev, "%s: Failed: %d\n", __func__, ret);
 	return ret;
 }
@@ -689,12 +747,17 @@ static int allocate_buffers(struct subsys_backup *backup_dev)
 				backup_dev->img_buf.total_size, &img_dma_addr,
 				GFP_KERNEL);
 
+	if (!backup_dev->img_buf.vaddr) {
+		dev_err(backup_dev->dev, "Failed dma_alloc_coherent\n");
+		return -ENOMEM;
+	}
+
 	backup_dev->scratch_buf.vaddr = (void *)
 				dma_alloc_coherent(backup_dev->dev,
 				backup_dev->scratch_buf.total_size,
 				&scratch_dma_addr, GFP_KERNEL);
 
-	if (!backup_dev->img_buf.vaddr || !backup_dev->scratch_buf.vaddr)
+	if (!backup_dev->scratch_buf.vaddr)
 		goto error;
 
 	backup_dev->img_buf.paddr = img_dma_addr;
@@ -702,44 +765,44 @@ static int allocate_buffers(struct subsys_backup *backup_dev)
 	backup_dev->img_buf.hyp_assigned_to_hlos = true;
 	backup_dev->scratch_buf.hyp_assigned_to_hlos = true;
 
-	memset(backup_dev->img_buf.vaddr, 0, backup_dev->img_buf.total_size);
-	memset(backup_dev->scratch_buf.vaddr, 0,
-			backup_dev->scratch_buf.total_size);
 	return 0;
-
 error:
 	dev_err(backup_dev->dev, "%s: Failed\n", __func__);
 
-	if (backup_dev->img_buf.vaddr)
-		dma_free_coherent(backup_dev->dev,
-				backup_dev->img_buf.total_size,
-				backup_dev->img_buf.vaddr, img_dma_addr);
-	if (backup_dev->scratch_buf.vaddr)
-		dma_free_coherent(backup_dev->dev,
-				backup_dev->scratch_buf.total_size,
-				backup_dev->scratch_buf.vaddr,
-				scratch_dma_addr);
+	dma_free_coherent(backup_dev->dev,
+		backup_dev->img_buf.total_size,
+		backup_dev->img_buf.vaddr, img_dma_addr);
 	backup_dev->img_buf.vaddr = NULL;
-	backup_dev->scratch_buf.vaddr = NULL;
 	return ret;
 }
 
 static int free_buffers(struct subsys_backup *backup_dev)
 {
-	if (backup_dev->img_buf.vaddr)
-		dma_free_coherent(backup_dev->dev,
-			backup_dev->img_buf.total_size,
-			backup_dev->img_buf.vaddr, backup_dev->img_buf.paddr);
+	BUG_ON(!backup_dev->img_buf.hyp_assigned_to_hlos);
 
-	if (backup_dev->scratch_buf.vaddr)
-		dma_free_coherent(backup_dev->dev,
-			backup_dev->scratch_buf.total_size,
-			backup_dev->scratch_buf.vaddr,
-			backup_dev->scratch_buf.paddr);
+	if (backup_dev->img_buf.vaddr == NULL)
+		return 0;
+
+	dma_free_coherent(backup_dev->dev,
+		backup_dev->img_buf.total_size,
+		backup_dev->img_buf.vaddr, backup_dev->img_buf.paddr);
+
+	dma_free_coherent(backup_dev->dev,
+		backup_dev->scratch_buf.total_size,
+		backup_dev->scratch_buf.vaddr,
+		backup_dev->scratch_buf.paddr);
 
 	backup_dev->img_buf.vaddr = NULL;
 	backup_dev->scratch_buf.vaddr = NULL;
 	return 0;
+}
+
+static void subsys_backup_set_idle_state(struct subsys_backup *backup_dev)
+{
+	backup_dev->last_notif_sent = -1;
+	backup_dev->backup_type = -1;
+	backup_dev->remote_status = -1;
+	backup_dev->state = IDLE;
 }
 
 static int subsys_qmi_send_request(struct subsys_backup *backup_dev,
@@ -749,7 +812,6 @@ static int subsys_qmi_send_request(struct subsys_backup *backup_dev,
 {
 	int ret;
 	struct qmi_txn txn;
-	struct qmi_response_type_v01 *resp;
 
 	ret = qmi_txn_init(&backup_dev->qmi.qmi_svc_handle, &txn, resp_ei,
 				resp_data);
@@ -767,20 +829,7 @@ static int subsys_qmi_send_request(struct subsys_backup *backup_dev,
 		goto out;
 	}
 
-	ret = qmi_txn_wait(&txn, 5 * HZ);
-	if (ret < 0) {
-		dev_err(backup_dev->dev, "%s: Response wait failed: %d\n",
-				__func__, ret);
-		goto out;
-	}
-
-	resp = (struct qmi_response_type_v01 *)resp_data;
-
-	if (resp->result != QMI_RESULT_SUCCESS_V01) {
-		ret = -resp->result;
-		goto out;
-	}
-
+	qmi_txn_wait(&txn, 5 * HZ);
 	return 0;
 
 out:
@@ -1039,7 +1088,12 @@ static void request_handler_worker(struct work_struct *work)
 				__func__, ret);
 		else
 			free_buffers(backup_dev);
-		backup_dev->state = IDLE;
+		/*
+		 * Allow userspace to read the uevent variables before
+		 * resetting it
+		 */
+		usleep_range(100000, 1000000);
+		subsys_backup_set_idle_state(backup_dev);
 		break;
 
 	default:
@@ -1095,7 +1149,7 @@ static void backup_notif_handler(struct qmi_handle *handle,
 	backup_dev = container_of(qmi, struct subsys_backup, qmi);
 
 	if (atomic_read(&backup_dev->open_count) == 0) {
-		dev_err(backup_dev->dev, "%s: No active users\n", __func__);
+		dev_warn(backup_dev->dev, "%s: No active users\n", __func__);
 		return;
 	}
 
@@ -1110,13 +1164,14 @@ static void backup_notif_handler(struct qmi_handle *handle,
 		backup_dev->state = BACKUP_START;
 	} else if (ind->backup_state == END) {
 		backup_dev->state = BACKUP_END;
+		backup_dev->remote_status = ind->backup_status;
 	} else {
 		dev_err(backup_dev->dev, "%s: Invalid request\n", __func__);
 		return;
 	}
 
 	backup_dev->qmi.decoded_msg = devm_kzalloc(backup_dev->dev,
-					sizeof(*decoded_msg), GFP_KERNEL);
+			sizeof(struct qmi_backup_ind_type), GFP_KERNEL);
 	if (!backup_dev->qmi.decoded_msg) {
 		dev_err(backup_dev->dev, "%s: Failed to allocate memory\n",
 				__func__);
@@ -1124,7 +1179,7 @@ static void backup_notif_handler(struct qmi_handle *handle,
 	}
 
 	memcpy((void *)backup_dev->qmi.decoded_msg, decoded_msg,
-			sizeof(*decoded_msg));
+			sizeof(struct qmi_backup_ind_type));
 	queue_work(system_wq, &backup_dev->request_handler_work);
 }
 
@@ -1139,7 +1194,7 @@ static void restore_notif_handler(struct qmi_handle *handle,
 	backup_dev = container_of(qmi, struct subsys_backup, qmi);
 
 	if (atomic_read(&backup_dev->open_count) == 0) {
-		dev_err(backup_dev->dev, "%s: No active users\n", __func__);
+		dev_warn(backup_dev->dev, "%s: No active users\n", __func__);
 		return;
 	}
 
@@ -1161,7 +1216,7 @@ static void restore_notif_handler(struct qmi_handle *handle,
 	}
 
 	backup_dev->qmi.decoded_msg = devm_kzalloc(backup_dev->dev,
-					sizeof(*decoded_msg), GFP_KERNEL);
+			sizeof(struct qmi_restore_ind_type), GFP_KERNEL);
 	if (!backup_dev->qmi.decoded_msg) {
 		dev_err(backup_dev->dev, "%s: Failed to allocate memory\n",
 				__func__);
@@ -1169,7 +1224,7 @@ static void restore_notif_handler(struct qmi_handle *handle,
 	}
 
 	memcpy((void *)backup_dev->qmi.decoded_msg, decoded_msg,
-		sizeof(*decoded_msg));
+		sizeof(struct qmi_restore_ind_type));
 	queue_work(system_wq, &backup_dev->request_handler_work);
 }
 
@@ -1258,7 +1313,7 @@ static void subsys_backup_del_server(struct qmi_handle *handle,
 	backup_dev = container_of(qmi, struct subsys_backup, qmi);
 
 	backup_dev->qmi.connected = false;
-
+	subsys_backup_set_idle_state(backup_dev);
 	hyp_assign_buffers(backup_dev, VMID_HLOS, VMID_MSS_MSA);
 	free_buffers(backup_dev);
 }
@@ -1307,7 +1362,7 @@ static int backup_buffer_open(struct inode *inodep, struct file *filep)
 					struct subsys_backup, cdev);
 	if (atomic_inc_return(&backup_dev->open_count) != 1) {
 		dev_err(backup_dev->dev,
-				"Multiple instances of open  not allowed\n");
+				"Multiple instances of open not allowed\n");
 		atomic_dec(&backup_dev->open_count);
 		return -EBUSY;
 	}
@@ -1321,19 +1376,25 @@ static ssize_t backup_buffer_read(struct file *filp, char __user *buf,
 	struct subsys_backup *backup_dev = filp->private_data;
 	size_t ret;
 
-	if (backup_dev->state != BACKUP_END || !backup_dev->img_buf.vaddr ||
-		!backup_dev->img_buf.hyp_assigned_to_hlos) {
-		dev_err(backup_dev->dev, "%s: Invalid Operation\n", __func__);
+	if (backup_dev->state != BACKUP_END) {
+		dev_warn(backup_dev->dev, "%s: Backup not complete: %d\n",
+				__func__);
+		return 0;
+	} else if (!backup_dev->img_buf.hyp_assigned_to_hlos) {
+		dev_err(backup_dev->dev, "%s: Not hyp_assigned to HLOS\n",
+				__func__);
 		return 0;
 	}
 
 	ret = simple_read_from_buffer(buf, size, offp,
 			backup_dev->img_buf.vaddr,
 			backup_dev->img_buf.used_size);
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(backup_dev->dev, "%s: Failed: %d\n", __func__, ret);
-	else if (ret < size)
+	} else if (ret < size) {
+		subsys_backup_set_idle_state(backup_dev);
 		free_buffers(backup_dev);
+	}
 
 	return ret;
 }
@@ -1344,7 +1405,8 @@ static ssize_t backup_buffer_write(struct file *filp, const char __user *buf,
 	struct subsys_backup *backup_dev = filp->private_data;
 
 	if (backup_dev->state != RESTORE_START) {
-		dev_err(backup_dev->dev, "%s: Restore not started\n", __func__);
+		dev_warn(backup_dev->dev, "%s: Restore not started\n",
+				__func__);
 		return 0;
 	} else if (!backup_dev->img_buf.hyp_assigned_to_hlos) {
 		dev_err(backup_dev->dev, "%s: Not hyp_assinged to HLOS\n",
@@ -1357,7 +1419,8 @@ static ssize_t backup_buffer_write(struct file *filp, const char __user *buf,
 			backup_dev->img_buf.total_size, offp, buf, size);
 }
 
-static int backup_buffer_flush(struct file *filp, fl_owner_t id)
+static int backup_buffer_sync(struct file *filp, loff_t l1, loff_t l2,
+			int datasync)
 {
 	int ret;
 	struct subsys_backup *backup_dev = filp->private_data;
@@ -1367,7 +1430,7 @@ static int backup_buffer_flush(struct file *filp, fl_owner_t id)
 		return 0;
 
 	if (backup_dev->state != RESTORE_START || !backup_dev->img_buf.vaddr) {
-		dev_err(backup_dev->dev, "%s: Invalid operation\n", __func__);
+		dev_warn(backup_dev->dev, "%s: Invalid operation\n", __func__);
 		return -EBUSY;
 	}
 
@@ -1417,8 +1480,9 @@ static const struct file_operations backup_buffer_fops = {
 	.open	= backup_buffer_open,
 	.read	= backup_buffer_read,
 	.write	= backup_buffer_write,
-	.flush	= backup_buffer_flush,
+	.fsync	= backup_buffer_sync,
 	.release = backup_buffer_release,
+	.llseek	= default_llseek,
 };
 
 static int subsys_backup_init_device(struct platform_device *pdev,
@@ -1461,6 +1525,12 @@ static int subsys_backup_init_device(struct platform_device *pdev,
 	}
 	backup_dev->sysfs_dev = backup_dev->dev;
 	dev_set_drvdata(backup_dev->sysfs_dev, backup_dev);
+
+	ret = sysfs_create_group(&device->kobj, &subsys_backup_attr_group);
+	if (ret) {
+		dev_err(&pdev->dev, "sysfs_create_group failed: %d\n", ret);
+		goto device_create_err;
+	}
 
 	class->dev_uevent = subsys_backup_uevent;
 	return 0;

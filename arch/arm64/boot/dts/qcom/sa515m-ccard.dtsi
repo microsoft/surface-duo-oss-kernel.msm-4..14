@@ -1,4 +1,4 @@
-/* Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -11,6 +11,7 @@
  */
 
 #include "sdxprairie-mtp.dtsi"
+#include "sa515m.dtsi"
 
 &soc {
 	/delete-node/ qcom,battery-data;
@@ -115,18 +116,18 @@
 	mdm-core-0-step {
 		trips {
 			active-config0 {
-				temperature = <95000>;
+				temperature = <101000>;
 				hysteresis = <5000>;
 			};
 
 			active-config1 {
-				temperature = <100000>;
-				hysteresis = <5000>;
+				temperature = <103000>;
+				hysteresis = <3000>;
 			};
 
 			active-config2 {
 				temperature = <105000>;
-				hysteresis = <5000>;
+				hysteresis = <3000>;
 			};
 		};
 	};
@@ -298,19 +299,31 @@
 		inven,read_only_slave_type = "none";
 	};
 
-	asm330@6b {
+	asm330lhh@6b {
 		compatible = "st,asm330lhh";
 		reg = <0x6b>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&sensor_int1_default>,<&sensor_enable_default>;
 		asm330-enable-gpio = <&tlmm 87 0x1>;
 		interrupt-parent = <&tlmm>;
-		interrupts = <84 IRQ_TYPE_EDGE_RISING>;
+		interrupts = <84 IRQ_TYPE_LEVEL_HIGH>;
 		st,drdy-int-pin= <2>;
 		qcom,regulator_check = <0>; /* 0:Disable 1:Enable */
 		qcom,asm330_hrtimer;
 	};
 
+	asm330lhhx@6b {
+		compatible = "st,asm330lhhx";
+		reg = <0x6b>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sensor_int1_default>,<&sensor_enable_default>;
+		asm330-enable-gpio = <&tlmm 87 0x1>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <84 IRQ_TYPE_LEVEL_HIGH>;
+		st,int-pin= <2>;
+		qcom,regulator_check = <0>; /* 0:Disable 1:Enable */
+		qcom,asm330_hrtimer;
+	};
 };
 
 &emac_hw {
@@ -437,7 +450,9 @@
 			qcom,vdd-wlan-rfa3-info = <1904000 1904000 450000 0>;
 			qcom,wlan-ramdump-dynamic = <0x400000>;
 			mhi,max-channels = <30>;
+			mhi,buffer-len = <0x8000>;
 			mhi,timeout = <10000>;
+			mhi,m2-no-db-access = <1>;
 			qcom,smmu-s1-enable;
 			mhi_channels {
 				#address-cells = <1>;
@@ -547,7 +562,9 @@
 
 			qcom,wlan-ramdump-dynamic = <0x300000>;
 			mhi,max-channels = <30>;
+			mhi,buffer-len = <0x8000>;
 			mhi,timeout = <10000>;
+			mhi,m2-no-db-access = <1>;
 			mhi,ee = <0x3>, <0x4>;
 			mhi,ee-names = "SBL", "RDDM";
 			mhi,bhie-offset = <0x0324>;

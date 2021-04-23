@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -600,6 +600,13 @@ static int ipa3_send_pdn_config_msg(unsigned long usr_param)
 
 	msg_meta.msg_type = pdn_info->pdn_cfg_type;
 
+	if ((pdn_info->pdn_cfg_type < IPA_PDN_DEFAULT_MODE_CONFIG) ||
+			(pdn_info->pdn_cfg_type >= IPA_PDN_CONFIG_EVENT_MAX)) {
+		IPAERR_RL("invalid pdn_cfg_type =%d", pdn_info->pdn_cfg_type);
+		kfree(pdn_info);
+		return -EINVAL;
+	}
+
 	IPADBG("type %d, interface name: %s, enable:%d\n", msg_meta.msg_type,
 		pdn_info->dev_name, pdn_info->enable);
 
@@ -1055,6 +1062,69 @@ static int ipa3_send_mac_flt_list(unsigned long usr_param)
 	IPADBG("No of clients: %d, flt state: %d\n",
 		((struct ipa_ioc_mac_client_list_type *)buff)->num_of_clients,
 		((struct ipa_ioc_mac_client_list_type *)buff)->flt_state);
+
+	retval = ipa3_send_msg(&msg_meta, buff,
+		ipa3_mac_flt_list_free_cb);
+	if (retval) {
+		IPAERR("ipa3_send_msg failed: %d, msg_type %d\n",
+		retval,
+		msg_meta.msg_type);
+		kfree(buff);
+		return retval;
+	}
+	return 0;
+}
+
+static int ipa3_send_sw_flt_list(unsigned long usr_param)
+{
+	int retval;
+	struct ipa_msg_meta msg_meta;
+	struct ipa_ioc_sw_flt_list_type sw_flt_list;
+	void *buff;
+
+	if (copy_from_user(&sw_flt_list, (const void __user *)usr_param,
+		sizeof(struct ipa_ioc_sw_flt_list_type))) {
+		IPAERR("Copy ipa_ioc_sw_flt_list_type failure\n");
+		return -EFAULT;
+	}
+
+	if (sw_flt_list.ioctl_data_size !=
+		sizeof(struct ipa_sw_flt_list_type)) {
+		IPAERR("IPA_IOC_SET_SW_FLT size not match(%d,%d)!\n",
+		sw_flt_list.ioctl_data_size,
+		sizeof(struct ipa_sw_flt_list_type));
+		return -EFAULT;
+	}
+
+	buff = kzalloc(sizeof(struct ipa_sw_flt_list_type),
+				GFP_KERNEL);
+	if (!buff) {
+		IPAERR("ipa_sw_flt_list_type mem-allocate failure\n");
+		return -ENOMEM;
+	}
+
+	if (copy_from_user(buff, u64_to_user_ptr(sw_flt_list.ioctl_ptr),
+		sizeof(struct ipa_sw_flt_list_type))) {
+		IPAERR("Failed to copy ipa_sw_flt_list_type\n");
+		kfree(buff);
+		return -EFAULT;
+	}
+	memset(&msg_meta, 0, sizeof(struct ipa_msg_meta));
+	msg_meta.msg_type = IPA_SW_FLT_EVENT;
+	msg_meta.msg_len = sizeof(struct ipa_sw_flt_list_type);
+
+	IPADBG("No of clients: %d, mac-flt enable: %d\n",
+		((struct ipa_sw_flt_list_type *)buff)->num_of_mac,
+		((struct ipa_sw_flt_list_type *)buff)->mac_enable);
+
+	IPADBG("No of segs: %d, ipv4-seg-flt enable: %d v6-offload %d\n",
+		((struct ipa_sw_flt_list_type *)buff)->num_of_ipv4_segs,
+		((struct ipa_sw_flt_list_type *)buff)->ipv4_segs_enable,
+		((struct ipa_sw_flt_list_type *)buff)->ipv4_segs_ipv6_offload);
+
+	IPADBG("No of ifaces: %d, iface-flt enable: %d\n",
+		((struct ipa_sw_flt_list_type *)buff)->num_of_iface,
+		((struct ipa_sw_flt_list_type *)buff)->iface_enable);
 
 	retval = ipa3_send_msg(&msg_meta, buff,
 		ipa3_mac_flt_list_free_cb);
@@ -2268,9 +2338,11 @@ static long ipa3_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		/*Route and filter rules will also be clean*/
 		IPADBG("Got IPA_IOC_CLEANUP\n");
 		retval = ipa3_reset_hdr(true);
-		memset(&nat_del, 0, sizeof(nat_del));
-		nat_del.table_index = 0;
-		retval = ipa3_nat_del_cmd(&nat_del);
+
+		IPA_ACTIVE_CLIENTS_INC_SPECIAL("SRAM");
+		retval = ipa3_nat_cleanup_cmd();
+		IPA_ACTIVE_CLIENTS_DEC_SPECIAL("SRAM");
+
 		if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_APQ)
 			retval = ipa3_clean_mhip_dl_rule();
 		else
@@ -2281,6 +2353,11 @@ static long ipa3_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case IPA_IOC_QUERY_WLAN_CLIENT:
 		IPADBG("Got IPA_IOC_QUERY_WLAN_CLIENT\n");
 		retval = ipa3_resend_wlan_msg();
+		break;
+
+	case IPA_IOC_QUERY_CACHED_DRIVER_MSG:
+		IPADBG("Got IPA_IOC_QUERY_CACHED_DRIVER_MSG\n");
+		retval = ipa3_resend_driver_msg();
 		break;
 
 	case IPA_IOC_GSB_CONNECT:
@@ -3141,7 +3218,16 @@ static long ipa3_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case IPA_IOC_SET_MAC_FLT:
+		IPADBG("Got IPA_IOC_SET_MAC_FLT\n");
 		if (ipa3_send_mac_flt_list(arg)) {
+			retval = -EFAULT;
+			break;
+		}
+		break;
+
+	case IPA_IOC_SET_SW_FLT:
+		IPADBG("Got IPA_IOC_SET_SW_FLT\n");
+		if (ipa3_send_sw_flt_list(arg)) {
 			retval = -EFAULT;
 			break;
 		}
@@ -7297,6 +7383,13 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 		result = -ENOMEM;
 		goto fail_hdr_offset_cache;
 	}
+	ipa3_ctx->fnr_stats_cache = kmem_cache_create("IPA_FNR_STATS",
+		sizeof(struct ipa_ioc_flt_rt_counter_alloc), 0, 0, NULL);
+	if (!ipa3_ctx->fnr_stats_cache) {
+		IPAERR(":ipa fnr stats cache create failed\n");
+		result = -ENOMEM;
+		goto fail_fnr_stats_cache;
+	}
 	ipa3_ctx->hdr_proc_ctx_cache = kmem_cache_create("IPA_HDR_PROC_CTX",
 		sizeof(struct ipa3_hdr_proc_ctx_entry), 0, 0, NULL);
 	if (!ipa3_ctx->hdr_proc_ctx_cache) {
@@ -7376,6 +7469,10 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 	/* store wlan client-connect-msg-list */
 	INIT_LIST_HEAD(&ipa3_ctx->msg_wlan_client_list);
 	mutex_init(&ipa3_ctx->msg_wlan_client_lock);
+
+	/* store  ecm-connect-msg-list */
+	INIT_LIST_HEAD(&ipa3_ctx->msg_lan_list);
+	mutex_init(&ipa3_ctx->msg_lan_lock);
 
 	mutex_init(&ipa3_ctx->lock);
 	mutex_init(&ipa3_ctx->q6_proxy_clk_vote_mutex);
@@ -7516,6 +7613,7 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 	/* put ecm default as vlan mode */
 	if (ipa3_ctx->ipa_config_is_auto)
 		ipa3_ctx->vlan_mode_iface[IPA_VLAN_IF_ECM] = true;
+	ipa3_ctx->is_modem_up = false;
 
 	return 0;
 
@@ -7554,6 +7652,8 @@ fail_rt_tbl_cache:
 fail_hdr_proc_ctx_offset_cache:
 	kmem_cache_destroy(ipa3_ctx->hdr_proc_ctx_cache);
 fail_hdr_proc_ctx_cache:
+	kmem_cache_destroy(ipa3_ctx->fnr_stats_cache);
+fail_fnr_stats_cache:
 	kmem_cache_destroy(ipa3_ctx->hdr_offset_cache);
 fail_hdr_offset_cache:
 	kmem_cache_destroy(ipa3_ctx->hdr_cache);
