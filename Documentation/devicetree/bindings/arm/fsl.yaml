@@ -367,5 +367,13 @@ properties:
           - enum:
               - fsl,s32r45-simu
           - const: fsl,s32r45
+      - description:
+          Freescale S32G3 based boards
+
+          S32G398A base Emulator model
+        items:
+          - enum:
+              - fsl,s32g398a-emu
+          - const: fsl,s32g398a
 
 ...
