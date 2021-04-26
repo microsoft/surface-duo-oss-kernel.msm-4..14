@@ -236,7 +236,7 @@ static void __exit cam_lrme_dev_exit_module(void)
 	platform_driver_unregister(&cam_lrme_driver);
 }
 
-module_init(cam_lrme_dev_init_module);
+fs_initcall(cam_lrme_dev_init_module);
 module_exit(cam_lrme_dev_exit_module);
 MODULE_DESCRIPTION("MSM LRME driver");
 MODULE_LICENSE("GPL v2");

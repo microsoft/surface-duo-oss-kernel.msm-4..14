@@ -445,7 +445,7 @@ static void __exit cam_actuator_driver_exit(void)
 	i2c_del_driver(&cam_actuator_driver_i2c);
 }
 
-module_init(cam_actuator_driver_init);
+fs_initcall(cam_actuator_driver_init);
 module_exit(cam_actuator_driver_exit);
 MODULE_DESCRIPTION("cam_actuator_driver");
 MODULE_LICENSE("GPL v2");

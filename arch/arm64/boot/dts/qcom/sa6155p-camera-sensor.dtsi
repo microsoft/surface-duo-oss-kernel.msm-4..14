@@ -112,4 +112,8 @@
 		clock-cntl-level = "turbo";
 		clock-rates = <24000000>;
 	};
+	qcom,cam-serdes {
+		compatible = "qcom,cam-serdes";
+		 status = "ok";
+	};
 };

@@ -65,7 +65,7 @@ static void __exit ais_vfe_exit_module(void)
 	platform_driver_unregister(&ais_vfe_driver);
 }
 
-module_init(ais_vfe_init_module);
+fs_initcall(ais_vfe_init_module);
 module_exit(ais_vfe_exit_module);
 MODULE_DESCRIPTION("AIS VFE17X driver");
 MODULE_LICENSE("GPL v2");

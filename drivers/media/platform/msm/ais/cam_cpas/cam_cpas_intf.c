@@ -656,7 +656,7 @@ static void __exit cam_cpas_dev_exit_module(void)
 	platform_driver_unregister(&cam_cpas_driver);
 }
 
-module_init(cam_cpas_dev_init_module);
+fs_initcall(cam_cpas_dev_init_module);
 module_exit(cam_cpas_dev_exit_module);
 MODULE_DESCRIPTION("MSM CPAS driver");
 MODULE_LICENSE("GPL v2");

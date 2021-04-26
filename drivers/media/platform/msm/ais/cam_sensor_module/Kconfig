@@ -1,0 +1,8 @@
+config MSM_AIS_SENSOR_SERDES
+            bool "QTI AIS camera sensor SerDes support"
+            depends on MSM_AIS
+        ---help---
+          This flag enables support for AIS Camera Sensor SerDes.
+          The sensor driver is capable of providing real time
+          data for camera support. The driver support V4L2
+          subdev APIs.

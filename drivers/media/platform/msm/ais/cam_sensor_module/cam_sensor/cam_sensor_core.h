@@ -90,4 +90,30 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl, void *arg);
  */
 void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl);
 
+/**
+ * @i2c_info: Slave i2c info structure
+ * @s_ctrl:   Sensor ctrl structure
+ *
+ * This API handles the camera sensor close/shutdown
+ */
+int32_t cam_sensor_update_i2c_info(struct cam_cmd_i2c_info *i2c_info,
+	struct cam_sensor_ctrl_t *s_ctrl);
+
+/**
+ * @io_master:  CCI Master structure
+ * @slave_info: Sensor i2c info Structure
+ *
+ * This API handles the camera sensor close/shutdown
+ */
+int32_t cam_sensor_update_i2c_slave_info(
+	struct camera_io_master *io_master,
+	struct cam_sensor_i2c_slave_info *slave_info);
+
+/**
+ * @s_ctrl: Sensor ctrl structure
+ *
+ * This API handles the camera sensor restore slave information
+ */
+int32_t cam_sensor_restore_slave_info(struct cam_sensor_ctrl_t *s_ctrl);
+
 #endif /* _CAM_SENSOR_CORE_H_ */

@@ -208,7 +208,7 @@ static void __exit cam_fd_dev_exit_module(void)
 	platform_driver_unregister(&cam_fd_driver);
 }
 
-module_init(cam_fd_dev_init_module);
+fs_initcall(cam_fd_dev_init_module);
 module_exit(cam_fd_dev_exit_module);
 MODULE_DESCRIPTION("MSM FD driver");
 MODULE_LICENSE("GPL v2");
