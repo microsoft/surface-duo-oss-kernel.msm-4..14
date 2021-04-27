@@ -7,6 +7,7 @@
 Required properties:
 - compatible : Should be "fsl,s32g274a-pfeng"
 - reg : Address and length of the register set for the device
+- resets: Specify PFE partition reset
 - interrupts : Should contain all pfeng interrupts but hifs: bmu,upegpt,safety
 - clocks : Should contain at least: pfe_sys, pfe_pe
 - memory-region : Physical address space for PFE buffers
@@ -112,6 +113,8 @@ pfe@46080000 {
 			      <GIC_SPI 197 IRQ_TYPE_EDGE_RISING>;
 		interrupt-names = "bmu", "nocpy", "upegpt", "safety";
 		dma-coherent;
+		resets = <&reset S32GEN1_SCMI_RST_PART2>;
+		reset-names = "pfe_part";
 		clocks = <&clks S32G_SCMI_CLK_PFE_AXI>,
 			 <&clks S32G_SCMI_CLK_PFE_PE>,
 			 <&clks S32G_SCMI_CLK_PFE_TS>;
