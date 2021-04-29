@@ -926,13 +926,6 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 	if (ret)
 		goto irq_failed;
 
-#ifdef CONFIG_SOC_S32GEN1
-	/* Map AHB Buffer */
-	q->ahb_addr = ioremap_cache(QUADSPI_AHB_BASE, QUADSPI_AHB_SIZE);
-	if (!q->ahb_addr)
-		return -ENOMEM;
-#endif
-
 	if (of_get_property(np, "fsl,qspi-has-second-chip", NULL))
 		q->has_second_chip = true;
 
