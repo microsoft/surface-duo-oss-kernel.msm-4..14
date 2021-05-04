@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -448,7 +448,8 @@ int pfk_kc_init(bool async)
 
 	ret = qti_pfk_ice_get_info(&kc_starting_index, &num_ice_slots, async);
 	if (ret) {
-		pr_err("qti_pfk_ice_get_info failed ret = %d\n", ret);
+		if (ret != -EAGAIN)
+			pr_err("qti_pfk_ice_get_info failed ret = %d\n", ret);
 		return ret;
 	}
 	if (num_ice_slots > PFK_KC_MAX_TABLE_SIZE ||
@@ -597,8 +598,11 @@ int pfk_kc_load_key_start(const unsigned char *key, size_t key_size,
 			 * requests further to HW
 			 */
 			if (!strcmp(s_type, (char *)PFK_UFS)) {
-				if (async)
+				if (async){
 					entry->loaded_ref_cnt++;
+				} else {
+					entry->state = INACTIVE;
+				}
 			} else {
 				entry->loaded_ref_cnt++;
 			}
