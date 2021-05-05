@@ -105,6 +105,15 @@ parts:
         organize:
             lib/firmware: firmware
 
+    firmware-dragonboard410c:
+        plugin: dump
+        source: http://obs.linaro.org/linaro-overlay-sid/sid/all/firmware-qcom-dragonboard410c_1034.2.1-5_all.deb
+        source-type: deb
+        organize:
+            lib/firmware: firmware
+        stage:
+            - -boot
+
 build-packages:
     - dpkg-dev
     - android-tools-mkbootimg
