@@ -98,6 +98,13 @@ parts:
             - -usr
             - -lib
 
+    firmware-atheros:
+        plugin: dump
+        source: http://obs.linaro.org/linaro-overlay-sid/sid/all/firmware-atheros_20200817-1+linaro1_all.deb
+        source-type: deb
+        organize:
+            lib/firmware: firmware
+
 build-packages:
     - dpkg-dev
     - android-tools-mkbootimg
