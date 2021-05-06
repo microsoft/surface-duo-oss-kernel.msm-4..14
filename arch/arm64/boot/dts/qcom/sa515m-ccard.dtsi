@@ -85,7 +85,7 @@
 };
 
 &mpss_adsp_mem {
-	reg = <0x90800000 0xf800000>;
+	reg = <0x90800000 0xda00000>;
 };
 
 /* delete pm8150b nodes */
