@@ -318,6 +318,7 @@ static struct dentry *aafs_create_dir(const char *name, struct dentry *parent)
  * @name: name of dentry to create
  * @parent: parent directory for this dentry
  * @target: if symlink, symlink target string
+ * @private: private data
  * @iops: struct of inode_operations that should be used
  *
  * If @target parameter is %NULL, then the @iops parameter needs to be
@@ -326,17 +327,17 @@ static struct dentry *aafs_create_dir(const char *name, struct dentry *parent)
 static struct dentry *aafs_create_symlink(const char *name,
 					  struct dentry *parent,
 					  const char *target,
+					  void *private,
 					  const struct inode_operations *iops)
 {
 	struct dentry *dent;
 	char *link = NULL;
 
 	if (target) {
-		link = kstrdup(target, GFP_KERNEL);
 		if (!link)
 			return ERR_PTR(-ENOMEM);
 	}
-	dent = aafs_create(name, S_IFLNK | 0444, parent, NULL, link, NULL,
+	dent = aafs_create(name, S_IFLNK | 0444, parent, private, link, NULL,
 			   iops);
 	if (IS_ERR(dent))
 		kfree(link);
@@ -426,7 +427,7 @@ static ssize_t policy_update(u32 mask, const char __user *buf, size_t size,
 	 */
 	error = aa_may_manage_policy(label, ns, mask);
 	if (error)
-		return error;
+		goto end_section;
 
 	data = aa_simple_write_to_buffer(buf, size, size, pos);
 	error = PTR_ERR(data);
@@ -434,6 +435,7 @@ static ssize_t policy_update(u32 mask, const char __user *buf, size_t size,
 		error = aa_replace_profiles(ns, label, mask, data);
 		aa_put_loaddata(data);
 	}
+end_section:
 	end_current_label_crit_section(label);
 
 	return error;
@@ -539,7 +541,7 @@ static ssize_t ns_revision_read(struct file *file, char __user *buf,
 	long last_read;
 	int avail;
 
-	mutex_lock(&rev->ns->lock);
+	mutex_lock_nested(&rev->ns->lock, rev->ns->level);
 	last_read = rev->last_read;
 	if (last_read == rev->ns->revision) {
 		mutex_unlock(&rev->ns->lock);
@@ -549,7 +551,7 @@ static ssize_t ns_revision_read(struct file *file, char __user *buf,
 					     last_read !=
 					     READ_ONCE(rev->ns->revision)))
 			return -ERESTARTSYS;
-		mutex_lock(&rev->ns->lock);
+		mutex_lock_nested(&rev->ns->lock, rev->ns->level);
 	}
 
 	avail = sprintf(buffer, "%ld\n", rev->ns->revision);
@@ -583,7 +585,7 @@ static unsigned int ns_revision_poll(struct file *file, poll_table *pt)
 	unsigned int mask = 0;
 
 	if (rev) {
-		mutex_lock(&rev->ns->lock);
+		mutex_lock_nested(&rev->ns->lock, rev->ns->level);
 		poll_wait(file, &rev->ns->wait, pt);
 		if (rev->last_read < rev->ns->revision)
 			mask |= POLLIN | POLLRDNORM;
@@ -1488,25 +1490,96 @@ static int profile_depth(struct aa_profile *profile)
 	return depth;
 }
 
-static int gen_symlink_name(char *buffer, size_t bsize, int depth,
-			    const char *dirname, const char *fname)
+static char *gen_symlink_name(int depth, const char *dirname, const char *fname)
 {
+	char *buffer, *s;
 	int error;
+	int size = depth * 6 + strlen(dirname) + strlen(fname) + 11;
+
+	s = buffer = kmalloc(size, GFP_KERNEL);
+	if (!buffer)
+		return ERR_PTR(-ENOMEM);
 
 	for (; depth > 0; depth--) {
-		if (bsize < 7)
-			return -ENAMETOOLONG;
-		strcpy(buffer, "../../");
-		buffer += 6;
-		bsize -= 6;
+		strcpy(s, "../../");
+		s += 6;
+		size -= 6;
 	}
 
-	error = snprintf(buffer, bsize, "raw_data/%s/%s", dirname, fname);
-	if (error >= bsize || error < 0)
-		return -ENAMETOOLONG;
+	error = snprintf(s, size, "raw_data/%s/%s", dirname, fname);
+	if (error >= size || error < 0) {
+		kfree(buffer);
+		return ERR_PTR(-ENAMETOOLONG);
+	}
 
-	return 0;
+	return buffer;
 }
+
+static void rawdata_link_cb(void *arg)
+{
+	kfree(arg);
+}
+
+static const char *rawdata_get_link_base(struct dentry *dentry,
+					 struct inode *inode,
+					 struct delayed_call *done,
+					 const char *name)
+{
+	struct aa_proxy *proxy = inode->i_private;
+	struct aa_label *label;
+	struct aa_profile *profile;
+	char *target;
+	int depth;
+
+	if (!dentry)
+		return ERR_PTR(-ECHILD);
+
+	label = aa_get_label_rcu(&proxy->label);
+	profile = labels_profile(label);
+	depth = profile_depth(profile);
+	target = gen_symlink_name(depth, profile->rawdata->name, name);
+	aa_put_label(label);
+
+	if (IS_ERR(target))
+		return target;
+
+	set_delayed_call(done, rawdata_link_cb, target);
+
+	return target;
+}
+
+static const char *rawdata_get_link_sha1(struct dentry *dentry,
+					 struct inode *inode,
+					 struct delayed_call *done)
+{
+	return rawdata_get_link_base(dentry, inode, done, "sha1");
+}
+
+static const char *rawdata_get_link_abi(struct dentry *dentry,
+					struct inode *inode,
+					struct delayed_call *done)
+{
+	return rawdata_get_link_base(dentry, inode, done, "abi");
+}
+
+static const char *rawdata_get_link_data(struct dentry *dentry,
+					 struct inode *inode,
+					 struct delayed_call *done)
+{
+	return rawdata_get_link_base(dentry, inode, done, "raw_data");
+}
+
+static const struct inode_operations rawdata_link_sha1_iops = {
+	.get_link	= rawdata_get_link_sha1,
+};
+
+static const struct inode_operations rawdata_link_abi_iops = {
+	.get_link	= rawdata_get_link_abi,
+};
+static const struct inode_operations rawdata_link_data_iops = {
+	.get_link	= rawdata_get_link_data,
+};
+
 
 /*
  * Requires: @profile->ns->lock held
@@ -1578,34 +1651,28 @@ int __aafs_profile_mkdir(struct aa_profile *profile, struct dentry *parent)
 	}
 
 	if (profile->rawdata) {
-		char target[64];
-		int depth = profile_depth(profile);
-
-		error = gen_symlink_name(target, sizeof(target), depth,
-					 profile->rawdata->name, "sha1");
-		if (error < 0)
-			goto fail2;
-		dent = aafs_create_symlink("raw_sha1", dir, target, NULL);
+		dent = aafs_create_symlink("raw_sha1", dir, NULL,
+					   profile->label.proxy,
+					   &rawdata_link_sha1_iops);
 		if (IS_ERR(dent))
 			goto fail;
+		aa_get_proxy(profile->label.proxy);
 		profile->dents[AAFS_PROF_RAW_HASH] = dent;
 
-		error = gen_symlink_name(target, sizeof(target), depth,
-					 profile->rawdata->name, "abi");
-		if (error < 0)
-			goto fail2;
-		dent = aafs_create_symlink("raw_abi", dir, target, NULL);
+		dent = aafs_create_symlink("raw_abi", dir, NULL,
+					   profile->label.proxy,
+					   &rawdata_link_abi_iops);
 		if (IS_ERR(dent))
 			goto fail;
+		aa_get_proxy(profile->label.proxy);
 		profile->dents[AAFS_PROF_RAW_ABI] = dent;
 
-		error = gen_symlink_name(target, sizeof(target), depth,
-					 profile->rawdata->name, "raw_data");
-		if (error < 0)
-			goto fail2;
-		dent = aafs_create_symlink("raw_data", dir, target, NULL);
+		dent = aafs_create_symlink("raw_data", dir, NULL,
+					   profile->label.proxy,
+					   &rawdata_link_data_iops);
 		if (IS_ERR(dent))
 			goto fail;
+		aa_get_proxy(profile->label.proxy);
 		profile->dents[AAFS_PROF_RAW_DATA] = dent;
 	}
 
@@ -1647,7 +1714,7 @@ static int ns_mkdir_op(struct inode *dir, struct dentry *dentry, umode_t mode)
 	 */
 	inode_unlock(dir);
 	error = simple_pin_fs(&aafs_ops, &aafs_mnt, &aafs_count);
-	mutex_lock(&parent->lock);
+	mutex_lock_nested(&parent->lock, parent->level);
 	inode_lock_nested(dir, I_MUTEX_PARENT);
 	if (error)
 		goto out;
@@ -1696,7 +1763,7 @@ static int ns_rmdir_op(struct inode *dir, struct dentry *dentry)
 	inode_unlock(dir);
 	inode_unlock(dentry->d_inode);
 
-	mutex_lock(&parent->lock);
+	mutex_lock_nested(&parent->lock, parent->level);
 	ns = aa_get_ns(__aa_findn_ns(&parent->sub_ns, dentry->d_name.name,
 				     dentry->d_name.len));
 	if (!ns) {
@@ -1751,7 +1818,7 @@ void __aafs_ns_rmdir(struct aa_ns *ns)
 		__aafs_profile_rmdir(child);
 
 	list_for_each_entry(sub, &ns->sub_ns, base.list) {
-		mutex_lock(&sub->lock);
+		mutex_lock_nested(&sub->lock, sub->level);
 		__aafs_ns_rmdir(sub);
 		mutex_unlock(&sub->lock);
 	}
@@ -1881,7 +1948,7 @@ int __aafs_ns_mkdir(struct aa_ns *ns, struct dentry *parent, const char *name,
 
 	/* subnamespaces */
 	list_for_each_entry(sub, &ns->sub_ns, base.list) {
-		mutex_lock(&sub->lock);
+		mutex_lock_nested(&sub->lock, sub->level);
 		error = __aafs_ns_mkdir(sub, ns_subns_dir(ns), NULL, NULL);
 		mutex_unlock(&sub->lock);
 		if (error)
@@ -1925,7 +1992,7 @@ static struct aa_ns *__next_ns(struct aa_ns *root, struct aa_ns *ns)
 	/* is next namespace a child */
 	if (!list_empty(&ns->sub_ns)) {
 		next = list_first_entry(&ns->sub_ns, typeof(*ns), base.list);
-		mutex_lock(&next->lock);
+		mutex_lock_nested(&next->lock, next->level);
 		return next;
 	}
 
@@ -1935,7 +2002,7 @@ static struct aa_ns *__next_ns(struct aa_ns *root, struct aa_ns *ns)
 		mutex_unlock(&ns->lock);
 		next = list_next_entry(ns, base.list);
 		if (!list_entry_is_head(next, &parent->sub_ns, base.list)) {
-			mutex_lock(&next->lock);
+			mutex_lock_nested(&next->lock, next->level);
 			return next;
 		}
 		ns = parent;
@@ -2043,7 +2110,7 @@ static void *p_start(struct seq_file *f, loff_t *pos)
 	f->private = root;
 
 	/* find the first profile */
-	mutex_lock(&root->lock);
+	mutex_lock_nested(&root->lock, root->level);
 	profile = __first_profile(root, root);
 
 	/* skip to position */
@@ -2191,6 +2258,11 @@ static struct aa_sfs_entry aa_sfs_entry_ns[] = {
 	{ }
 };
 
+static struct aa_sfs_entry aa_sfs_entry_dbus[] = {
+	AA_SFS_FILE_STRING("mask", "acquire send receive"),
+	{ }
+};
+
 static struct aa_sfs_entry aa_sfs_entry_query_label[] = {
 	AA_SFS_FILE_STRING("perms", "allow deny audit quiet"),
 	AA_SFS_FILE_BOOLEAN("data",		1),
@@ -2206,6 +2278,7 @@ static struct aa_sfs_entry aa_sfs_entry_features[] = {
 	AA_SFS_DIR("policy",			aa_sfs_entry_policy),
 	AA_SFS_DIR("domain",			aa_sfs_entry_domain),
 	AA_SFS_DIR("file",			aa_sfs_entry_file),
+	AA_SFS_DIR("network",			aa_sfs_entry_network),
 	AA_SFS_DIR("mount",			aa_sfs_entry_mount),
 	AA_SFS_DIR("namespaces",		aa_sfs_entry_ns),
 	AA_SFS_FILE_U64("capability",		VFS_CAP_FLAGS_MASK),
@@ -2213,6 +2286,7 @@ static struct aa_sfs_entry aa_sfs_entry_features[] = {
 	AA_SFS_DIR("caps",			aa_sfs_entry_caps),
 	AA_SFS_DIR("ptrace",			aa_sfs_entry_ptrace),
 	AA_SFS_DIR("signal",			aa_sfs_entry_signal),
+	AA_SFS_DIR("dbus",			aa_sfs_entry_dbus),
 	AA_SFS_DIR("query",			aa_sfs_entry_query),
 	{ }
 };
@@ -2495,7 +2569,7 @@ static int __init aa_create_aafs(void)
 	ns_subrevision(root_ns) = dent;
 
 	/* policy tree referenced by magic policy symlink */
-	mutex_lock(&root_ns->lock);
+	mutex_lock_nested(&root_ns->lock, root_ns->level);
 	error = __aafs_ns_mkdir(root_ns, aafs_mnt->mnt_root, ".policy",
 				aafs_mnt->mnt_root);
 	mutex_unlock(&root_ns->lock);

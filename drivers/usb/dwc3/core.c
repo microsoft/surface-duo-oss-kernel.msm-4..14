@@ -407,6 +407,7 @@ static int dwc3_alloc_event_buffers(struct dwc3 *dwc, unsigned length)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_USB_DWC3_GADGET) || IS_ENABLED(CONFIG_USB_DWC3_DUAL_ROLE)
 /**
  * dwc3_event_buffers_setup - setup our allocated event buffers
  * @dwc: pointer to our controller context structure
@@ -431,6 +432,7 @@ int dwc3_event_buffers_setup(struct dwc3 *dwc)
 	dwc3_notify_event(dwc, DWC3_GSI_EVT_BUF_SETUP, 0);
 	return 0;
 }
+#endif
 
 static void dwc3_event_buffers_cleanup(struct dwc3 *dwc)
 {
@@ -835,6 +837,7 @@ static void dwc3_core_setup_global_control(struct dwc3 *dwc)
 static int dwc3_core_get_phy(struct dwc3 *dwc);
 static int dwc3_core_ulpi_init(struct dwc3 *dwc);
 
+#if IS_ENABLED(CONFIG_USB_DWC3_GADGET) || IS_ENABLED(CONFIG_USB_DWC3_DUAL_ROLE)
 /**
  * dwc3_core_init - Low-level initialization of DWC3 Core
  * @dwc: Pointer to our controller context structure
@@ -1036,6 +1039,7 @@ err0a:
 err0:
 	return ret;
 }
+#endif
 
 static int dwc3_core_get_phy(struct dwc3 *dwc)
 {

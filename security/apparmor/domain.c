@@ -305,6 +305,7 @@ static int change_profile_perms(struct aa_profile *profile,
  * __attach_match_ - find an attachment match
  * @name - to match against  (NOT NULL)
  * @head - profile list to walk  (NOT NULL)
+ * @info - info message if there was an error (NOT NULL)
  *
  * Do a linear search on the profiles in the list.  There is a matching
  * preference where an exact match is preferred over a name which uses
@@ -316,26 +317,45 @@ static int change_profile_perms(struct aa_profile *profile,
  * Returns: profile or NULL if no match found
  */
 static struct aa_profile *__attach_match(const char *name,
-					 struct list_head *head)
+					 struct list_head *head,
+					 const char **info)
 {
 	int len = 0;
+	bool conflict = false;
 	struct aa_profile *profile, *candidate = NULL;
 
 	list_for_each_entry_rcu(profile, head, base.list) {
-		if (profile->label.flags & FLAG_NULL)
+		if (profile->label.flags & FLAG_NULL &&
+		    &profile->label == ns_unconfined(profile->ns))
 			continue;
-		if (profile->xmatch && profile->xmatch_len > len) {
-			unsigned int state = aa_dfa_match(profile->xmatch,
-							  DFA_START, name);
-			u32 perm = dfa_user_allow(profile->xmatch, state);
-			/* any accepting state means a valid match. */
-			if (perm & MAY_EXEC) {
-				candidate = profile;
-				len = profile->xmatch_len;
+
+		if (profile->xmatch) {
+			if (profile->xmatch_len >= len) {
+				unsigned int state;
+				u32 perm;
+
+				state = aa_dfa_match(profile->xmatch,
+						     DFA_START, name);
+				perm = dfa_user_allow(profile->xmatch, state);
+				/* any accepting state means a valid match. */
+				if (perm & MAY_EXEC) {
+					if (profile->xmatch_len == len) {
+						conflict = true;
+						continue;
+					}
+					candidate = profile;
+					len = profile->xmatch_len;
+					conflict = false;
+				}
 			}
 		} else if (!strcmp(profile->base.name, name))
 			/* exact non-re match, no more searching required */
 			return profile;
+	}
+
+	if (conflict) {
+		*info = "conflicting profile attachments";
+		return NULL;
 	}
 
 	return candidate;
@@ -346,16 +366,17 @@ static struct aa_profile *__attach_match(const char *name,
  * @ns: the current namespace  (NOT NULL)
  * @list: list to search  (NOT NULL)
  * @name: the executable name to match against  (NOT NULL)
+ * @info: info message if there was an error
  *
  * Returns: label or NULL if no match found
  */
 static struct aa_label *find_attach(struct aa_ns *ns, struct list_head *list,
-				    const char *name)
+				    const char *name, const char **info)
 {
 	struct aa_profile *profile;
 
 	rcu_read_lock();
-	profile = aa_get_profile(__attach_match(name, list));
+	profile = aa_get_profile(__attach_match(name, list, info));
 	rcu_read_unlock();
 
 	return profile ? &profile->label : NULL;
@@ -448,11 +469,11 @@ static struct aa_label *x_to_label(struct aa_profile *profile,
 		if (xindex & AA_X_CHILD)
 			/* released by caller */
 			new = find_attach(ns, &profile->base.profiles,
-						name);
+					  name, info);
 		else
 			/* released by caller */
 			new = find_attach(ns, &ns->base.profiles,
-						name);
+					  name, info);
 		*lookupname = name;
 		break;
 	}
@@ -516,7 +537,7 @@ static struct aa_label *profile_transition(struct aa_profile *profile,
 
 	if (profile_unconfined(profile)) {
 		new = find_attach(profile->ns, &profile->ns->base.profiles,
-				  name);
+				  name, &info);
 		if (new) {
 			AA_DEBUG("unconfined attached to new label");
 			return new;
@@ -541,9 +562,21 @@ static struct aa_label *profile_transition(struct aa_profile *profile,
 		}
 	} else if (COMPLAIN_MODE(profile)) {
 		/* no exec permission - learning mode */
-		struct aa_profile *new_profile = aa_new_null_profile(profile,
-							      false, name,
-							      GFP_ATOMIC);
+		struct aa_profile *new_profile = NULL;
+		char *n = kstrdup(name, GFP_ATOMIC);
+
+		if (n) {
+			/* name is ptr into buffer */
+			long pos = name - buffer;
+			/* break per cpu buffer hold */
+			put_buffers(buffer);
+			new_profile = aa_new_null_profile(profile, false, n,
+							  GFP_KERNEL);
+			get_buffers(buffer);
+			name = buffer + pos;
+			strcpy((char *)name, n);
+			kfree(n);
+		}
 		if (!new_profile) {
 			error = -ENOMEM;
 			info = "could not create null profile";
@@ -559,22 +592,6 @@ static struct aa_label *profile_transition(struct aa_profile *profile,
 	if (!new)
 		goto audit;
 
-	/* Policy has specified a domain transitions. if no_new_privs and
-	 * confined and not transitioning to the current domain fail.
-	 *
-	 * NOTE: Domain transitions from unconfined and to stritly stacked
-	 * subsets are allowed even when no_new_privs is set because this
-	 * aways results in a further reduction of permissions.
-	 */
-	if ((bprm->unsafe & LSM_UNSAFE_NO_NEW_PRIVS) &&
-	    !profile_unconfined(profile) &&
-	    !aa_label_is_subset(new, &profile->label)) {
-		error = -EPERM;
-		info = "no new privs";
-		nonewprivs = true;
-		perms.allow &= ~MAY_EXEC;
-		goto audit;
-	}
 
 	if (!(perms.xindex & AA_X_UNSAFE)) {
 		if (DEBUG_ON) {
@@ -648,21 +665,6 @@ static int profile_onexec(struct aa_profile *profile, struct aa_label *onexec,
 	error = change_profile_perms(profile, onexec, stack, AA_MAY_ONEXEC,
 				     state, &perms);
 	if (error) {
-		perms.allow &= ~AA_MAY_ONEXEC;
-		goto audit;
-	}
-	/* Policy has specified a domain transitions. if no_new_privs and
-	 * confined and not transitioning to the current domain fail.
-	 *
-	 * NOTE: Domain transitions from unconfined and to stritly stacked
-	 * subsets are allowed even when no_new_privs is set because this
-	 * aways results in a further reduction of permissions.
-	 */
-	if ((bprm->unsafe & LSM_UNSAFE_NO_NEW_PRIVS) &&
-	    !profile_unconfined(profile) &&
-	    !aa_label_is_subset(onexec, &profile->label)) {
-		error = -EPERM;
-		info = "no new privs";
 		perms.allow &= ~AA_MAY_ONEXEC;
 		goto audit;
 	}
@@ -786,7 +788,20 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 		goto done;
 	}
 
-	/* TODO: Add ns level no_new_privs subset test */
+	/* Policy has specified a domain transitions. If no_new_privs and
+	 * confined ensure the transition is to confinement that is subset
+	 * of the confinement when the task entered no new privs.
+	 *
+	 * NOTE: Domain transitions from unconfined and to stacked
+	 * subsets are allowed even when no_new_privs is set because this
+	 * aways results in a further reduction of permissions.
+	 */
+	if ((bprm->unsafe & LSM_UNSAFE_NO_NEW_PRIVS) &&
+	    !unconfined(label) && !aa_label_is_subset(new, label)) {
+		error = -EPERM;
+		info = "no new privs";
+		goto audit;
+	}
 
 	if (bprm->unsafe & LSM_UNSAFE_SHARE) {
 		/* FIXME: currently don't mediate shared state */
