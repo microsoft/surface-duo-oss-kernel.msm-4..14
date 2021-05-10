@@ -569,7 +569,9 @@ static int qti_can_process_rx(struct qti_can *priv_data, char *rx_buf)
 		} else {
 			data = rx_buf + length_processed;
 			resp = (struct spi_miso *)data;
-			if (resp->cmd == 0x00 || resp->cmd == 0xFF) {
+			if ((resp->cmd == 0x00) || (resp->cmd == 0xFF)
+				|| (resp->cmd < 0x81) || (resp->cmd > 0x9F)
+				|| ((resp->cmd > 0x8C) && (resp->cmd < 0x95))) {
 				/* special case. ignore cmd==0x00, 0xFF  */
 				length_processed += 1;
 				continue;
