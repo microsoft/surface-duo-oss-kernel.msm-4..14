@@ -256,6 +256,7 @@ struct pltfm_imx_data {
 	struct clk *clk_ahb;
 	struct clk *clk_per;
 	unsigned int actual_clock;
+	bool clk_enabled;
 	enum {
 		NO_CMD_PENDING,      /* no multiblock command pending */
 		MULTIBLK_IN_PROCESS, /* exact multiblock cmd in process */
@@ -263,6 +264,7 @@ struct pltfm_imx_data {
 	} multiblock_status;
 	u32 is_ddr;
 	struct pm_qos_request pm_qos_req;
+	spinlock_t clk_enabled_flag;
 };
 
 static const struct platform_device_id imx_esdhc_devtype[] = {
@@ -1585,6 +1587,9 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	if (err)
 		goto disable_ipg_clk;
 
+	imx_data->clk_enabled = true;
+	spin_lock_init(&imx_data->clk_enabled_flag);
+
 #if !defined(CONFIG_SOC_S32GEN1)
 	imx_data->pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(imx_data->pinctrl)) {
@@ -1725,6 +1730,7 @@ static int sdhci_esdhc_suspend(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = sdhci_pltfm_priv(pltfm_host);
+	unsigned long flags;
 	int ret;
 
 	if (host->mmc->caps2 & MMC_CAP2_CQE) {
@@ -1740,9 +1746,14 @@ static int sdhci_esdhc_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
-	clk_disable_unprepare(imx_data->clk_per);
-	clk_disable_unprepare(imx_data->clk_ipg);
-	clk_disable_unprepare(imx_data->clk_ahb);
+	spin_lock_irqsave(&imx_data->clk_enabled_flag, flags);
+	if (imx_data->clk_enabled) {
+		clk_disable_unprepare(imx_data->clk_per);
+		clk_disable_unprepare(imx_data->clk_ipg);
+		clk_disable_unprepare(imx_data->clk_ahb);
+		imx_data->clk_enabled = false;
+	}
+	spin_unlock_irqrestore(&imx_data->clk_enabled_flag, flags);
 
 	return ret;
 }
@@ -1752,17 +1763,23 @@ static int sdhci_esdhc_resume(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = sdhci_pltfm_priv(pltfm_host);
+	unsigned long flags;
 	int ret;
+
+	spin_lock_irqsave(&imx_data->clk_enabled_flag, flags);
 
 	ret = clk_prepare_enable(imx_data->clk_per);
 	if (ret)
-		return ret;
+		goto disable_lock;
 	ret = clk_prepare_enable(imx_data->clk_ipg);
 	if (ret)
 		goto disable_per_clk;
 	ret = clk_prepare_enable(imx_data->clk_ahb);
 	if (ret)
 		goto disable_ipg_clk;
+
+	imx_data->clk_enabled = true;
+	spin_unlock_irqrestore(&imx_data->clk_enabled_flag, flags);
 
 	/* re-initialize hw state in case it's lost in low power mode */
 	sdhci_esdhc_imx_hwinit(host);
@@ -1780,6 +1797,8 @@ disable_per_clk:
 	clk_disable_unprepare(imx_data->clk_per);
 disable_ipg_clk:
 	clk_disable_unprepare(imx_data->clk_ipg);
+disable_lock:
+	spin_unlock_irqrestore(&imx_data->clk_enabled_flag, flags);
 	return ret;
 }
 #endif
@@ -1790,6 +1809,7 @@ static int sdhci_esdhc_runtime_suspend(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = sdhci_pltfm_priv(pltfm_host);
+	unsigned long flags;
 	int ret;
 
 	if (host->mmc->caps2 & MMC_CAP2_CQE) {
@@ -1807,9 +1827,15 @@ static int sdhci_esdhc_runtime_suspend(struct device *dev)
 
 	imx_data->actual_clock = host->mmc->actual_clock;
 	esdhc_pltfm_set_clock(host, 0);
-	clk_disable_unprepare(imx_data->clk_per);
-	clk_disable_unprepare(imx_data->clk_ipg);
-	clk_disable_unprepare(imx_data->clk_ahb);
+
+	spin_lock_irqsave(&imx_data->clk_enabled_flag, flags);
+	if (imx_data->clk_enabled) {
+		clk_disable_unprepare(imx_data->clk_per);
+		clk_disable_unprepare(imx_data->clk_ipg);
+		clk_disable_unprepare(imx_data->clk_ahb);
+		imx_data->clk_enabled = false;
+	}
+	spin_unlock_irqrestore(&imx_data->clk_enabled_flag, flags);
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_PMQOS)
 		pm_qos_remove_request(&imx_data->pm_qos_req);
@@ -1822,11 +1848,14 @@ static int sdhci_esdhc_runtime_resume(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = sdhci_pltfm_priv(pltfm_host);
+	unsigned long flags;
 	int err;
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_PMQOS)
 		pm_qos_add_request(&imx_data->pm_qos_req,
 			PM_QOS_CPU_DMA_LATENCY, 0);
+
+	spin_lock_irqsave(&imx_data->clk_enabled_flag, flags);
 
 	err = clk_prepare_enable(imx_data->clk_ahb);
 	if (err)
@@ -1839,6 +1868,9 @@ static int sdhci_esdhc_runtime_resume(struct device *dev)
 	err = clk_prepare_enable(imx_data->clk_ipg);
 	if (err)
 		goto disable_per_clk;
+
+	imx_data->clk_enabled = true;
+	spin_unlock_irqrestore(&imx_data->clk_enabled_flag, flags);
 
 	esdhc_pltfm_set_clock(host, imx_data->actual_clock);
 
@@ -1860,6 +1892,8 @@ disable_ahb_clk:
 remove_pm_qos_request:
 	if (imx_data->socdata->flags & ESDHC_FLAG_PMQOS)
 		pm_qos_remove_request(&imx_data->pm_qos_req);
+
+	spin_unlock_irqrestore(&imx_data->clk_enabled_flag, flags);
 	return err;
 }
 #endif
