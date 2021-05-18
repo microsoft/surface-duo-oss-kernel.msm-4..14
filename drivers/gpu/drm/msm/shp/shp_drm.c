@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -395,6 +395,29 @@ static void shp_plane_atomic_update(struct drm_plane *plane,
 	return shp_plane->helper_funcs_orig->atomic_update(plane, old_state);
 }
 
+static void shp_plane_cleanup_fb(struct drm_plane *plane,
+				struct drm_plane_state *old_state)
+{
+	struct shp_device *shp_dev = &g_shp_device;
+	struct shp_plane *shp_plane;
+	struct sde_plane_state *old_pstate;
+	struct sde_plane_rot_state *old_rstate;
+
+	shp_plane = &shp_dev->planes[plane->index];
+
+	/* skip h/w halt for seamless handoff */
+	if (shp_plane->is_shared && shp_plane->state.skip_update) {
+		SDE_DEBUG("skip plane%d cleanup\n", plane->base.id);
+		old_pstate = to_sde_plane_state(old_state);
+		old_rstate = &old_pstate->rot;
+		msm_framebuffer_cleanup(old_rstate->out_fb,
+				old_pstate->aspace);
+		return;
+	}
+
+	return shp_plane->helper_funcs_orig->cleanup_fb(plane, old_state);
+}
+
 static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 {
 	struct drm_device *dev = shp->dev;
@@ -608,6 +631,8 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 				shp_plane->plane->helper_private;
 		shp_plane->helper_funcs.atomic_update =
 				shp_plane_atomic_update;
+		shp_plane->helper_funcs.cleanup_fb =
+				shp_plane_cleanup_fb;
 		shp_plane->plane->helper_private = &shp_plane->helper_funcs;
 	}
 
