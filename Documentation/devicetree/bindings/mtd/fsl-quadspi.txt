@@ -23,6 +23,10 @@ Optional properties:
 			      bus, you should enable this property.
 			      (Please check the board's schematic.)
   - big-endian : That means the IP register is big endian
+  - spi-no-functional-reset: In some platforms, such as S32R45-EVB, the Macronix
+			      Flash memory is only reset on POR (power on reset) and not
+				  on a functional reset. This flag is used in order to keep
+				  the flash memory in a proper state after a functional reset.
 
 Example:
 
