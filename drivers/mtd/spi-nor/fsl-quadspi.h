@@ -382,6 +382,7 @@ struct fsl_qspi {
 	bool big_endian;
 	struct mutex lock;
 	struct pm_qos_request pm_qos_req;
+	bool no_functional_reset;
 #ifdef CONFIG_SOC_S32GEN1
 	const struct spi_mem_op *s32gen1_mem_op;
 	struct lut_config lut_configs[MAX_OPCODE];

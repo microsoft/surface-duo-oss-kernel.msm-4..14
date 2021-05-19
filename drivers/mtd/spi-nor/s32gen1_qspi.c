@@ -1124,6 +1124,7 @@ int s32gen1_exec_op(struct spi_nor *nor, const struct spi_mem_op *op)
 	u8 lut_cfg = LUT_INVALID_INDEX;
 	bool enabled = false;
 	struct fsl_qspi *q = nor->priv;
+	int ret;
 
 	if (!s32gen1_supports_op(nor, op))
 		return -1;
@@ -1148,7 +1149,19 @@ int s32gen1_exec_op(struct spi_nor *nor, const struct spi_mem_op *op)
 			qspi_invalidate_ahb(q);
 
 		q->flags |= QUADSPI_FLAG_PREV_READ_MEM;
-		return qspi_read_mem(q, op, lut_cfg);
+		ret = qspi_read_mem(q, op, lut_cfg);
+		/*
+		 * On S32R45EVB platform, the Macronix Flash memory
+		 * does not have the 'RESET_B' (functional reset) signal wired,
+		 * but only POR (power on reset).
+		 * Therefore, in order to prevent an improper state on the
+		 * Macronix Flash after any functional reset, we enter SPI MODE
+		 * after any DTR-OPI read operation.
+		 */
+		if (q->no_functional_reset)
+			enable_spi(q, true);
+
+		return ret;
 	}
 
 	q->flags &= ~QUADSPI_FLAG_PREV_READ_MEM;
