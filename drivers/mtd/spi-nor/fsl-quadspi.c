@@ -984,6 +984,9 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 		if (ret < 0)
 			goto mutex_failed;
 
+		q->no_functional_reset = of_property_read_bool(np,
+				"spi-no-functional-reset");
+
 		/* set the chip address for READID */
 		fsl_qspi_set_base_addr(q, nor);
 		ret = spi_nor_scan(nor, NULL, &hwcaps);
