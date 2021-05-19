@@ -38,7 +38,7 @@ parts:
         kernel-image-target:
             arm64: Image
             armhf: zImage
-        kernel-initrd-flavour: edge
+        kernel-initrd-channel: edge
         kernel-initrd-compression: gz
         kernel-initrd-addons:
             - usr/bin/fde-reveal-key
