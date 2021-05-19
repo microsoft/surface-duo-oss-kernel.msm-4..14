@@ -38,7 +38,7 @@ parts:
         kernel-with-firmware: false
         kernel-image-target: Image
         kernel-initrd-core-base: core20
-        kernel-initrd-flavour: edge
+        kernel-initrd-flavour: edge-splash
         kernel-initrd-compression: gz
         kernel-initrd-addons:
             - usr/bin/fde-reveal-key
