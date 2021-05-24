@@ -231,6 +231,9 @@ struct fsl_dspi {
 	 */
 	int					pushr_cmd;
 	int					pushr_tx;
+
+	struct pinctrl				*pinctrl_dspi;
+	struct pinctrl_state			*pinctrl_slave;
 };
 
 static u32 dspi_pop_tx(struct fsl_dspi *dspi)
@@ -990,7 +993,11 @@ static int dspi_resume(struct device *dev)
 	struct fsl_dspi *dspi = dev_get_drvdata(dev);
 	int ret;
 
-	pinctrl_pm_select_default_state(dev);
+	if (dspi->ctlr->slave)
+		pinctrl_select_state(dspi->pinctrl_dspi,
+			dspi->pinctrl_slave);
+	else
+		pinctrl_pm_select_default_state(dev);
 
 	ret = clk_prepare_enable(dspi->clk);
 	if (ret)
@@ -1148,8 +1155,6 @@ static int dspi_probe(struct platform_device *pdev)
 	void __iomem *base;
 	u32 fifo_size;
 	bool big_endian;
-	struct pinctrl_state *pinctrl_slave;
-	struct pinctrl *pinctrl_dspi;
 	bool is_s32_dspi = false;
 
 	dspi = devm_kzalloc(&pdev->dev, sizeof(*dspi), GFP_KERNEL);
@@ -1285,16 +1290,18 @@ static int dspi_probe(struct platform_device *pdev)
 	}
 
 	if (ctlr->slave) {
-		pinctrl_dspi = devm_pinctrl_get(&pdev->dev);
-		if (IS_ERR(pinctrl_dspi)) {
+		dspi->pinctrl_dspi = devm_pinctrl_get(&pdev->dev);
+		if (IS_ERR(dspi->pinctrl_dspi)) {
 			dev_warn(&pdev->dev,
 				"no pinctrl info found: %ld\n",
-				PTR_ERR(pinctrl_dspi));
+				PTR_ERR(dspi->pinctrl_dspi));
 			goto out_pinctrl;
 		}
-		pinctrl_slave = pinctrl_lookup_state(pinctrl_dspi, "slave");
-		if (!IS_ERR(pinctrl_slave)) {
-			ret = pinctrl_select_state(pinctrl_dspi, pinctrl_slave);
+		dspi->pinctrl_slave = pinctrl_lookup_state(dspi->pinctrl_dspi,
+							   "slave");
+		if (!IS_ERR(dspi->pinctrl_slave)) {
+			ret = pinctrl_select_state(dspi->pinctrl_dspi,
+						   dspi->pinctrl_slave);
 			if (ret < 0)
 				dev_err(&pdev->dev,
 					"failed to switch to slave pinctrl: %d\n",
