@@ -256,7 +256,7 @@ static int stm_clockevent_init(struct stm_timer *stm, unsigned long rate,
 	stm->clockevent_stm.irq = irq;
 
 	stm->stm_timer_irq.name = STM_TIMER_NAME;
-	stm->stm_timer_irq.flags = IRQF_TIMER | IRQF_IRQPOLL;
+	stm->stm_timer_irq.flags = IRQF_TIMER | IRQF_PERCPU;
 	stm->stm_timer_irq.handler = stm_timer_interrupt;
 	stm->stm_timer_irq.dev_id = &stm->clockevent_stm;
 
