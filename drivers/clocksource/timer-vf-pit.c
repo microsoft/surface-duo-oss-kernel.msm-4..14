@@ -266,7 +266,7 @@ static int pit_clockevent_init(struct pit_timer *pit,
 	pit->clockevent_pit.irq = irq;
 
 	pit->pit_timer_irq.name = TIMER_NAME;
-	pit->pit_timer_irq.flags = IRQF_TIMER | IRQF_IRQPOLL;
+	pit->pit_timer_irq.flags = IRQF_TIMER | IRQF_PERCPU;
 	pit->pit_timer_irq.handler = pit_timer_interrupt;
 	pit->pit_timer_irq.dev_id = &pit->clockevent_pit;
 
