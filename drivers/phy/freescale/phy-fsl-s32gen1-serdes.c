@@ -4,6 +4,9 @@
  *
  * Copyright 2021 NXP
  */
+
+#define DEBUG
+
 #include <dt-bindings/phy/phy.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
@@ -15,6 +18,14 @@
 #include <linux/processor.h>
 #include <linux/reset.h>
 #include <linux/stringify.h>
+
+#ifdef DEBUG
+#ifndef DEBUG_FUNC
+#define DEBUG_FUNC pr_info("pci: in %s\n", __func__)
+#endif
+#else
+#define DEBUG_FUNC
+#endif /* DEBUG */
 
 #define SERDES_MAX_LANES 2U
 #define SERDES_MAX_INSTANCES 2U
@@ -154,6 +165,8 @@ static int get_clk_rate(struct serdes *serdes, unsigned long *rate)
 	struct device *dev = serdes->dev;
 	struct clk *clk;
 
+	DEBUG_FUNC;
+
 	if (serdes->ctrl.ext_clk)
 		clk = get_serdes_clk(serdes, EXTERNAL_CLK_NAME);
 	else
@@ -174,6 +187,8 @@ static int check_pcie_clk(struct serdes *serdes)
 	unsigned long rate;
 	int ret;
 
+	DEBUG_FUNC;
+
 	ret = get_clk_rate(serdes, &rate);
 	if (ret)
 		return ret;
@@ -193,6 +208,8 @@ static int pci_phy_power_on_common(struct serdes *serdes)
 	struct pcie_ctrl *pcie = &serdes->pcie;
 	u32 ctrl, reg0;
 	int ret;
+
+	DEBUG_FUNC;
 
 	if (pcie->initialized_phy)
 		return 0;
@@ -231,6 +248,8 @@ static int pcie_phy_power_on(struct serdes *serdes, int id)
 	struct pcie_ctrl *pcie = &serdes->pcie;
 	u32 iq_ovrd_in;
 	int ret;
+
+	DEBUG_FUNC;
 
 	ret = pci_phy_power_on_common(serdes);
 	if (ret)
@@ -401,6 +420,8 @@ static int serdes_phy_init(struct phy *p)
 {
 	struct serdes *serdes = phy_get_drvdata(p);
 
+	DEBUG_FUNC;
+
 	if (p->attrs.mode == PHY_MODE_PCIE)
 		return 0;
 
@@ -412,6 +433,8 @@ static int serdes_phy_init(struct phy *p)
 
 static void serdes_phy_release(struct phy *p)
 {
+	DEBUG_FUNC;
+
 	if (p->attrs.mode == PHY_MODE_ETHERNET)
 		xpcs_phy_release(p);
 }
@@ -419,6 +442,8 @@ static void serdes_phy_release(struct phy *p)
 static int serdes_phy_power_on(struct phy *p)
 {
 	struct serdes *serdes = phy_get_drvdata(p);
+
+	DEBUG_FUNC;
 
 	if (p->attrs.mode == PHY_MODE_PCIE)
 		return pcie_phy_power_on(serdes, p->id);
@@ -462,6 +487,8 @@ static int xpcs_phy_configure(struct phy *phy, struct phylink_link_state *state)
 static int serdes_phy_configure(struct phy *phy, union phy_configure_opts *opts)
 {
 	int ret = -EINVAL;
+
+	DEBUG_FUNC;
 
 	if (phy->attrs.mode == PHY_MODE_ETHERNET)
 		ret = xpcs_phy_configure(phy,
@@ -518,6 +545,8 @@ static int check_lane_selection(struct serdes *serdes,
 	struct device *dev = serdes->dev;
 	const char *phy_name;
 	int pcs_lane_id;
+
+	DEBUG_FUNC;
 
 	if (instance >= SERDES_MAX_INSTANCES) {
 		dev_err(dev, "Invalid instance : %u\n", instance);
@@ -588,6 +617,8 @@ static struct phy *serdes_xlate(struct device *dev,
 	u32 lane_id = args->args[2];
 	enum phy_mode mode;
 
+	DEBUG_FUNC;
+
 	serdes = dev_get_drvdata(dev);
 	if (!serdes)
 		return ERR_PTR(-EINVAL);
@@ -607,6 +638,8 @@ static int assert_reset(struct serdes *serdes)
 {
 	struct device *dev = serdes->dev;
 	int ret;
+
+	DEBUG_FUNC;
 
 	ret = reset_control_assert(serdes->pcie.rst);
 	if (ret) {
@@ -628,6 +661,8 @@ static int deassert_reset(struct serdes *serdes)
 	struct device *dev = serdes->dev;
 	int ret;
 
+	DEBUG_FUNC;
+
 	ret = reset_control_deassert(serdes->pcie.rst);
 	if (ret) {
 		dev_err(dev, "Failed to assert PCIE reset: %d\n", ret);
@@ -648,6 +683,8 @@ static int init_serdes(struct serdes *serdes)
 	struct serdes_ctrl *ctrl = &serdes->ctrl;
 	u32 reg0;
 	int ret;
+
+	DEBUG_FUNC;
 
 	ret = assert_reset(serdes);
 	if (ret)
@@ -688,6 +725,8 @@ static int ss_dt_init(struct platform_device *pdev, struct serdes *serdes)
 	struct device *dev = &pdev->dev;
 	struct resource *res;
 	int ret;
+
+	DEBUG_FUNC;
 
 	ret = of_property_read_u32(dev->of_node, "fsl,sys-mode",
 				   &ctrl->ss_mode);
@@ -744,6 +783,8 @@ static int pcie_dt_init(struct platform_device *pdev, struct serdes *serdes)
 	struct pcie_ctrl *pcie = &serdes->pcie;
 	struct device *dev = &pdev->dev;
 	struct resource *res;
+
+	DEBUG_FUNC;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "pcie_phy");
 	if (!res) {
@@ -809,6 +850,8 @@ static int serdes_probe(struct platform_device *pdev)
 	int ret;
 	size_t i;
 
+	DEBUG_FUNC;
+
 	serdes = devm_kzalloc(dev, sizeof(*serdes), GFP_KERNEL);
 	if (!serdes)
 		return -ENOMEM;
@@ -856,6 +899,8 @@ static int serdes_remove(struct platform_device *pdev)
 {
 	struct serdes *serdes = platform_get_drvdata(pdev);
 
+	DEBUG_FUNC;
+
 	clk_bulk_disable_unprepare(serdes->ctrl.nclks, serdes->ctrl.clks);
 	return 0;
 }
@@ -865,6 +910,8 @@ static int __maybe_unused serdes_suspend(struct device *device)
 	struct serdes *serdes = dev_get_drvdata(device);
 	struct xpcs_ctrl *xpcs = &serdes->xpcs;
 	struct pcie_ctrl *pcie = &serdes->pcie;
+
+	DEBUG_FUNC;
 
 	xpcs->initialized_clks = false;
 	pcie->initialized_phy = false;
@@ -879,6 +926,8 @@ static int restore_pcie_power(struct serdes *serdes)
 	struct pcie_ctrl *pcie = &serdes->pcie;
 	int ret;
 	size_t i;
+
+	DEBUG_FUNC;
 
 	for (i = 0; i < ARRAY_SIZE(pcie->powered_on); i++) {
 		if (!pcie->powered_on[i])
@@ -917,6 +966,8 @@ static int __maybe_unused serdes_resume(struct device *device)
 	int ret;
 	struct serdes *serdes = dev_get_drvdata(device);
 	struct serdes_ctrl *ctrl = &serdes->ctrl;
+
+	DEBUG_FUNC;
 
 	ret = clk_bulk_prepare_enable(ctrl->nclks, ctrl->clks);
 	if (ret) {
