@@ -269,34 +269,33 @@ source security/yama/Kconfig
 source security/integrity/Kconfig
 
 menu "Security Module Selection"
-	visible if !SECURITY_STACKING
 
 choice
 	prompt "Default security module"
-	default DEFAULT_SECURITY_SELINUX if SECURITY_SELINUX
-	default DEFAULT_SECURITY_SMACK if SECURITY_SMACK
-	default DEFAULT_SECURITY_TOMOYO if SECURITY_TOMOYO
-	default DEFAULT_SECURITY_APPARMOR if SECURITY_APPARMOR
-	default DEFAULT_SECURITY_DAC
+	default DEFAULT_SECURITY_SELINUX if ((!SECURITY_STACKING && SECURITY_SELINUX) || (SECURITY_STACKING && SECURITY_SELINUX_STACKED))
+	default DEFAULT_SECURITY_SMACK if ((!SECURITY_STACKING && SECURITY_SMACK) || (SECURITY_STACKING && SECURITY_SMACK_STACKED))
+	default DEFAULT_SECURITY_TOMOYO if ((!SECURITY_STACKING && SECURITY_TOMOYO) || (SECURITY_STACKING && SECURITY_TOMOYO_STACKED))
+	default DEFAULT_SECURITY_APPARMOR if ((!SECURITY_STACKING && SECURITY_APPARMOR) || (SECURITY_STACKING && SECURITY_APPARMOR_STACKED))
+	default DEFAULT_SECURITY_DAC if ((!SECURITY_STACKING && SECURITY_DAC) || (SECURITY_STACKING && SECURITY_DAC_STACKED))
 
 	help
 	  Select the security module that will be used by default if the
 	  kernel parameter security= is not specified.
 
 	config DEFAULT_SECURITY_SELINUX
-		bool "SELinux" if SECURITY_SELINUX=y
+		bool "SELinux" if ((!SECURITY_STACKING && SECURITY_SELINUX) || (SECURITY_STACKING && SECURITY_SELINUX_STACKED))
 
 	config DEFAULT_SECURITY_SMACK
-		bool "Simplified Mandatory Access Control" if SECURITY_SMACK=y
+		bool "Simplified Mandatory Access Control" if ((!SECURITY_STACKING && SECURITY_SMACK) || (SECURITY_STACKING && SECURITY_SMACK_STACKED))
 
 	config DEFAULT_SECURITY_TOMOYO
-		bool "TOMOYO" if SECURITY_TOMOYO=y
+		bool "TOMOYO" if ((!SECURITY_STACKING && SECURITY_TOMOYO) || (SECURITY_STACKING && SECURITY_TOMOYO_STACKED))
 
 	config DEFAULT_SECURITY_APPARMOR
-		bool "AppArmor" if SECURITY_APPARMOR=y
+		bool "AppArmor" if ((!SECURITY_STACKING && SECURITY_APPARMOR) || (SECURITY_STACKING && SECURITY_APPARMOR_STACKED))
 
 	config DEFAULT_SECURITY_DAC
-		bool "Unix Discretionary Access Controls"
+		bool "Unix Discretionary Access Controls" if ((!SECURITY_STACKING) || (SECURITY_STACKING && SECURITY_DAC_STACKED))
 
 endchoice
 endmenu
@@ -357,26 +356,6 @@ menu "Default Security Module or Modules"
 
 		  This option is incompatible with selecting selinux, smack,
 		  tomoyo, or apparmor.
-
-	config DEFAULT_SECURITY_SELINUX
-	       bool
-	       default y if SECURITY_SELINUX_STACKED
-
-	config DEFAULT_SECURITY_SMACK
-	       bool
-	       default y if SECURITY_SMACK_STACKED
-
-	config DEFAULT_SECURITY_TOMOYO
-	       bool
-	       default y if SECURITY_TOMOYO_STACKED
-
-	config DEFAULT_SECURITY_APPARMOR
-	       bool
-	       default y if SECURITY_APPARMOR_STACKED
-
-	config DEFAULT_SECURITY_DAC
-	       bool
-	       default y if SECURITY_DAC_STACKED
 
 choice
 	depends on SECURITY_STACKING && !SECURITY_DAC_STACKED
