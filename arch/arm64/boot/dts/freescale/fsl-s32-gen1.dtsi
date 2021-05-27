@@ -78,7 +78,7 @@
 			status = "disabled";
 		};
 
-		scmi {
+		scmi: scmi {
 			compatible = "arm,scmi";
 			mboxes = <&smc_tx_mbox>;
 			mbox-names = "tx";
