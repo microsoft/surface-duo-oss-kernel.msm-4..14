@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2011 Canonical Ltd <jeremy.kerr@canonical.com>
  * Copyright (C) 2011-2012 Linaro Ltd <mturquette@linaro.org>
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -2687,7 +2688,7 @@ EXPORT_SYMBOL_GPL(clk_set_flags);
 
 static struct dentry *rootdir;
 static int inited = 0;
-static u32 debug_suspend;
+static u32 debug_suspend = 1;
 static DEFINE_MUTEX(clk_debug_lock);
 static HLIST_HEAD(clk_debug_list);
 

@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -192,12 +193,17 @@ static int cam_jpeg_dma_probe(struct platform_device *pdev)
 	return rc;
 
 error_reg_cpas:
-	rc = cam_soc_util_release_platform_resource(&jpeg_dma_dev->soc_info);
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//	rc = cam_soc_util_release_platform_resource(&jpeg_dma_dev->soc_info);
+	cam_soc_util_release_platform_resource(&jpeg_dma_dev->soc_info);
+/* MSCHANGE End */
 error_init_soc:
 	mutex_destroy(&core_info->core_mutex);
 error_match_dev:
 	kfree(jpeg_dma_dev->core_info);
 error_alloc_core:
+/* MSCHANGE Handle errors properly to support Deferring initialization*/
+	platform_set_drvdata(pdev, NULL);
 	kfree(jpeg_dma_dev);
 error_alloc_dev:
 	kfree(jpeg_dma_dev_intf);

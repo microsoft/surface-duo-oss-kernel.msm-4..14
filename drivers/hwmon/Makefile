@@ -1,5 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0
 #
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
+#
 # Makefile for sensor chip drivers.
 #
 
@@ -118,6 +125,7 @@ obj-$(CONFIG_SENSORS_MAX1619)	+= max1619.o
 obj-$(CONFIG_SENSORS_MAX1668)	+= max1668.o
 obj-$(CONFIG_SENSORS_MAX197)	+= max197.o
 obj-$(CONFIG_SENSORS_MAX31722)	+= max31722.o
+obj-$(CONFIG_SENSORS_MAX34417)	+= max34417.o
 obj-$(CONFIG_SENSORS_MAX6639)	+= max6639.o
 obj-$(CONFIG_SENSORS_MAX6642)	+= max6642.o
 obj-$(CONFIG_SENSORS_MAX6650)	+= max6650.o

@@ -1,6 +1,24 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
 #ifndef __LINUX_BQ27X00_BATTERY_H__
 #define __LINUX_BQ27X00_BATTERY_H__
+// MSCHANGE end: Add battery discharge sensor for fg-pack thermal zones
+#include "linux/thermal.h"
+
+// MSCHANGE Manufacturer Info Block A sizes
+#define MFG_NAME_SIZE                       0x3 // 3 bytes allotted for manufacturer name
+#define DEVICE_NAME_SIZE                    0x8
+#define CHEM_SIZE                           0x4
+
+// MSCHANGE adding debugfs node to fg driver
+#define MAX_ALLOWED_TEMPERATURE       2000 //deciC
+#define MAX_ALLOWED_RSOC 			  100  // %
 
 enum bq27xxx_chip {
 	BQ27000 = 1, /* bq27000, bq27200 */
@@ -28,6 +46,18 @@ enum bq27xxx_chip {
 	BQ27441,
 	BQ27621,
 };
+
+// MSCHANGE Manufacturer Info Block A
+#pragma pack(push, 1)
+typedef struct BQ27742_MANUF_INFO_TYPE
+{
+    uint16_t batt_manufacture_date;                         // BatteryManufactureDate
+    uint32_t batt_serial_num;                               // BatterySerialNumber
+    char batt_manufacture_name[MFG_NAME_SIZE];              // BatteryManufactureName
+    char batt_device_name[DEVICE_NAME_SIZE];                // BatteryDeviceName
+    char batt_chemistry[CHEM_SIZE];                         // Chemistry
+}*PBQ27742_MANUF_INFO_TYPE;
+#pragma pack(pop)
 
 struct bq27xxx_device_info;
 struct bq27xxx_access_methods {
@@ -65,9 +95,14 @@ struct bq27xxx_device_info {
 	unsigned long last_update;
 	struct delayed_work work;
 	struct power_supply *bat;
+	// MSCHANGE end: Add battery discharge sensor for fg-pack thermal zones
+	struct thermal_zone_device *tzd;
 	struct list_head list;
 	struct mutex lock;
 	u8 *regs;
+	struct dentry *dfs_root;  // MSCHANGE adding debugfs node to fg driver
+	int override_temperature; // MSCHANGE adding debugfs node to fg driver
+	int override_capacity; 	  // MSCHANGE adding debugfs node to fg driver
 };
 
 void bq27xxx_battery_update(struct bq27xxx_device_info *di);

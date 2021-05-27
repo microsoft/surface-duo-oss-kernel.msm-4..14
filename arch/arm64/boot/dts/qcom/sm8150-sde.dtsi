@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -162,8 +163,8 @@
 		qcom,sde-has-dest-scaler;
 		qcom,sde-max-dest-scaler-input-linewidth = <2048>;
 		qcom,sde-max-dest-scaler-output-linewidth = <2560>;
-		qcom,sde-max-bw-low-kbps = <12800000>;
-		qcom,sde-max-bw-high-kbps = <12800000>;
+		qcom,sde-max-bw-low-kbps = <22800000>;
+		qcom,sde-max-bw-high-kbps = <22800000>;
 		qcom,sde-min-core-ib-kbps = <2400000>;
 		qcom,sde-min-llcc-ib-kbps = <800000>;
 		qcom,sde-min-dram-ib-kbps = <800000>;
@@ -644,7 +645,6 @@
 
 		qcom,max-pclk-frequency-khz = <675000>;
 
-		qcom,mst-enable;
 		qcom,dp-aux-bridge-sim = <&sde_dp_mst_sim>;
 		qcom,dsc-feature-enable;
 		qcom,fec-feature-enable;

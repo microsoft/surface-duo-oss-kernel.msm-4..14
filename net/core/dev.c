@@ -70,6 +70,8 @@
  *                                      indefinitely on dev->refcnt
  *              J Hadi Salim    :       - Backlog queue sampling
  *				        - netif_rx() feedback
+ *
+ *              Copyright (c) 2020 Microsoft Corporation
  */
 
 #include <linux/uaccess.h>
@@ -7926,7 +7928,11 @@ static void netdev_wait_allrefs(struct net_device *dev)
 
 		refcnt = netdev_refcnt_read(dev);
 
-		if (time_after(jiffies, warning_time + 10 * HZ)) {
+		/* MSCHANGE Increase timeout from 10 secs to 20 secs for devices that do
+		 not complete netdevice_deregister in 10 secs 
+		 Related issue: 61246
+		 */
+		if (time_after(jiffies, warning_time + 20 * HZ)) {
 			pr_emerg("unregister_netdevice: waiting for %s to become free. Usage count = %d\n",
 				 dev->name, refcnt);
 			warning_time = jiffies;

@@ -6,6 +6,7 @@
  * Copyright (C) 2010-2011 Lars-Peter Clausen <lars@metafoo.de>
  * Copyright (C) 2011 Pali Rohár <pali.rohar@gmail.com>
  * Copyright (C) 2017 Liam Breck <kernel@networkimprov.net>
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * Based on a previous work by Copyright (C) 2008 Texas Instruments, Inc.
  *
@@ -44,6 +45,7 @@
  * http://www.ti.com/product/bq27621-g1
  */
 
+#include <linux/debugfs.h>  // MSCHANGE adding debugfs node to fg driver
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -90,6 +92,10 @@
 
 #define INVALID_REG_ADDR	0xff
 
+// MSCHANGE adding debugfs node to fg driver
+#define TEMPERATURE_OVERRIDE(OverrideTemperature)	(OverrideTemperature <= MAX_ALLOWED_TEMPERATURE ? 1:0) // allow user to override the pack temperature
+#define RSOC_OVERRIDE(OverrideRSOC)					(OverrideRSOC <= MAX_ALLOWED_RSOC ? 1:0) // allow user to override the pack rsoc
+
 /*
  * bq27xxx_reg_index - Register names
  *
@@ -114,6 +120,17 @@ enum bq27xxx_reg_index {
 	BQ27XXX_REG_SOC,	/* State-of-Charge */
 	BQ27XXX_REG_DCAP,	/* Design Capacity */
 	BQ27XXX_REG_AP,		/* Average Power */
+	BQ27XXX_REG_PROTECTOR_STATUS,  /* Protector Status */    // MSCHANGE enabling faultstatus query
+	BQ27XXX_REG_PROTECTOR_STATE,   /* Protector State */     // MSCHANGE
+	BQ27XXX_REG_STATE_OF_HEALTH,   /* State Of Health */	 // MSCHANGE enabling fg telemetry query
+	BQ27XXX_REG_SAFETY_STATUS, 	   /* Safety Status */       // MSCHANGE adding debugfs 
+	BQ27XXX_REG_UNFILTERED_FCC,    /* Unfiltered FCC */      // MSCHANGE adding debugfs
+	BQ27XXX_REG_UNFILTERED_RM, 	   /* Unfiltered RM */       // MSCHANGE adding debugfs
+	BQ27XXX_REG_PASSED_CHARGE, 	   /* Passed Charge */       // MSCHANGE adding debugfs
+	BQ27XXX_REG_DOD0, 			   /* DOD0 */                // MSCHANGE adding debugfs
+	BQ27XXX_REG_DODatEOC, 		   /* DODatEOC */            // MSCHANGE adding debugfs
+	BQ27XXX_REG_QSTART, 		   /* QSTART */              // MSCHANGE adding debugfs
+	BQ27XXX_REG_FAST_QMAX, 		   /* FAST QMAX */           // MSCHANGE adding debugfs
 	BQ27XXX_DM_CTRL,	/* Block Data Control */
 	BQ27XXX_DM_CLASS,	/* Data Class */
 	BQ27XXX_DM_BLOCK,	/* Data Block */
@@ -355,13 +372,24 @@ static u8
 		[BQ27XXX_REG_TTF] = INVALID_REG_ADDR,
 		[BQ27XXX_REG_TTES] = INVALID_REG_ADDR,
 		[BQ27XXX_REG_TTECP] = INVALID_REG_ADDR,
-		[BQ27XXX_REG_NAC] = 0x0c,
+		[BQ27XXX_REG_NAC] = 0x10,  // MSCHANGE we don't want to read the NAC value so changing this register to RemainingCapacity(): 0x10
 		[BQ27XXX_REG_FCC] = 0x12,
 		[BQ27XXX_REG_CYCT] = 0x2a,
 		[BQ27XXX_REG_AE] = INVALID_REG_ADDR,
 		[BQ27XXX_REG_SOC] = 0x2c,
 		[BQ27XXX_REG_DCAP] = 0x3c,
 		[BQ27XXX_REG_AP] = 0x24,
+		[BQ27XXX_REG_PROTECTOR_STATUS] = 0x6d,   // MSCHANGE
+		[BQ27XXX_REG_PROTECTOR_STATE] = 0x78,   // MSCHANGE
+		[BQ27XXX_REG_STATE_OF_HEALTH] = 0x2e,	// MSCHANGE
+		[BQ27XXX_REG_SAFETY_STATUS] = 0x1a, 	// MSCHANGE adding debugfs 
+		[BQ27XXX_REG_UNFILTERED_FCC] = 0x1c,    // MSCHANGE adding debugfs
+		[BQ27XXX_REG_UNFILTERED_RM] = 0x20, 	// MSCHANGE adding debugfs
+		[BQ27XXX_REG_PASSED_CHARGE] = 0x34, 	// MSCHANGE adding debugfs
+		[BQ27XXX_REG_DOD0] = 0x36, 			    // MSCHANGE adding debugfs
+		[BQ27XXX_REG_DODatEOC] = 0x62, 		    // MSCHANGE adding debugfs
+		[BQ27XXX_REG_QSTART] = 0x64,            // MSCHANGE adding debugfs
+		[BQ27XXX_REG_FAST_QMAX] = 0x66, 		// MSCHANGE adding debugfs
 		BQ27XXX_DM_REG_ROWS,
 	},
 #define bq27542_regs bq27541_regs
@@ -641,10 +669,25 @@ struct bq27xxx_dm_reg {
 	u16 min, max;
 };
 
+// MSCHANGE adding data flash registers for FG telemetry queries
 enum bq27xxx_dm_reg_id {
 	BQ27XXX_DM_DESIGN_CAPACITY = 0,
 	BQ27XXX_DM_DESIGN_ENERGY,
 	BQ27XXX_DM_TERMINATE_VOLTAGE,
+	BQ27XXX_DM_CHARGING_VOLTAGE,
+	BQ27XXX_DM_LT_MAX_TEMP,
+	BQ27XXX_DM_LT_MIN_TEMP,
+	BQ27XXX_DM_LT_MAX_PACK_VOLTAGE,
+	BQ27XXX_DM_LT_MIN_PACK_VOLTAGE,
+	BQ27XXX_DM_LT_MAX_CHG_CURRENT,
+	BQ27XXX_DM_LT_MAX_DSG_CURRENT,
+	BQ27XXX_DM_LT_FLASH_COUNT,
+	BQ27XXX_DM_LT_AFE_STATUS,
+	BQ27XXX_DM_QMAX_CELL0,
+	BQ27XXX_DM_VOLTAGE_AT_CHARGE_TERM,
+	BQ27XXX_DM_AVG_I_LAST_RUN,
+	BQ27XXX_DM_AVG_P_LAST_RUN,
+	BQ27XXX_DM_DELTA_VOLTAGE,
 };
 
 #define bq27000_dm_regs 0
@@ -676,7 +719,28 @@ static struct bq27xxx_dm_reg bq27500_dm_regs[] = {
 #define bq27541_dm_regs 0
 #define bq27542_dm_regs 0
 #define bq27546_dm_regs 0
-#define bq27742_dm_regs 0
+//#define bq27742_dm_regs 0  // MSCHANGE defined these for FG telemetry queries
+
+// MSCHANGE adding data flash register reads for FG telemetry queries
+static struct bq27xxx_dm_reg bq27742_dm_regs[] = {
+	[BQ27XXX_DM_DESIGN_CAPACITY]   		= { 82, 10, 2,     0,  8000  }, 
+	[BQ27XXX_DM_DESIGN_ENERGY]     		= { 82, 12, 2,     0,  32767 },
+	[BQ27XXX_DM_TERMINATE_VOLTAGE] 		= { 82, 16, 2,  2500,  3700  },
+	[BQ27XXX_DM_CHARGING_VOLTAGE]  		= { 34, 0,  2,  4000,  5000  },
+	[BQ27XXX_DM_LT_MAX_TEMP]  			= { 59, 0,  2,  -600,  1400  },
+	[BQ27XXX_DM_LT_MIN_TEMP]  			= { 59, 2,  2,  -600,  1400  },
+	[BQ27XXX_DM_LT_MAX_PACK_VOLTAGE]  	= { 59, 4,  2,     0,  32767 },
+	[BQ27XXX_DM_LT_MIN_PACK_VOLTAGE]  	= { 59, 6,  2,     0,  32767 },
+	[BQ27XXX_DM_LT_MAX_CHG_CURRENT]  	= { 59, 8,  2,-32767,  32767 },
+	[BQ27XXX_DM_LT_MAX_DSG_CURRENT]  	= { 59, 10, 2,-32767,  32767 },
+	[BQ27XXX_DM_LT_FLASH_COUNT]			= { 60, 0,  2,     0,  32767 },
+	[BQ27XXX_DM_LT_AFE_STATUS]			= { 60, 2,  1,     0,  255   },
+	[BQ27XXX_DM_QMAX_CELL0]				= { 82, 0,  2,     0,  14500 },
+	[BQ27XXX_DM_VOLTAGE_AT_CHARGE_TERM]	= { 82, 3,  2,     0,  5000  },
+	[BQ27XXX_DM_AVG_I_LAST_RUN]			= { 82, 5,  2,-32768,  0     },
+	[BQ27XXX_DM_AVG_P_LAST_RUN]			= { 82, 7,  2,-32768,  0     },
+	[BQ27XXX_DM_DELTA_VOLTAGE]			= { 82, 9,  2,     0,  32767 },
+};
 
 #if 0 /* not yet tested */
 static struct bq27xxx_dm_reg bq27545_dm_regs[] = {
@@ -756,7 +820,7 @@ static struct {
 	[BQ27541]   = BQ27XXX_DATA(bq27541,   0         , BQ27XXX_O_OTDC),
 	[BQ27542]   = BQ27XXX_DATA(bq27542,   0         , BQ27XXX_O_OTDC),
 	[BQ27546]   = BQ27XXX_DATA(bq27546,   0         , BQ27XXX_O_OTDC),
-	[BQ27742]   = BQ27XXX_DATA(bq27742,   0         , BQ27XXX_O_OTDC),
+	[BQ27742]   = BQ27XXX_DATA(bq27742,   0			, BQ27XXX_O_OTDC),
 	[BQ27545]   = BQ27XXX_DATA(bq27545,   0x04143672, BQ27XXX_O_OTDC),
 	[BQ27421]   = BQ27XXX_DATA(bq27421,   0x80008000, BQ27XXX_O_UTOT | BQ27XXX_O_CFGUP | BQ27XXX_O_RAM),
 	[BQ27425]   = BQ27XXX_DATA(bq27425,   0x04143672, BQ27XXX_O_UTOT | BQ27XXX_O_CFGUP),
@@ -854,16 +918,20 @@ MODULE_PARM_DESC(poll_interval,
 /*
  * Common code for BQ27xxx devices
  */
-
+// MSCHANGE adding retries for i2c reads
+#define MAX_FG_I2C_RETRIES 3
 static inline int bq27xxx_read(struct bq27xxx_device_info *di, int reg_index,
 			       bool single)
 {
-	int ret;
+	int ret, retries = 0;
 
 	if (!di || di->regs[reg_index] == INVALID_REG_ADDR)
 		return -EINVAL;
 
-	ret = di->bus.read(di, di->regs[reg_index], single);
+	do {
+		ret = di->bus.read(di, di->regs[reg_index], single);
+	} while (ret < 0 && retries++ < MAX_FG_I2C_RETRIES);
+	
 	if (ret < 0)
 		dev_dbg(di->dev, "failed to read register 0x%02x (index %d)\n",
 			di->regs[reg_index], reg_index);
@@ -871,10 +939,11 @@ static inline int bq27xxx_read(struct bq27xxx_device_info *di, int reg_index,
 	return ret;
 }
 
+// MSCHANGE adding retries for i2c writes
 static inline int bq27xxx_write(struct bq27xxx_device_info *di, int reg_index,
 				u16 value, bool single)
 {
-	int ret;
+	int ret, retries = 0;
 
 	if (!di || di->regs[reg_index] == INVALID_REG_ADDR)
 		return -EINVAL;
@@ -882,7 +951,10 @@ static inline int bq27xxx_write(struct bq27xxx_device_info *di, int reg_index,
 	if (!di->bus.write)
 		return -EPERM;
 
-	ret = di->bus.write(di, di->regs[reg_index], value, single);
+	do {
+		ret = di->bus.write(di, di->regs[reg_index], value, single);
+	} while (ret < 0 && retries++ < MAX_FG_I2C_RETRIES);
+
 	if (ret < 0)
 		dev_dbg(di->dev, "failed to write register 0x%02x (index %d)\n",
 			di->regs[reg_index], reg_index);
@@ -890,10 +962,11 @@ static inline int bq27xxx_write(struct bq27xxx_device_info *di, int reg_index,
 	return ret;
 }
 
+// MSCHANGE adding retries for i2c reads
 static inline int bq27xxx_read_block(struct bq27xxx_device_info *di, int reg_index,
 				     u8 *data, int len)
 {
-	int ret;
+	int ret, retries = 0;
 
 	if (!di || di->regs[reg_index] == INVALID_REG_ADDR)
 		return -EINVAL;
@@ -901,7 +974,10 @@ static inline int bq27xxx_read_block(struct bq27xxx_device_info *di, int reg_ind
 	if (!di->bus.read_bulk)
 		return -EPERM;
 
-	ret = di->bus.read_bulk(di, di->regs[reg_index], data, len);
+	do {
+		ret = di->bus.read_bulk(di, di->regs[reg_index], data, len);
+	} while (ret < 0 && retries++ < MAX_FG_I2C_RETRIES);
+	
 	if (ret < 0)
 		dev_dbg(di->dev, "failed to read_bulk register 0x%02x (index %d)\n",
 			di->regs[reg_index], reg_index);
@@ -909,10 +985,11 @@ static inline int bq27xxx_read_block(struct bq27xxx_device_info *di, int reg_ind
 	return ret;
 }
 
+// MSCHANGE adding retries for i2c writes
 static inline int bq27xxx_write_block(struct bq27xxx_device_info *di, int reg_index,
 				      u8 *data, int len)
 {
-	int ret;
+	int ret, retries = 0;
 
 	if (!di || di->regs[reg_index] == INVALID_REG_ADDR)
 		return -EINVAL;
@@ -920,7 +997,10 @@ static inline int bq27xxx_write_block(struct bq27xxx_device_info *di, int reg_in
 	if (!di->bus.write_bulk)
 		return -EPERM;
 
-	ret = di->bus.write_bulk(di, di->regs[reg_index], data, len);
+	do {
+		ret = di->bus.write_bulk(di, di->regs[reg_index], data, len);
+	} while (ret < 0 && retries++ < MAX_FG_I2C_RETRIES);
+
 	if (ret < 0)
 		dev_dbg(di->dev, "failed to write_bulk register 0x%02x (index %d)\n",
 			di->regs[reg_index], reg_index);
@@ -1714,6 +1794,315 @@ static int bq27xxx_simple_value(int value,
 	return 0;
 }
 
+static int bq27xxx_battery_read_telemetry(struct bq27xxx_device_info *di, enum power_supply_property psp, union power_supply_propval *val)
+{
+	int size = 0;
+	int telemetry_value = 0;
+	int offset = 0;
+	int ret,i = 0;
+	struct bq27xxx_dm_buf dm_telemetry = BQ27XXX_DM_BUF(di, BQ27XXX_DM_CHARGING_VOLTAGE);
+
+	val->intval = 0;
+	return 0;
+
+	switch(psp) {
+		case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
+			size = di->dm_regs[BQ27XXX_DM_CHARGING_VOLTAGE].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_CHARGING_VOLTAGE].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_CHARGING_VOLTAGE].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_CHARGING_VOLTAGE].offset;
+			break;
+		case POWER_SUPPLY_PROP_TEMP_MAX:
+			size = di->dm_regs[BQ27XXX_DM_LT_MAX_TEMP].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_LT_MAX_TEMP].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_LT_MAX_TEMP].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_LT_MAX_TEMP].offset;
+			break;
+		case POWER_SUPPLY_PROP_TEMP_MIN:
+			size = di->dm_regs[BQ27XXX_DM_LT_MIN_TEMP].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_LT_MIN_TEMP].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_LT_MIN_TEMP].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_LT_MIN_TEMP].offset;
+			break;
+		case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
+			size = di->dm_regs[BQ27XXX_DM_LT_MAX_PACK_VOLTAGE].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_LT_MAX_PACK_VOLTAGE].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_LT_MAX_PACK_VOLTAGE].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_LT_MAX_PACK_VOLTAGE].offset;
+			break;
+		case POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN:
+			size = di->dm_regs[BQ27XXX_DM_LT_MIN_PACK_VOLTAGE].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_LT_MIN_PACK_VOLTAGE].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_LT_MIN_PACK_VOLTAGE].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_LT_MIN_PACK_VOLTAGE].offset;
+			break;
+		case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
+			size = di->dm_regs[BQ27XXX_DM_LT_MAX_CHG_CURRENT].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_LT_MAX_CHG_CURRENT].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_LT_MAX_CHG_CURRENT].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_LT_MAX_CHG_CURRENT].offset;
+			break;
+		case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
+			size = di->dm_regs[BQ27XXX_DM_LT_MAX_DSG_CURRENT].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_LT_MAX_DSG_CURRENT].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_LT_MAX_DSG_CURRENT].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_LT_MAX_DSG_CURRENT].offset;
+			break;
+		case POWER_SUPPLY_PROP_UPDATE_NOW:
+			size = di->dm_regs[BQ27XXX_DM_LT_FLASH_COUNT].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_LT_FLASH_COUNT].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_LT_FLASH_COUNT].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_LT_FLASH_COUNT].offset;
+			break;
+		case POWER_SUPPLY_PROP_CYCLE_COUNTS:
+			size = di->dm_regs[BQ27XXX_DM_LT_AFE_STATUS].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_LT_AFE_STATUS].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_LT_AFE_STATUS].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_LT_AFE_STATUS].offset;
+			break;
+		case POWER_SUPPLY_PROP_CAPACITY_RAW:
+			size = di->dm_regs[BQ27XXX_DM_QMAX_CELL0].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_QMAX_CELL0].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_QMAX_CELL0].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_QMAX_CELL0].offset;
+			break;
+		case POWER_SUPPLY_PROP_VOLTAGE_MAX_LIMIT:
+			size = di->dm_regs[BQ27XXX_DM_VOLTAGE_AT_CHARGE_TERM].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_VOLTAGE_AT_CHARGE_TERM].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_VOLTAGE_AT_CHARGE_TERM].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_VOLTAGE_AT_CHARGE_TERM].offset;
+			break;
+		case POWER_SUPPLY_PROP_CURRENT_AVG:
+			size = di->dm_regs[BQ27XXX_DM_AVG_I_LAST_RUN].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_AVG_I_LAST_RUN].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_AVG_I_LAST_RUN].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_AVG_I_LAST_RUN].offset;
+			break;
+		case POWER_SUPPLY_PROP_POWER_NOW:
+			size = di->dm_regs[BQ27XXX_DM_AVG_P_LAST_RUN].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_AVG_P_LAST_RUN].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_AVG_P_LAST_RUN].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_AVG_P_LAST_RUN].offset;
+			break;
+		case POWER_SUPPLY_PROP_VOLTAGE_BOOT:
+			size = di->dm_regs[BQ27XXX_DM_DELTA_VOLTAGE].bytes;
+			dm_telemetry.class = di->dm_regs[BQ27XXX_DM_DELTA_VOLTAGE].subclass_id;
+			dm_telemetry.block = di->dm_regs[BQ27XXX_DM_DELTA_VOLTAGE].offset / BQ27XXX_DM_SZ;
+			offset = di->dm_regs[BQ27XXX_DM_DELTA_VOLTAGE].offset;
+			break;
+		default:
+			return -EINVAL;
+	}
+
+	ret = bq27xxx_battery_read_dm_block(di, &dm_telemetry);
+	if (ret < 0)
+		return -EINVAL;
+	
+	for(i = 0; i < size; i++)
+		telemetry_value = telemetry_value | (dm_telemetry.data[offset+i] << (size-1-i)*8);
+
+	val->intval = telemetry_value;
+	return 0;
+}
+
+// MSCHANGE adding state of health query
+static int bq27xxx_battery_read_state_of_health(struct bq27xxx_device_info *di)
+{
+	int state_of_health;
+
+	state_of_health = bq27xxx_read(di, BQ27XXX_REG_STATE_OF_HEALTH, false);
+	if (state_of_health < 0) {
+		dev_err(di->dev, "error reading state_of_health\n");
+		return state_of_health;
+	}
+
+	return state_of_health;
+}
+
+// MSCHANGE adding protector status query
+static int bq27xxx_battery_read_protector_status(struct bq27xxx_device_info *di)
+{
+	int protector_status;
+
+	protector_status = bq27xxx_read(di, BQ27XXX_REG_PROTECTOR_STATUS, false);
+	if (protector_status < 0) {
+		dev_err(di->dev, "error reading protector_status\n");
+		return protector_status;
+	}
+
+	return protector_status;
+}
+
+// MSCHANGE adding protector state query
+static int bq27xxx_battery_read_protector_state(struct bq27xxx_device_info *di)
+{
+	int protector_state;
+
+	protector_state = bq27xxx_read(di, BQ27XXX_REG_PROTECTOR_STATE, false);
+	if (protector_state < 0) {
+		dev_err(di->dev, "error reading protector_state\n");
+		return protector_state;
+	}
+
+	return protector_state;
+}
+
+// MSCHANGE adding safety_status query
+static int bq27xxx_battery_read_safety_status(struct bq27xxx_device_info *di)
+{
+	int safety_status;
+
+	safety_status = bq27xxx_read(di, BQ27XXX_REG_SAFETY_STATUS, false);
+	if (safety_status < 0) {
+		dev_err(di->dev, "error reading BQ27XXX_REG_SAFETY_STATUS\n");
+		return safety_status;
+	}
+
+	return safety_status;
+}
+
+// MSCHANGE Manufacturer Info Blocks functions
+#define BQ27742_MANUF_INFO_BLOCK_A					 0x01
+#define BQ27742_MANUF_INFO_BLOCK_B                   0x02
+#define BQ27742_MANUF_INFO_BLOCK_B_NUM_HVT_BYTES     0x04
+
+// MSCHANGE checksum calculation for Manuf Block B write
+static u8 bq27xxx_checksum_manufacturer_info_B(u8 *data)
+{
+	u16 sum = 0;
+	int i;
+
+	for (i = 0; i < BQ27XXX_DM_SZ; i++)
+	{
+		sum += data[i];
+	}
+
+	sum &= 0xff;
+
+	return 0xff - sum;
+}
+
+// MSCHANGE Manuf Name read from Manufacturer Info Block A
+static int bq27xxx_read_manufacturer_name(struct bq27xxx_device_info *di, union power_supply_propval *val)
+{
+	int ret;
+	u8 data[BQ27XXX_DM_SZ];
+	static struct BQ27742_MANUF_INFO_TYPE ManufInfoblkA = {0};
+
+	ret = bq27xxx_write(di, BQ27XXX_DM_BLOCK, BQ27742_MANUF_INFO_BLOCK_A, true);
+	if (ret < 0)
+	{
+		dev_err(di->dev, "BQ27XXX_DM_BLOCK write failed: %d\n", ret);
+		goto out;
+	}
+
+	BQ27XXX_MSLEEP(1);
+
+	ret = bq27xxx_read_block(di, BQ27XXX_DM_DATA, data, BQ27XXX_DM_SZ);
+	if (ret < 0)
+	{
+		dev_err(di->dev, "BQ27XXX_DM_DATA read failed: %d\n", ret);
+		goto out;
+	}
+	memcpy(&ManufInfoblkA, data, sizeof(ManufInfoblkA));
+	
+	val->strval = ManufInfoblkA.batt_manufacture_name;
+	return 0;
+
+out:
+	dev_err(di->dev, "bus error reading chip memory: %d\n", ret);
+	return ret;
+}
+
+// MSCHANGE Manufacturer Info Block B HVTCOUNT read
+static int bq27xxx_read_hvtcount(struct bq27xxx_device_info *di, union power_supply_propval *val)
+{
+	int ret,i;
+	u8 data[BQ27XXX_DM_SZ];
+	uint32_t HvtCount = 0;
+	uint32_t ManufacturerInfoBlockB_Bytes[BQ27742_MANUF_INFO_BLOCK_B_NUM_HVT_BYTES] = {1, 2, 7, 31};
+
+	ret = bq27xxx_write(di, BQ27XXX_DM_BLOCK, BQ27742_MANUF_INFO_BLOCK_B, true);
+	if (ret < 0)
+	{
+		dev_err(di->dev, "BQ27XXX_DM_BLOCK write failed: %d\n", ret);
+		goto out;
+	}
+
+	BQ27XXX_MSLEEP(1);
+
+	ret = bq27xxx_read_block(di, BQ27XXX_DM_DATA, data, BQ27XXX_DM_SZ);
+	if (ret < 0)
+	{
+		dev_err(di->dev, "BQ27XXX_DM_DATA read failed: %d\n", ret);
+		goto out;
+	}
+
+	for (i = 0; i < BQ27742_MANUF_INFO_BLOCK_B_NUM_HVT_BYTES; i++)
+		HvtCount = HvtCount | (data[ManufacturerInfoBlockB_Bytes[i]] << (i*8));
+	val->intval = HvtCount;
+
+	return 0;
+
+out:
+	dev_err(di->dev, "bus error reading chip memory: %d\n", ret);
+	return ret;
+}
+
+// MSCHANGE Manufacturer Info Block B HVTCOUNT write
+static int bq27xxx_write_hvtcount(struct bq27xxx_device_info *di, const union power_supply_propval *val)
+{
+	int ret = 0, i;
+	u8 data[BQ27XXX_DM_SZ];
+	uint32_t ManufacturerInfoBlockB_Bytes[BQ27742_MANUF_INFO_BLOCK_B_NUM_HVT_BYTES] = {1, 2, 7, 31};
+	
+	uint32_t HvtCount = (uint32_t)val->intval;
+	
+	ret = bq27xxx_write(di, BQ27XXX_DM_BLOCK, BQ27742_MANUF_INFO_BLOCK_B, true);
+	if (ret < 0)
+	{
+		dev_err(di->dev, "BQ27XXX_DM_BLOCK write failed: %d\n", ret);
+		goto out;
+	}
+
+	BQ27XXX_MSLEEP(1);
+
+	ret = bq27xxx_read_block(di, BQ27XXX_DM_DATA, data, BQ27XXX_DM_SZ);
+	if (ret < 0)
+	{
+		dev_err(di->dev, "BQ27XXX_DM_DATA read failed: %d\n", ret);
+		goto out;
+	}
+
+	for (i = 0; i < BQ27742_MANUF_INFO_BLOCK_B_NUM_HVT_BYTES; i++)
+	{
+		data[ManufacturerInfoBlockB_Bytes[i]] = (HvtCount >> (i*8)) & 0xFF;
+	}
+	
+	ret = bq27xxx_write_block(di, BQ27XXX_DM_DATA, data, BQ27XXX_DM_SZ);
+	if (ret < 0)
+	{
+		dev_err(di->dev, "BQ27XXX_DM_DATA write failed: %d\n", ret);
+		goto out;
+	}
+	
+	ret = bq27xxx_write(di, BQ27XXX_DM_CKSUM,
+			    bq27xxx_checksum_manufacturer_info_B(data), true);
+	if (ret < 0)
+	{
+		dev_err(di->dev, "BQ27XXX_DM_CKSUM write failed: %d\n", ret);
+		goto out;
+	}
+
+	BQ27XXX_MSLEEP(100); // flash DM updates in <100ms
+
+	return 0;
+
+out:
+	dev_err(di->dev, "bus error writing chip memory: %d\n", ret);
+	return ret;
+}
+
 static int bq27xxx_battery_get_property(struct power_supply *psy,
 					enum power_supply_property psp,
 					union power_supply_propval *val)
@@ -1726,10 +2115,13 @@ static int bq27xxx_battery_get_property(struct power_supply *psy,
 		cancel_delayed_work_sync(&di->work);
 		bq27xxx_battery_poll(&di->work.work);
 	}
-	mutex_unlock(&di->lock);
+	//mutex_unlock(&di->lock);  // MSCHANGE serializing requests to the FG
 
 	if (psp != POWER_SUPPLY_PROP_PRESENT && di->cache.flags < 0)
-		return -ENODEV;
+	{
+		ret = -ENODEV;
+		goto bq27xxx_battery_get_property_exit;
+	}
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -1743,9 +2135,13 @@ static int bq27xxx_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		ret = bq27xxx_battery_current(di, val);
+		if (ret == 0)
+			val->intval = (~val->intval + 1);  //  MSCHANGE report -ve current charging, +ve for discharging
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		ret = bq27xxx_simple_value(di->cache.capacity, val);
+		if(RSOC_OVERRIDE(di->override_capacity)) // MSCHANGE adding debugfs node to fg driver
+			val->intval = di->override_capacity;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 		ret = bq27xxx_battery_capacity_level(di, val);
@@ -1754,6 +2150,8 @@ static int bq27xxx_battery_get_property(struct power_supply *psy,
 		ret = bq27xxx_simple_value(di->cache.temperature, val);
 		if (ret == 0)
 			val->intval -= 2731; /* convert decidegree k to c */
+		if(TEMPERATURE_OVERRIDE(di->override_temperature))  // MSCHANGE adding debugfs node to fg driver
+			val->intval = di->override_temperature;
 		break;
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
 		ret = bq27xxx_simple_value(di->cache.time_to_empty, val);
@@ -1769,20 +2167,25 @@ static int bq27xxx_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_NOW:
 		ret = bq27xxx_simple_value(bq27xxx_battery_read_nac(di), val);
+		if(RSOC_OVERRIDE(di->override_capacity)) // MSCHANGE override REMCAM when override flag is set
+			val->intval = ((di->override_capacity * di->cache.charge_full) + 50)/100;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		ret = bq27xxx_simple_value(di->cache.charge_full, val);
+		ret = bq27xxx_simple_value(bq27xxx_battery_read_fcc(di), val); //  MSCHANGE query hardware instead of cached value to avoid SOC jumps
+		if(RSOC_OVERRIDE(di->override_capacity)) // MSCHANGE override FCC when override flag is set
+			val->intval = di->cache.charge_full;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		ret = bq27xxx_simple_value(di->charge_design_full, val);
+		val->intval /= 1000; // MSCHANGE converting to mAh for telemetry since this will be stored in a unit16_t
 		break;
 	/*
 	 * TODO: Implement these to make registers set from
 	 * power_supply_battery_info visible in sysfs.
 	 */
 	case POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN:
-	case POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN:
-		return -EINVAL;
+	//case POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN:  // MSCHANGE we are repurposing this for the FG telemetry query and it has been redefined below
+	//	return -EINVAL;
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
 		ret = bq27xxx_simple_value(di->cache.cycle_count, val);
 		break;
@@ -1795,13 +2198,75 @@ static int bq27xxx_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_HEALTH:
 		ret = bq27xxx_simple_value(di->cache.health, val);
 		break;
+	// MSCHANGE adding extfg fault status and safety status query
+	case POWER_SUPPLY_PROP_PROTECTOR_STATUS:
+		ret = bq27xxx_simple_value(bq27xxx_battery_read_protector_status(di), val);
+		break;
+	case POWER_SUPPLY_PROP_PROTECTOR_STATE:
+		ret = bq27xxx_simple_value(bq27xxx_battery_read_protector_state(di), val);
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_OCV:
+		ret = bq27xxx_simple_value(bq27xxx_battery_read_safety_status(di), val);
+		break;
+	// MSCHANGE get HvtCount from Manufacturer Info Block B
+	case POWER_SUPPLY_PROP_CHARGE_COUNTER: // Note: repurposing CHARGE_COUNTER prop for HvtCount
+		ret = bq27xxx_read_hvtcount(di, val);
+		break;
 	case POWER_SUPPLY_PROP_MANUFACTURER:
-		val->strval = BQ27XXX_MANUFACTURER;
+		// MSCHANGE we will be getting the MANUF NAME from Manufacturer Block A
+		//val->strval = BQ27XXX_MANUFACTURER;
+		ret = bq27xxx_read_manufacturer_name(di, val);
+		break;
+	// MSCHANGE adding FG telemetry queries
+	case POWER_SUPPLY_PROP_SOH:
+		ret = bq27xxx_simple_value(bq27xxx_battery_read_state_of_health(di), val);
+		break;
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
+	case POWER_SUPPLY_PROP_TEMP_MAX:
+	case POWER_SUPPLY_PROP_TEMP_MIN:
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
+	case POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN:
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:  // NOTE: repurposing CONSTANT_CHARGE_CURRENT for lifetime max dsg current for telemetry
+	case POWER_SUPPLY_PROP_UPDATE_NOW: // NOTE: repurposing UPDATE_NOW for LTFlashCount for telemetry
+	case POWER_SUPPLY_PROP_CYCLE_COUNTS: // NOTE: repurposing CYCLE_COUNTS for LFAFEStatus for telemetry
+	case POWER_SUPPLY_PROP_CAPACITY_RAW:  // NOTE: repurposing CAPACITY_RAW for QmaxCell0 for telemetry
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX_LIMIT: // NOTE: repurposing VOLTAGE_MAX_LIMIT for VoltageAtChargeTerm for telemetry
+	case POWER_SUPPLY_PROP_CURRENT_AVG:
+	case POWER_SUPPLY_PROP_POWER_NOW:  // NOTE: repurposing POWER_NOW for AveragePLastRun for telemetry
+	case POWER_SUPPLY_PROP_VOLTAGE_BOOT: // NOTE: repurposing VOLTAGE_BOOT for DeltaVoltage for telemetry
+		ret = bq27xxx_battery_read_telemetry(di, psp, val);
 		break;
 	default:
-		return -EINVAL;
+		ret = -EINVAL;  // MSCHANGE serializing requests to the FG
+		break;
 	}
 
+// MSCHANGE serializing requests to the FG
+bq27xxx_battery_get_property_exit:
+	mutex_unlock(&di->lock);
+	return ret;
+}
+
+// MSCHANGE adding set_property for Manufacturer Info Blocks
+static int bq27xxx_battery_set_property(struct power_supply *psy,
+						enum power_supply_property psp,
+						const union power_supply_propval *val)
+{
+	int ret = 0;
+	struct bq27xxx_device_info *di = power_supply_get_drvdata(psy);
+
+	mutex_lock(&di->lock);
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CHARGE_COUNTER: // Note: repurposing CHARGE_COUNTER prop for HvtCount
+		ret = bq27xxx_write_hvtcount(di, val);
+		break;
+	default:
+		pr_err("set prop %d is not supported\n", psp);
+		ret = -EINVAL;
+		break;
+	}
+	mutex_unlock(&di->lock);
 	return ret;
 }
 
@@ -1813,8 +2278,207 @@ static void bq27xxx_external_power_changed(struct power_supply *psy)
 	schedule_delayed_work(&di->work, 0);
 }
 
+
+// MSCHANGE adding debugfs node to fg driver
+#if defined(CONFIG_DEBUG_FS)
+
+static int force_temperature_read(void *data, u64 *val)
+{
+	struct bq27xxx_device_info *di = data;
+    *val = di->override_temperature;
+    return 0;
+}
+
+static int force_temperature_write(void *data, u64 val)
+{
+	struct bq27xxx_device_info *di = data;
+	di->override_temperature = val;
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(force_temperature_ops, force_temperature_read,
+			force_temperature_write, "%d\n");
+
+static int force_rsoc_read(void *data, u64 *val)
+{
+	struct bq27xxx_device_info *di = data;
+    *val = di->override_capacity;
+    return 0;
+}
+
+static int force_rsoc_write(void *data, u64 val)
+{
+	struct bq27xxx_device_info *di = data;
+	di->override_capacity = val;
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(force_rsoc_ops, force_rsoc_read,
+			force_rsoc_write, "%d\n");
+
+static int fg_register_read_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t fg_register_read_read(struct file *file, char __user *userbuf,
+				 size_t count, loff_t *ppos)
+{
+	struct bq27xxx_device_info *di = file->private_data;
+	char buf[512];
+	int flags, safety_status, unfiltered_fcc, unfiltered_rm, dod_zero, dod_at_eoc, qstart, fast_qmax, protector_status;
+	int16_t passed_charge = 0;
+	int reg_value = 0;
+	int length = 0;
+	
+	pr_err("fg_register_read: Querying register for pack %s", di->name);
+	flags = di->cache.flags;
+
+	reg_value = bq27xxx_read(di, BQ27XXX_REG_SAFETY_STATUS, false);
+	if (reg_value < 0)
+		dev_err(di->dev, "error reading BQ27XXX_REG_SAFETY_STATUS\n");
+	else
+		safety_status = reg_value;
+
+	reg_value = bq27xxx_read(di, BQ27XXX_REG_UNFILTERED_FCC, false);
+	if (reg_value < 0)
+		dev_err(di->dev, "error reading BQ27XXX_REG_UNFILTERED_FCC\n");
+	else
+		unfiltered_fcc = reg_value;
+
+	reg_value = bq27xxx_read(di, BQ27XXX_REG_UNFILTERED_RM, false);
+	if (reg_value < 0)
+		dev_err(di->dev, "error reading BQ27XXX_REG_UNFILTERED_RM\n");
+	else
+		unfiltered_rm = reg_value;
+
+	reg_value = bq27xxx_read(di, BQ27XXX_REG_PASSED_CHARGE, false);
+	if (reg_value < 0)
+		dev_err(di->dev, "error reading BQ27XXX_REG_PASSED_CHARGE\n");
+	else
+		passed_charge = reg_value;
+
+	reg_value = bq27xxx_read(di, BQ27XXX_REG_DOD0, false);
+	if (reg_value < 0)
+		dev_err(di->dev, "error reading BQ27XXX_REG_DOD0\n");
+	else
+		dod_zero = reg_value;
+
+	reg_value = bq27xxx_read(di, BQ27XXX_REG_DODatEOC, false);
+	if (reg_value < 0)
+		dev_err(di->dev, "error reading BQ27XXX_REG_DODatEOC\n");
+	else
+		dod_at_eoc = reg_value;
+
+	reg_value = bq27xxx_read(di, BQ27XXX_REG_QSTART, false);
+	if (reg_value < 0)
+		dev_err(di->dev, "error reading BQ27XXX_REG_QSTART\n");
+	else
+		qstart = reg_value;
+
+	reg_value = bq27xxx_read(di, BQ27XXX_REG_FAST_QMAX, false);
+	if (reg_value < 0)
+		dev_err(di->dev, "error reading BQ27XXX_REG_FAST_QMAX\n");
+	else
+		fast_qmax = reg_value;
+
+	reg_value = bq27xxx_read(di, BQ27XXX_REG_PROTECTOR_STATUS, false);
+	if (reg_value < 0)
+		dev_err(di->dev, "error reading BQ27XXX_REG_PROTECTOR_STATUS\n");
+	else
+		protector_status = reg_value;
+
+	length = sprintf(buf, "FLAGS=%d\nSAFETY_STATUS=%d\nUNFILTERED_FCC=%d\nUNFILTERED_RM=%d\nPASSED_CHARGE=%hd\nDOD0=%d\nDOD_AT_EOC=%d\nQSTART=%d\nFAST_QMAX=%d\nPROTECTOR_STATUS=%d\n",
+						flags, safety_status, unfiltered_fcc, unfiltered_rm, passed_charge,
+						dod_zero, dod_at_eoc, qstart, fast_qmax, protector_status);
+
+	return simple_read_from_buffer(userbuf, count, ppos, buf, length);
+}
+
+static const struct file_operations fg_register_read_ops = {
+	.open = fg_register_read_open,
+	.read = fg_register_read_read,
+};
+
+static void bq27xxx_create_debugfs(struct bq27xxx_device_info *di)
+{
+	struct dentry *file;
+
+	di->dfs_root = debugfs_create_dir(di->name, NULL);
+	if (IS_ERR_OR_NULL(di->dfs_root)) {
+		pr_err("Couldn't create BQ27742 debugfs rc=%ld\n",
+			(long)di->dfs_root);
+		return;
+	}
+
+	file = debugfs_create_file("force_temperature", 0600,
+			    di->dfs_root, di, &force_temperature_ops);
+	if (IS_ERR_OR_NULL(file))
+		pr_err("Couldn't create force_temperature file rc=%ld\n",
+			(long)file);
+
+	file = debugfs_create_file("force_rsoc", 0600,
+			    di->dfs_root, di, &force_rsoc_ops);
+	if (IS_ERR_OR_NULL(file))
+		pr_err("Couldn't create force_rsoc file rc=%ld\n",
+			(long)file);
+
+	file = debugfs_create_file("fg_register_read", 0600,
+			    di->dfs_root, di, &fg_register_read_ops);
+	if (IS_ERR_OR_NULL(file))
+		pr_err("Couldn't create fg_register_read file rc=%ld\n",
+			(long)file);
+}
+
+#else
+
+static void bq27xxx_create_debugfs(struct bq27xxx_device_info *di)
+{}
+
+#endif
+
+// MSCHANGE start: Add battery discharge sensor for fg-pack thermal zones
+static int bq27xxx_thermal_get_temp(void *data, int *temp)
+{
+
+	struct bq27xxx_device_info *di;
+	union power_supply_propval val;
+	int ret;
+
+        if(WARN_ON(data == NULL))
+                return -ENOMEM;
+
+        di = data;
+        ret = bq27xxx_battery_current(di, &val);
+        if (ret == 0)
+            val.intval = (~val.intval + 1);  //  report -ve current charging, +ve for discharging
+
+	*temp = val.intval;
+
+        return 0;
+}
+
+static const struct thermal_zone_of_device_ops bq27xxx_thermal_ops = {
+        .get_temp = bq27xxx_thermal_get_temp,
+};
+
+static int bq27xxx_battery_register_thermal(struct bq27xxx_device_info *di)
+{
+
+	di->tzd = devm_thermal_zone_of_sensor_register(di->dev, 0, di,
+		&bq27xxx_thermal_ops);
+	if (!di->tzd)
+		pr_err("Error registering thermal zone %s\n", di->name);
+
+	return 0;
+}
+// MSCHANGE end: Add battery discharge sensor for fg-pack thermal zones
+
+// MSCHANGE adding debugfs node to fg driver
+#define DISABLE_TEMP_OVERRIDE_VALUE (MAX_ALLOWED_TEMPERATURE + 50)
+#define DISABLE_RSOC_OVERRIDE_VALUE (MAX_ALLOWED_RSOC + 50)
 int bq27xxx_battery_setup(struct bq27xxx_device_info *di)
 {
+	int val;       // MSCHANGE i2c probe to ensure FGs are reachable
 	struct power_supply_desc *psy_desc;
 	struct power_supply_config psy_cfg = {
 		.of_node = di->dev->of_node,
@@ -1834,11 +2498,23 @@ int bq27xxx_battery_setup(struct bq27xxx_device_info *di)
 		return -ENOMEM;
 
 	psy_desc->name = di->name;
-	psy_desc->type = POWER_SUPPLY_TYPE_BATTERY;
+	psy_desc->type = POWER_SUPPLY_TYPE_BMS;   // MSCHANGE the external FGs shouldn't be reported to power_supply framework as batteries; changing this to BMS
 	psy_desc->properties = bq27xxx_chip_data[di->chip].props;
 	psy_desc->num_properties = bq27xxx_chip_data[di->chip].props_size;
 	psy_desc->get_property = bq27xxx_battery_get_property;
+	psy_desc->set_property = bq27xxx_battery_set_property;  // MSCHANGE adding set_property for Manufacturer Info Blocks
 	psy_desc->external_power_changed = bq27xxx_external_power_changed;
+
+	// MSCHANGE i2c poke in driver probe to ensure FGs are reachable
+	val = bq27xxx_read(di, BQ27XXX_REG_NAC, false);
+	if (val < 0)
+	{
+		pr_err("i2c poke failed in the EXTFG probe function, driver load is going to fail");
+		return -ENODATA;
+	}
+
+	// MSCHANGE Add battery discharge sensor for fg-pack thermal zones
+	bq27xxx_battery_register_thermal(di);
 
 	di->bat = power_supply_register_no_ws(di->dev, psy_desc, &psy_cfg);
 	if (IS_ERR(di->bat)) {
@@ -1848,6 +2524,11 @@ int bq27xxx_battery_setup(struct bq27xxx_device_info *di)
 
 	bq27xxx_battery_settings(di);
 	bq27xxx_battery_update(di);
+
+	// MSCHANGE adding debugfs node to fg driver
+	bq27xxx_create_debugfs(di);
+	di->override_temperature = DISABLE_TEMP_OVERRIDE_VALUE;  // initially disabling user temperature override
+	di->override_capacity = DISABLE_RSOC_OVERRIDE_VALUE; // initially disabling user RSOC override
 
 	mutex_lock(&bq27xxx_list_lock);
 	list_add(&di->list, &bq27xxx_battery_devices);
@@ -1868,6 +2549,11 @@ void bq27xxx_battery_teardown(struct bq27xxx_device_info *di)
 	poll_interval = 0;
 
 	cancel_delayed_work_sync(&di->work);
+
+	// MSCHANGE end: Add battery discharge sensor for fg-pack thermal zones
+	if (di->tzd)
+		devm_thermal_zone_of_sensor_unregister(di->dev,
+			di->tzd);
 
 	power_supply_unregister(di->bat);
 

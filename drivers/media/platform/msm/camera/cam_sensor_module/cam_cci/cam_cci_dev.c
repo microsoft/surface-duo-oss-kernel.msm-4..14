@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -413,7 +414,10 @@ static int cam_cci_platform_probe(struct platform_device *pdev)
 	rc = cam_register_subdev(&(new_cci_dev->v4l2_dev_str));
 	if (rc < 0) {
 		CAM_ERR(CAM_CCI, "Fail with cam_register_subdev");
-		goto cci_no_resource;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		goto cci_no_resource;
+		goto cci_register_failed;
+/* MSCHANGE End */
 	}
 
 	platform_set_drvdata(pdev, &(new_cci_dev->v4l2_dev_str.sd));
@@ -421,7 +425,10 @@ static int cam_cci_platform_probe(struct platform_device *pdev)
 	if (soc_info->index >= MAX_CCI) {
 		CAM_ERR(CAM_CCI, "Invalid index: %d max supported:%d",
 			soc_info->index, MAX_CCI-1);
-		goto cci_no_resource;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		goto cci_no_resource;
+		goto cci_invalid_index;
+/* MSCHANGE End */
 	}
 
 	g_cci_subdev[soc_info->index] = &new_cci_dev->v4l2_dev_str.sd;
@@ -443,13 +450,27 @@ static int cam_cci_platform_probe(struct platform_device *pdev)
 	rc = cam_cpas_register_client(&cpas_parms);
 	if (rc) {
 		CAM_ERR(CAM_CCI, "CPAS registration failed");
-		goto cci_no_resource;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		goto cci_no_resource;
+		goto cci_cpas_failed;
+/* MSCHANGE End */
 	}
 	CAM_DBG(CAM_CCI, "CPAS registration successful handle=%d",
 		cpas_parms.client_handle);
 	new_cci_dev->cpas_handle = cpas_parms.client_handle;
 
 	return rc;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+cci_cpas_failed:
+	mutex_destroy(&(new_cci_dev->init_mutex));
+	g_cci_subdev[soc_info->index] = NULL;
+cci_invalid_index:
+	v4l2_set_subdevdata(&new_cci_dev->v4l2_dev_str.sd, NULL);
+	platform_set_drvdata(pdev, NULL);
+	cam_unregister_subdev(&(new_cci_dev->v4l2_dev_str));
+cci_register_failed:
+	cam_soc_util_release_platform_resource(&new_cci_dev->soc_info);
+/* MSCHANGE End */
 cci_no_resource:
 	kfree(new_cci_dev);
 	return rc;
@@ -493,7 +514,10 @@ static int cam_cci_assign_fops(void)
 	for (; i < MAX_CCI; i++) {
 		sd = g_cci_subdev[i];
 		if (!sd)
-			return 0;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//			return 0;
+			return -EPROBE_DEFER;
+/* MSCHANGE End */
 		if (!(sd->devnode)) {
 			CAM_ERR(CAM_CCI,
 			"Invalid dev node:%pK offset: %d",
