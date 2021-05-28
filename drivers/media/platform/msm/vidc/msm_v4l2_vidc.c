@@ -492,7 +492,7 @@ static struct attribute_group msm_vidc_core_attr_group = {
 		.attrs = msm_vidc_core_attrs,
 };
 
-static const struct of_device_id msm_vidc_dt_match[] = {
+static const struct of_device_id msm_vidc_v4l2_dt_match[] = {
 	{.compatible = "qcom,msm-vidc"},
 	{.compatible = "qcom,msm-vidc,context-bank"},
 	{.compatible = "qcom,msm-vidc,bus"},
@@ -635,7 +635,7 @@ static int msm_vidc_probe_vidc_device(struct platform_device *pdev)
 	 * context-bank details and store it in core->resources.context_banks
 	 * list.
 	 */
-	rc = of_platform_populate(pdev->dev.of_node, msm_vidc_dt_match, NULL,
+	rc = of_platform_populate(pdev->dev.of_node, msm_vidc_v4l2_dt_match, NULL,
 			&pdev->dev);
 	if (rc) {
 		dprintk(VIDC_ERR, "Failed to trigger probe for sub-devices\n");
@@ -873,7 +873,7 @@ static const struct dev_pm_ops msm_vidc_pm_ops = {
 	.freeze = msm_vidc_pm_freeze,
 };
 
-MODULE_DEVICE_TABLE(of, msm_vidc_dt_match);
+MODULE_DEVICE_TABLE(of, msm_vidc_v4l2_dt_match);
 
 static struct platform_driver msm_vidc_driver = {
 	.probe = msm_vidc_probe,
@@ -881,7 +881,7 @@ static struct platform_driver msm_vidc_driver = {
 	.driver = {
 		.name = "msm_vidc_v4l2",
 		.owner = THIS_MODULE,
-		.of_match_table = msm_vidc_dt_match,
+		.of_match_table = msm_vidc_v4l2_dt_match,
 		.pm = &msm_vidc_pm_ops,
 	},
 };
