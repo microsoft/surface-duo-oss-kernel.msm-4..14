@@ -77,4 +77,3 @@ Description: Linux kernel version specific tools for version PKGVER-ABINUM
  version PKGVER-ABINUM on
  =HUMAN=.
  You probably want to install linux-tools-PKGVER-ABINUM-<flavour>.
-
