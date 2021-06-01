@@ -1832,6 +1832,9 @@ mscc
 msi001
 msi2500
 msm-geni-ir
+msm-vidc
+msm-vidc-ar50-dyn-gov
+msm-vidc-dyn-gov
 msm_11ad_proxy
 msp3400
 mspro_block
