@@ -368,6 +368,29 @@ static long msm_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 	case VIDIOC_MSM_SENSOR_GET_SUBDEV_ID:
 		rc = msm_sensor_get_subdev_id(s_ctrl, arg);
 		return rc;
+#ifdef CONFIG_AIS_SERVICES
+    case VIDIOC_MSM_SENSOR_INIT_CFG:
+#ifdef CONFIG_COMPAT
+    case VIDIOC_MSM_SENSOR_INIT_CFG32:
+		if (is_compat_task()) {
+            struct sensor_init_cfg_data32 *u32 =
+                (struct sensor_init_cfg_data32 *)argp;
+            struct sensor_init_cfg_data sensor_init_data;
+
+            memset(&sensor_init_data, 0, sizeof(sensor_init_data));
+            sensor_init_data.cfgtype = u32->cfgtype;
+            sensor_init_data.cfg.setting = compat_ptr(u32->cfg.
+                            setting);
+            cmd = VIDIOC_MSM_SENSOR_INIT_CFG;
+            rc = msm_sensor_driver_cmd(&s_ctrl->s_init,
+                &sensor_init_data);
+        } else
+#endif
+        {
+            rc = msm_sensor_driver_cmd(&s_ctrl->s_init, argp);
+        }
+        return rc;
+#endif
 	case VIDIOC_MSM_SENSOR_CFG:
 #ifdef CONFIG_COMPAT
 		if (is_compat_task())

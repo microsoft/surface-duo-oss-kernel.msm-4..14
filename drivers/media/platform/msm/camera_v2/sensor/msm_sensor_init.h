@@ -13,7 +13,9 @@
 #ifndef MSM_SENSOR_INIT_H
 #define MSM_SENSOR_INIT_H
 
+#ifndef CONFIG_AIS_SERVICES
 #include "msm_sensor.h"
+#endif
 
 struct msm_sensor_init_t {
 	struct mutex imutex;
@@ -21,5 +23,10 @@ struct msm_sensor_init_t {
 	int module_init_status;
 	wait_queue_head_t state_wait;
 };
+
+#ifdef CONFIG_AIS_SERVICES
+int32_t msm_sensor_driver_cmd(struct msm_sensor_init_t *s_init,
+    void *arg);
+#endif
 
 #endif

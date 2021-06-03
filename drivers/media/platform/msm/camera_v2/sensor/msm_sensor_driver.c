@@ -130,6 +130,7 @@ static int32_t msm_sensor_driver_create_v4l_subdev
 	int32_t rc = 0;
 	uint32_t session_id = 0;
 
+#ifndef CONFIG_AIS_SERVICES
 	if (s_ctrl->bypass_video_node_creation == 0) {
 		rc = camera_init_v4l2(&s_ctrl->pdev->dev, &session_id);
 		if (rc < 0) {
@@ -137,6 +138,7 @@ static int32_t msm_sensor_driver_create_v4l_subdev
 			return rc;
 		}
 	}
+#endif
 
 	CDBG("rc %d session_id %d", rc, session_id);
 	s_ctrl->sensordata->sensor_info->session_id = session_id;
@@ -1143,6 +1145,7 @@ CSID_TG:
 	s_ctrl->bypass_video_node_creation =
 		slave_info->bypass_video_node_creation;
 
+#ifndef CONFIG_AIS_SERVICES
 	/*
 	 * Create /dev/videoX node, comment for now until dummy /dev/videoX
 	 * node is created and used by HAL
@@ -1156,6 +1159,7 @@ CSID_TG:
 		pr_err("failed: camera creat v4l2 rc %d", rc);
 		goto camera_power_down;
 	}
+#endif
 
 	/* Power down */
 	s_ctrl->func_tbl->sensor_power_down(s_ctrl);
@@ -1194,7 +1198,9 @@ CSID_TG:
 	s_ctrl->is_probe_succeed = 1;
 	return rc;
 
+#ifndef CONFIG_AIS_SERVICES
 camera_power_down:
+#endif
 	s_ctrl->func_tbl->sensor_power_down(s_ctrl);
 free_camera_info:
 	kfree(camera_info);
@@ -1404,6 +1410,12 @@ static int32_t msm_sensor_driver_parse(struct msm_sensor_ctrl_t *s_ctrl)
 		goto FREE_DT_DATA;
 	}
 
+#ifdef CONFIG_AIS_SERVICES
+	/* Initialize sensor init */
+	mutex_init(&s_ctrl->s_init.imutex);
+	init_waitqueue_head(&s_ctrl->s_init.state_wait);
+#endif
+
 	/* Store sensor control structure in static database */
 	g_sctrl[s_ctrl->id] = s_ctrl;
 	CDBG("g_sctrl[%d] %pK", s_ctrl->id, g_sctrl[s_ctrl->id]);
@@ -1463,6 +1475,22 @@ static int32_t msm_sensor_driver_platform_probe(struct platform_device *pdev)
 
 	/* Fill device in power info */
 	s_ctrl->sensordata->power_info.dev = &pdev->dev;
+
+#ifdef CONFIG_AIS_SERVICES
+	/*
+	 * Create /dev/videoX node, comment for now until dummy /dev/videoX
+	 * node is created and used by HAL
+	 */
+
+	if (s_ctrl->sensor_device_type == MSM_CAMERA_PLATFORM_DEVICE)
+		rc = msm_sensor_driver_create_v4l_subdev(s_ctrl);
+	else
+		rc = msm_sensor_driver_create_i2c_v4l_subdev(s_ctrl);
+	if (rc < 0) {
+		pr_err("failed: camera creat v4l2 rc %d", rc);
+		goto FREE_S_CTRL;
+	}
+#endif
 	return rc;
 FREE_S_CTRL:
 	kfree(s_ctrl);

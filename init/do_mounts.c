@@ -44,7 +44,6 @@ static char __initdata saved_root_name[64];
 static int root_wait;
 
 #ifdef CONFIG_EARLY_SERVICES
-static char saved_modem_name[64];
 static char saved_early_userspace[64];
 static char init_prog[128] = "/early_services/init_early";
 static char *init_prog_argv[2] = { init_prog, NULL };
@@ -310,13 +309,6 @@ static int __init root_dev_setup(char *line)
 __setup("root=", root_dev_setup);
 
 #ifdef CONFIG_EARLY_SERVICES
-static int __init modem_dev_setup(char *line)
-{
-	strlcpy(saved_modem_name, line, sizeof(saved_modem_name));
-	return 1;
-}
-
-__setup("modem=", modem_dev_setup);
 static int __init early_userspace_setup(char *line)
 {
 	strlcpy(saved_early_userspace, line, sizeof(saved_early_userspace));

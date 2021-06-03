@@ -1439,7 +1439,6 @@ int msm_isp_proc_buf_cmd(struct msm_isp_buf_mgr *buf_mgr,
         case VIDIOC_MSM_ISP_FLUSH_QUEUE: {
 		struct msm_isp_flush_queue_req *flush_req  = arg;
 
-		printk(KERN_ERR "ayakira %s flush queue\n", __func__);
 		rc = msm_isp_flush_queue(buf_mgr, flush_req->bufq_handle);
 		break;
 	}

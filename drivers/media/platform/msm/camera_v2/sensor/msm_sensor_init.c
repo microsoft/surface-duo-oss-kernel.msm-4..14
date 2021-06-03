@@ -13,7 +13,9 @@
 #define pr_fmt(fmt) "MSM-SENSOR-INIT %s:%d " fmt "\n", __func__, __LINE__
 
 /* Header files */
+#ifndef CONFIG_AIS_SERVICES
 #include "msm_sensor_init.h"
+#endif
 #include "msm_sensor_driver.h"
 #include "msm_sensor.h"
 #include "msm_sd.h"
@@ -57,8 +59,13 @@ static int msm_sensor_wait_for_probe_done(struct msm_sensor_init_t *s_init)
 }
 
 /* Static function definition */
+#ifndef CONFIG_AIS_SERVICES
 static int32_t msm_sensor_driver_cmd(struct msm_sensor_init_t *s_init,
 	void *arg)
+#else
+int32_t msm_sensor_driver_cmd(struct msm_sensor_init_t *s_init,
+	void *arg)
+#endif
 {
 	int32_t                      rc = 0;
 	struct sensor_init_cfg_data *cfg = (struct sensor_init_cfg_data *)arg;

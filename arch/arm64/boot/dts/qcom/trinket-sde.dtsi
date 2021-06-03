@@ -74,7 +74,6 @@
 
 		qcom,sde-mixer-cwb-pref = "none", "cwb", "none",
 					      "none", "none", "none";
-		qcom,sde-mixer-stage-base-layer;
 
 		qcom,sde-dspp-top-off = <0x1300>;
 		qcom,sde-dspp-top-size = <0x80>;
