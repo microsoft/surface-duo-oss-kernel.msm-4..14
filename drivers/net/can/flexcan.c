@@ -991,8 +991,10 @@ static irqreturn_t flexcan_irq_state(int irq, void *dev_id)
 		if (unlikely(new_state != priv->can.state)) {
 			skb = alloc_can_err_skb(dev, &cf);
 
+			can_change_state(dev, likely(skb) ? cf : NULL, tx_state,
+					 rx_state);
+
 			if (likely(skb)) {
-				can_change_state(dev, cf, tx_state, rx_state);
 				if (unlikely(new_state == CAN_STATE_BUS_OFF))
 					can_bus_off(dev);
 				can_rx_offload_queue_sorted(&priv->offload,
@@ -2021,6 +2023,9 @@ static int flexcan_probe(struct platform_device *pdev)
 	priv->can.clock.freq = clock_freq;
 	priv->can.do_set_mode = flexcan_set_mode;
 	priv->can.do_get_berr_counter = flexcan_get_berr_counter;
+	priv->can.ctrlmode_supported = CAN_CTRLMODE_LOOPBACK |
+		CAN_CTRLMODE_LISTENONLY | CAN_CTRLMODE_3_SAMPLES |
+		CAN_CTRLMODE_BERR_REPORTING;
 	priv->regs = regs;
 	priv->clk_ipg = clk_ipg;
 	priv->clk_per = clk_per;
