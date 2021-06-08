@@ -281,6 +281,26 @@
 		interrupts = <85 IRQ_TYPE_EDGE_RISING>;
 	};
 
+        smi230_gyro@68 {
+                compatible = "SMI230GYRO";
+                reg = <0x68>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&sensor_int1_default>;
+                interrupt-parent = <&tlmm>;
+                interrupts = <84 IRQ_TYPE_EDGE_RISING>;
+                gpio_irq = <&tlmm 84 IRQ_TYPE_EDGE_RISING>;
+        };
+
+        smi230_acc@18 {
+                compatible = "SMI230ACC";
+                reg = <0x18>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&sensor_int2_default>;
+                interrupt-parent = <&tlmm>;
+                interrupts = <85 IRQ_TYPE_EDGE_RISING>;
+                gpio_irq = <&tlmm 85 IRQ_TYPE_EDGE_RISING>;
+        };
+
 	iam20680@69 {
 		compatible = "inven,iam20680";
 		reg = <0x69>;
