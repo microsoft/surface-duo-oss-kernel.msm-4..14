@@ -25,16 +25,11 @@ export PATH="$PATH:/sbin"
 initrd_f=initrd.img
 cd "$avb_d"
 ubuntu-core-initramfs create-initrd --output "$initrd_f" \
-	--kerneldir "$avb_d"/modules/lib/modules \
+	--kerneldir "$avb_d"/modules/lib/modules/"$KERNEL_VERSION" \
 	--kernelver "$KERNEL_VERSION"
 mv "$initrd_f-$KERNEL_VERSION" "$initrd_f"
 cd -
 rm -rf "$avb_d"/modules
-
-mkdir -p "$avb_d"/dtbs/
-for dtb in $dtb_files; do
-    cp -f "$dtb" "$avb_d"/dtbs/
-done
 
 cp -f "$dest_d"/vmlinuz-* "$avb_d"/Image-dtb
 
