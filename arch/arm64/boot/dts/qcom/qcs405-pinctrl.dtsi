@@ -1557,6 +1557,34 @@
 			};
 		};
 
+		sdc2_dsrc_nand_on: sdc2_dsrc_nand_on {
+			mux {
+				pins = "gpio42";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio42";
+				drive-strength = <16>;
+				output-high;
+				bias-pull-up;
+			};
+		};
+
+		sdc2_dsrc_nand_off: sdc2_dsrc_nand_off {
+			mux {
+				pins = "gpio42";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio42";
+				drive-strength = <2>;
+				output-low;
+				bias-pull-down;
+			};
+		};
+
 		sdc2_cd_off: cd_off {
 			mux {
 				pins = "gpio21";

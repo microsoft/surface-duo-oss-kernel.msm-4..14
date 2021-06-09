@@ -22,6 +22,3 @@
 	qcom,board-id = <25 0>, <25 0x100>;
 };
 
-&cnss_sdio {
-	status = "okay";
-};
