@@ -2754,6 +2754,9 @@ static int stmmac_open(struct net_device *dev)
 	struct stmmac_priv *priv = netdev_priv(dev);
 	int ret;
 
+	if (priv->plat->update_ahb_clk_cfg)
+		priv->plat->update_ahb_clk_cfg(priv, 1, 1);
+
 	if (priv->hw->pcs != STMMAC_PCS_RGMII &&
 	    priv->hw->pcs != STMMAC_PCS_TBI &&
 	    priv->hw->pcs != STMMAC_PCS_RTBI) {
@@ -2844,6 +2847,9 @@ static int stmmac_open(struct net_device *dev)
 	if (priv->tx_queue[IPA_DMA_TX_CH].skip_sw)
 		ethqos_ipa_offload_event_handler(priv, EV_DEV_OPEN);
 
+	if (priv->plat->update_ahb_clk_cfg)
+		priv->plat->update_ahb_clk_cfg(priv, 0, 0);
+
 	return 0;
 
 lpiirq_error:
@@ -2862,6 +2868,9 @@ init_error:
 dma_desc_error:
 	if (dev->phydev)
 		phy_disconnect(dev->phydev);
+
+	if (priv->plat->update_ahb_clk_cfg)
+		priv->plat->update_ahb_clk_cfg(priv, 0, 0);
 
 	return ret;
 }
