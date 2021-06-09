@@ -37,6 +37,9 @@ Build-Depends:
  dkms <!stage1>,
  curl <!stage1>,
  clang <!stage1>,
+ libfdt-dev <!stage1>,
+ android-tools-mkbootimg <!stage1>,
+ ubuntu-core-initramfs <!stage1>,
 Build-Depends-Indep:
  xmlto <!stage1>,
  docbook-utils <!stage1>,
