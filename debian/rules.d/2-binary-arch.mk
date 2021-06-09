@@ -516,6 +516,18 @@ ifeq ($(fit_signed),true)
 	cp -p $(signingv)/fit-$(abi_release)-$*.fit $(pkgdir_bin)/boot/
 endif
 
+ifeq ($(avb_signed),true)
+	install -d $(signingv)
+	cp -p $(pkgdir_bin)/boot/$(instfile)-$(abi_release)-$* \
+		$(signingv)/$(instfile)-$(abi_release)-$*;
+	# Build avb image now that the modules folder exists
+	$(SHELL) $(DROOT)/scripts/build-avb \
+		$(abi_release)-$(target_flavour) \
+		$(CURDIR)/$(DROOT)/linux-modules-$(abi_release)-$* \
+		$(signingv)
+	cp -p $(signingv)/boot-$(abi_release)-$*.avb $(pkgdir_bin)/boot/
+endif
+
 headers_tmp := $(CURDIR)/debian/tmp-headers
 headers_dir := $(CURDIR)/debian/linux-libc-dev
 
