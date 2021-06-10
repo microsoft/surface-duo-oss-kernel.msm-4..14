@@ -3125,7 +3125,7 @@ CONFIG_TOUCHSCREEN_ZFORCE                       policy<{'amd64': 'm', 'arm64': '
 CONFIG_TOUCHSCREEN_COLIBRI_VF50                 policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm'}>
 CONFIG_TOUCHSCREEN_ROHM_BU21023                 policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 #
-CONFIG_TOUCHSCREEN_ELAN                         mark<ENFORCED> note<LP #1630238>
+#CONFIG_TOUCHSCREEN_ELAN                         mark<ENFORCED> note<LP #1630238>
 
 # Menu: Device Drivers >> Input device support >> Generic input layer (needed for keyboard, mouse, ...) >> Touchscreens >> Support for WM97xx AC97 touchscreen controllers
 CONFIG_TOUCHSCREEN_WM97XX                       policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
