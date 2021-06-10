@@ -1,5 +1,5 @@
 /*
- * FCCU driver for S32 SoC
+ * FCCU driver for S32 SoCs
  *
  * Copyright 2018,2021 NXP.
  *
@@ -27,7 +27,7 @@
 #include <linux/of.h>
 #include <linux/slab.h>
 
-#define DRIVER_NAME "s32v234_fccu"
+#define DRIVER_NAME "s32_fccu"
 #define FCCU_MINOR	1
 
 #define FCCU_CTRL			0x0
@@ -262,7 +262,7 @@ static int enable_rs_channel(struct device *dev,
 	return wait_op_success(base);
 }
 
-static int __init s32v234_fccu_probe(struct platform_device *pdev)
+static int __init s32_fccu_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct fccu_pri_data_t *priv_data = NULL;
@@ -335,7 +335,7 @@ out:
 	return ret;
 }
 
-static int __exit s32v234_fccu_remove(struct platform_device *pdev)
+static int __exit s32_fccu_remove(struct platform_device *pdev)
 {
 	struct fccu_pri_data_t *priv_data = NULL;
 
@@ -372,27 +372,27 @@ static int __maybe_unused s32_fccu_resume(struct device *dev)
 
 static SIMPLE_DEV_PM_OPS(s32_fccu_pm_ops, s32_fccu_suspend, s32_fccu_resume);
 
-static const struct of_device_id s32v234_fccu_dt_ids[] = {
+static const struct of_device_id s32_fccu_dt_ids[] = {
 	{.compatible = "fsl,s32v234-fccu",},
 	{.compatible = "fsl,s32gen1-fccu",},
 	{ /* sentinel */ }
 };
 
-static struct platform_driver s32v234_fccu_driver = {
-	.remove = __exit_p(s32v234_fccu_remove),
+static struct platform_driver s32_fccu_driver = {
+	.remove = __exit_p(s32_fccu_remove),
 	.driver = {
 			.name = DRIVER_NAME,
 			.owner = THIS_MODULE,
-			.of_match_table = s32v234_fccu_dt_ids,
+			.of_match_table = s32_fccu_dt_ids,
 			.pm = &s32_fccu_pm_ops,
 		},
 };
 
-module_platform_driver_probe(s32v234_fccu_driver,
-	s32v234_fccu_probe);
+module_platform_driver_probe(s32_fccu_driver,
+	s32_fccu_probe);
 
 MODULE_AUTHOR("Phu Luu An");
-MODULE_DESCRIPTION("FCCU driver for S32V234 SoC");
+MODULE_DESCRIPTION("FCCU driver for S32 SoC");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS_MISCDEV(FCCU_MINOR);
 MODULE_ALIAS("platform:" DRIVER_NAME);
