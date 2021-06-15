@@ -2034,6 +2034,7 @@ struct ipa3_context {
 	u32 wan_aggr_time_limit;
 	u32 lan_aggr_time_limit;
 	u32 rndis_aggr_time_limit;
+	bool is_device_crashed;
 };
 
 struct ipa3_plat_drv_res {
