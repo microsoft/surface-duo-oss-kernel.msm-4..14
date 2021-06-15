@@ -2101,6 +2101,7 @@ struct ipa3_context {
 		eth_info[IPA_ETH_CLIENT_MAX][IPA_ETH_INST_ID_MAX];
 	bool ipa_in_cpe_cfg;
 	bool is_modem_up;
+	bool is_device_crashed;
 };
 
 struct ipa3_plat_drv_res {
