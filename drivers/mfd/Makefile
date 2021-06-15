@@ -258,3 +258,4 @@ obj-$(CONFIG_MFD_STMFX) 	+= stmfx.o
 obj-$(CONFIG_LLCE_CORE)		+= llce-core.o
 
 obj-$(CONFIG_S32GEN1_MC_ME) 	+= s32gen1-mc_me.o
+obj-$(CONFIG_S32GEN1_MC_RGM) 	+= s32gen1-mc_rgm.o

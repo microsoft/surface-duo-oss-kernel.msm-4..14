@@ -22,7 +22,7 @@
 #include <linux/of_device.h>
 #include <linux/regmap.h>
 #include <linux/mfd/s32gen1-mc_me.h>
-#include <s32/s32-gen1/rgm.h>
+#include <linux/mfd/s32gen1-mc_rgm.h>
 
 static const struct of_device_id s32gen1_reboot_of_match[] = {
 	{ .compatible = "fsl,s32gen1-prstc", .data = (void *) 0 },
