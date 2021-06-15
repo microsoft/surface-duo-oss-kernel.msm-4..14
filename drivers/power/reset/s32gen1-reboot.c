@@ -21,7 +21,7 @@
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/regmap.h>
-#include <s32/s32-gen1/mc_me.h>
+#include <linux/mfd/s32gen1-mc_me.h>
 #include <s32/s32-gen1/rgm.h>
 
 static const struct of_device_id s32gen1_reboot_of_match[] = {

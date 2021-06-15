@@ -257,3 +257,4 @@ obj-$(CONFIG_MFD_ROHM_BD718XX)	+= rohm-bd718x7.o
 obj-$(CONFIG_MFD_STMFX) 	+= stmfx.o
 obj-$(CONFIG_LLCE_CORE)		+= llce-core.o
 
+obj-$(CONFIG_S32GEN1_MC_ME) 	+= s32gen1-mc_me.o
