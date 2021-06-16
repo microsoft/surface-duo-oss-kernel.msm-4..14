@@ -83,6 +83,7 @@ b53_mdio
 b53_mmap
 b53_spi
 b53_srab
+bam_dma
 batman-adv
 bcache
 bch
@@ -122,6 +123,8 @@ cast5_generic
 cast6_generic
 cast_common
 catc
+cavium-rng
+cavium-rng-vf
 cc2520
 ccm
 ccp
@@ -273,6 +276,7 @@ esp6_offload
 ethoc
 evbug
 extcon-gpio
+extcon-qcom-spmi-misc
 ezusb
 f2fs
 f81232
@@ -319,9 +323,14 @@ gpio-beeper
 gpio-ir-recv
 gpio-ir-tx
 gpio-syscon
+gpio_axis
 gpio_backlight
 gpio_decoder
+gpio_event
+gpio_input
 gpio_keys_polled
+gpio_matrix
+gpio_output
 gr_udc
 gspca_main
 gtp
@@ -334,6 +343,7 @@ hid-accutouch
 hid-alps
 hid-generic
 hid-led
+hid-magicmouse
 hid-sensor-custom
 hid-sensor-hub
 hid-sensor-humidity
@@ -393,6 +403,7 @@ industrialio-buffer-cb
 industrialio-configfs
 industrialio-sw-device
 industrialio-sw-trigger
+industrialio-triggered-buffer
 inet_diag
 inftl
 input-leds
@@ -585,6 +596,7 @@ mdio-mux
 mdio-mux-gpio
 mdio-mux-mmioreg
 mdio-octeon
+mem-acc-regulator
 metro-usb
 michael_mic
 microtek
@@ -810,6 +822,7 @@ pppoatm
 psample
 pwm-beeper
 pwm-ir-tx
+pwm-qcom
 pwm-regulator
 pwm-vibra
 pwm_bl
@@ -821,9 +834,12 @@ qcaspi
 qcauart
 qcaux
 qcom-emac
+qcom-gvm-ipc-mailbox
+qcom-rradc
 qcom-spmi-iadc
 qcom-spmi-vadc
 qcom_glink_rpm
+qcom_rpm
 qcom_spmi-regulator
 qcserial
 qemu_fw_cfg
@@ -1077,11 +1093,13 @@ snd-seq-oss
 snd-seq-virmidi
 snd-serial-u16550
 snd-soc-audio-graph-card
+snd-soc-audio-graph-scu-card
 snd-soc-bt-sco
 snd-soc-msm8916-analog
 snd-soc-msm8916-digital
 snd-soc-simple-card
 snd-soc-simple-card-utils
+snd-soc-simple-scu-card
 snd-soc-spdif-rx
 snd-soc-spdif-tx
 snd-virmidi
@@ -1261,6 +1279,7 @@ virtio_console
 virtio_crypto
 virtio_input
 virtio_net
+virtio_regulator
 virtio_rpmsg_bus
 virtio_scsi
 virtual
