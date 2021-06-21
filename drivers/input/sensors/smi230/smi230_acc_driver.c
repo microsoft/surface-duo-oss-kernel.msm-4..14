@@ -87,7 +87,6 @@ struct smi230_client_data {
 	struct input_dev *input;
 	int IRQ;
 	uint8_t gpio_pin;
-	struct work_struct irq_work;
 	uint64_t timestamp;
 #ifdef CONFIG_ENABLE_SMI230_ACC_GYRO_BUFFERING
 	bool read_acc_boot_sample;
@@ -703,10 +702,9 @@ uint64_t smi230_acc_get_alarm_timestamp(void)
 	return ts_ap;
 }
 
-static void smi230_irq_work_func(struct work_struct *work)
+static irqreturn_t smi230_irq_work_func(int irq, void *handle)
 {
-	struct smi230_client_data *client_data =
-		container_of(work, struct smi230_client_data, irq_work);
+	struct smi230_client_data *client_data = handle;
 
 	/* int status reg is not available to tell the interupt source */
 #ifdef CONFIG_SMI230_RAW_DATA
@@ -718,6 +716,7 @@ static void smi230_irq_work_func(struct work_struct *work)
 #ifdef CONFIG_SMI230_DATA_SYNC
 	smi230_data_sync_ready_handle(client_data);
 #endif
+	return IRQ_HANDLED;
 }
 
 static irqreturn_t smi230_irq_handle(int irq, void *handle)
@@ -727,16 +726,11 @@ static irqreturn_t smi230_irq_handle(int irq, void *handle)
 
 	client_data->timestamp = smi230_acc_get_alarm_timestamp();
 
-	err = schedule_work(&client_data->irq_work);
-	if (err < 0)
-		PERR("schedule_work failed\n");
-
-	return IRQ_HANDLED;
+	return IRQ_WAKE_THREAD;
 }
 
 static void smi230_free_irq(struct smi230_client_data *client_data)
 {
-	cancel_work_sync(&client_data->irq_work);
 	free_irq(client_data->IRQ, client_data);
 	gpio_free(client_data->gpio_pin);
 }
@@ -744,8 +738,6 @@ static void smi230_free_irq(struct smi230_client_data *client_data)
 static int smi230_request_irq(struct smi230_client_data *client_data)
 {
 	int err = 0;
-
-	INIT_WORK(&client_data->irq_work, smi230_irq_work_func);
 
 	client_data->gpio_pin = of_get_named_gpio_flags(
 		client_data->dev->of_node,
@@ -763,7 +755,7 @@ static int smi230_request_irq(struct smi230_client_data *client_data)
 		return err;
 	}
 	client_data->IRQ = gpio_to_irq(client_data->gpio_pin);
-	err = request_irq(client_data->IRQ, smi230_irq_handle,
+	err = request_threaded_irq(client_data->IRQ, smi230_irq_handle, smi230_irq_work_func,
 			IRQF_TRIGGER_RISING,
 			SENSOR_ACC_NAME, client_data);
 	if (err < 0) {
