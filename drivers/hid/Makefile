@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0
 #
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
 # Makefile for the HID driver
 #
 hid-y			:= hid-core.o hid-input.o
@@ -120,6 +126,8 @@ obj-$(CONFIG_USB_MOUSE)		+= usbhid/
 obj-$(CONFIG_USB_KBD)		+= usbhid/
 
 obj-$(CONFIG_I2C_HID)		+= i2c-hid/
+
+obj-$(CONFIG_SPI_HID)		+= spi-hid/
 
 obj-$(CONFIG_INTEL_ISH_HID)	+= intel-ish-hid/
 

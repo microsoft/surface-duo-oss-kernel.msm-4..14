@@ -1,0 +1,13 @@
+
+#
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
+techpack-dirs := $(shell find $(srctree)/$(src) -maxdepth 1 -mindepth 1 -type d -not -name ".*")
+obj-y += stub/ $(addsuffix /,$(subst $(srctree)/$(src)/,,$(techpack-dirs)))
+
+techpack-header-dirs := $(shell find $(srctree)/techpack -maxdepth 1 -mindepth 1 -type d -not -name ".*")
+header-y += $(addsuffix /include/uapi/,$(subst $(srctree)/techpack/,,$(techpack-header-dirs)))

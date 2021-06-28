@@ -4,6 +4,7 @@
  * This code is based on drivers/scsi/ufs/ufshcd.c
  * Copyright (C) 2011-2013 Samsung India Software Operations
  * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * Authors:
  *	Santosh Yaraganavi <santosh.sy@samsung.com>
@@ -48,6 +49,7 @@
 #include "unipro.h"
 #include "ufs-debugfs.h"
 #include "ufs-qcom.h"
+#include "surface-lun-lock.h"
 
 #ifdef CONFIG_DEBUG_FS
 
@@ -8871,6 +8873,18 @@ reinit:
 	 */
 	if (!ufshcd_eh_in_progress(hba) && !hba->pm_op_in_progress) {
 		bool flag;
+
+		if (can_enable_f_poweron_wpen()){
+			ret = ufshcd_query_flag_retry(hba,
+						UPIU_QUERY_OPCODE_SET_FLAG, QUERY_FLAG_IDN_PWR_ON_WPE, NULL);
+			if (ret) {
+				dev_err(hba->dev, "%s Unable to set fPowerOnWpEn flag: %d\n",
+						__func__, ret);
+			} else {
+				dev_err(hba->dev, "%s Successfully set fPowerOnWpEn flag: %d - %s\n",
+						__func__, ret, dev_name(hba->dev));
+			}
+		}
 
 		if (!ufshcd_query_flag_retry(hba, UPIU_QUERY_OPCODE_READ_FLAG,
 				QUERY_FLAG_IDN_PWR_ON_WPE, &flag))

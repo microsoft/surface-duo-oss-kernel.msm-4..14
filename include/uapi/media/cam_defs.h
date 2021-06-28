@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
 #ifndef __UAPI_CAM_DEFS_H__
 #define __UAPI_CAM_DEFS_H__
 
@@ -16,7 +23,14 @@
 #define CAM_RELEASE_DEV                         (CAM_COMMON_OPCODE_BASE + 0x6)
 #define CAM_SD_SHUTDOWN                         (CAM_COMMON_OPCODE_BASE + 0x7)
 #define CAM_FLUSH_REQ                           (CAM_COMMON_OPCODE_BASE + 0x8)
-#define CAM_COMMON_OPCODE_MAX                   (CAM_COMMON_OPCODE_BASE + 0x9)
+#define KERNEL_VENDOR_EDIT
+
+#ifdef KERNEL_VENDOR_EDIT
+#define CAM_READ_DEV                           (CAM_COMMON_OPCODE_BASE + 0x9)
+#define CAM_COMMON_OPCODE_MAX                  (CAM_COMMON_OPCODE_BASE + 0x10)
+#else
+#define CAM_COMMON_OPCODE_MAX                  (CAM_COMMON_OPCODE_BASE + 0x9)
+#endif
 
 #define CAM_COMMON_OPCODE_BASE_v2           0x150
 #define CAM_ACQUIRE_HW                      (CAM_COMMON_OPCODE_BASE_v2 + 0x1)
@@ -80,6 +94,10 @@ struct cam_control {
 	uint32_t        handle_type;
 	uint32_t        reserved;
 	uint64_t        handle;
+#ifdef KERNEL_VENDOR_EDIT
+	uint32_t        address;
+	uint32_t        databytes;
+#endif
 };
 
 /* camera IOCTL */

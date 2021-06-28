@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,6 +19,13 @@
 #include "cam_res_mgr_api.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+
+#ifdef KERNEL_VENDOR_EDIT
+void cam_actuator_fill_data(uint32_t data, struct cam_sensor_fill_req* actuator_req)
+{
+    actuator_req->data_req = data;
+}
+#endif
 
 int32_t cam_actuator_construct_default_power_setting(
 	struct cam_sensor_power_ctrl_t *power_info)
@@ -936,6 +944,38 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl,
 		}
 	}
 		break;
+#ifdef KERNEL_VENDOR_EDIT
+	case CAM_READ_DEV: {
+		struct  cam_sensor_fill_req actuatorReq = {0};
+		uint32_t regData = 0;
+		uint32_t dataType = 0;
+
+		if (cmd->databytes == 1) {
+			dataType = CAMERA_SENSOR_I2C_TYPE_BYTE;
+		} else if (cmd->databytes == 2)  {
+			dataType = CAMERA_SENSOR_I2C_TYPE_WORD;
+		} else if (cmd->databytes == 3 ) {
+			dataType = CAMERA_SENSOR_I2C_TYPE_3B;
+		} else if (cmd->databytes == 4)  {
+			dataType = CAMERA_SENSOR_I2C_TYPE_DWORD;
+		} else {
+			dataType = CAMERA_SENSOR_I2C_TYPE_BYTE;
+		}
+
+		rc = camera_io_dev_read(&(a_ctrl->io_master_info), cmd->address, &regData, CAMERA_SENSOR_I2C_TYPE_BYTE, dataType);
+		if (rc < 0) {
+		    CAM_ERR(CAM_SENSOR, "camera_io_dev_read Fail: %d", rc);
+		    goto release_mutex;
+		}
+		cam_actuator_fill_data(regData, &actuatorReq);
+		if (copy_to_user(u64_to_user_ptr(cmd->handle), &actuatorReq, sizeof(struct cam_sensor_fill_req))) {
+			CAM_ERR(CAM_SENSOR, "Failed Copy to User");
+			rc = -EFAULT;
+			goto release_mutex;
+		}
+	}
+		break;
+#endif
 	default:
 		CAM_ERR(CAM_ACTUATOR, "Invalid Opcode %d", cmd->op_code);
 	}

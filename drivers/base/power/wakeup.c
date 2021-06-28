@@ -2,6 +2,7 @@
  * drivers/base/power/wakeup.c - System wakeup events framework
  *
  * Copyright (c) 2010 Rafael J. Wysocki <rjw@sisk.pl>, Novell Inc.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This file is released under the GPLv2.
  */
@@ -20,6 +21,8 @@
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <linux/irqdesc.h>
+
+#include <linux/wakeup_reason.h>
 
 #include "power.h"
 
@@ -856,7 +859,7 @@ void pm_print_active_wakeup_sources(void)
 	srcuidx = srcu_read_lock(&wakeup_srcu);
 	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
 		if (ws->active) {
-			pr_debug("active wakeup source: %s\n", ws->name);
+			pr_info("active wakeup source: %s\n", ws->name);
 			active = 1;
 		} else if (!active &&
 			   (!last_activity_ws ||
@@ -867,7 +870,7 @@ void pm_print_active_wakeup_sources(void)
 	}
 
 	if (!active && last_activity_ws)
-		pr_debug("last active wakeup source: %s\n",
+		pr_info("last active wakeup source: %s\n",
 			last_activity_ws->name);
 	srcu_read_unlock(&wakeup_srcu, srcuidx);
 }
@@ -925,11 +928,15 @@ void pm_wakeup_clear(bool reset)
 
 void pm_system_irq_wakeup(unsigned int irq_number)
 {
-	struct irq_desc *desc;
-	const char *name = "null";
+	/* MS_CHANGE start */
+	// struct irq_desc *desc;
+	// const char *name = "null";
+	/* MS_CHANGE end */
 
 	if (pm_wakeup_irq == 0) {
-		if (msm_show_resume_irq_mask) {
+		/* MS_CHANGE start */
+		// Since, we will be calling log_wakeup_reason, this warning log would be redundant. Hence commenting it
+		/* if (msm_show_resume_irq_mask) {
 			desc = irq_to_desc(irq_number);
 			if (desc == NULL)
 				name = "stray irq";
@@ -939,7 +946,9 @@ void pm_system_irq_wakeup(unsigned int irq_number)
 			pr_warn("%s: %d triggered %s\n", __func__,
 					irq_number, name);
 
-		}
+		} */
+		log_wakeup_reason(irq_number);
+		/* MS_CHANGE end */
 		pm_wakeup_irq = irq_number;
 		pm_system_wakeup();
 	}

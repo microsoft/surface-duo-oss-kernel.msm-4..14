@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -242,6 +243,26 @@ out:
 	return rc;
 }
 
+/* MSCHANGE - Start - dump stack trace only for userdebug builds
+ * REMOVE_BEFORE_PQBIH
+ */
+static char buildvariant[32];
+
+static int __init read_buildvariant(char *line) {
+	strlcpy(buildvariant, line, sizeof(buildvariant));
+	return 1;
+}
+
+__setup("buildvariant=", read_buildvariant);
+
+// buildvariant userdebug is used to identify dev builds
+static inline bool is_userdebug(void) {
+	static const char typeuserdebug[] = "userdebug";
+
+	return !strncmp(buildvariant, typeuserdebug, sizeof(typeuserdebug));
+}
+// MSCHANGE - End - dump stack trace only for userdebug builds
+
 static int init_service_locator(void)
 {
 	int rc = 0;
@@ -288,6 +309,13 @@ static int init_service_locator(void)
 	}
 	if (!rc) {
 		pr_err("%s: wait for locator service timed out\n", __func__);
+		/* MSCHANGE - Adding dump_stack
+		 * REMOVE_BEFORE_PQBIH
+		 * At this point the device is anyway blocked from booting
+		 * Might as well get some diagnostic messages to aid debugging
+		 */
+		if (is_userdebug())
+			dump_stack();
 		service_timedout = true;
 		rc = -ETIME;
 		goto inited;

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
 #ifndef __UAPI_CAM_SENSOR_H__
 #define __UAPI_CAM_SENSOR_H__
 
@@ -6,10 +13,26 @@
 #include <media/cam_defs.h>
 
 #define CAM_SENSOR_PROBE_CMD   (CAM_COMMON_OPCODE_MAX + 1)
+#ifdef KERNEL_VENDOR_EDIT
+#define CAM_SENSOR_READ_CMD   (CAM_COMMON_OPCODE_MAX + 2)
+#endif
+
 #define CAM_FLASH_MAX_LED_TRIGGERS 3
 #define MAX_OIS_NAME_SIZE 32
 #define CAM_CSIPHY_SECURE_MODE_ENABLED 1
 #define CAM_IR_LED_SUPPORTED
+
+#ifdef KERNEL_VENDOR_EDIT
+/**
+ * struct cam_sensor_fill_req - req info for sensor
+ *
+ * @data_req        :  the data for req
+ *
+ */
+struct  cam_sensor_fill_req {
+	uint32_t        data_req;
+} __attribute__((packed));
+#endif
 /**
  * struct cam_sensor_query_cap - capabilities info for sensor
  *
