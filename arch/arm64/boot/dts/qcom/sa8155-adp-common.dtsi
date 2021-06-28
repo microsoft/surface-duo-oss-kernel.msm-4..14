@@ -83,7 +83,7 @@
 
 &soc {
 	qcom,lpass@17300000 {
-		status = "ok";
+		status = "disabled";
 	};
 
 	qcom,ssc@5c00000 {
@@ -121,7 +121,7 @@
 	};
 
 	qcom,spss@1880000 {
-		status = "ok";
+		status = "disabled";
 	};
 
 	qcom,npu@0x9800000 {
