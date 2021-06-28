@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -78,6 +78,10 @@ static struct ion_heap_desc ion_heap_meta[] = {
 	{
 		.id     = ION_VIDEO_HEAP_ID,
 		.name   = ION_VIDEO_HEAP_NAME,
+	},
+	{
+		.id     = ION_CDSP_SENSOR_HEAP_ID,
+		.name   = ION_CDSP_SENSOR_HEAP_NAME,
 	},
 	{
 		.id	= ION_SECURE_CARVEOUT_HEAP_ID,
