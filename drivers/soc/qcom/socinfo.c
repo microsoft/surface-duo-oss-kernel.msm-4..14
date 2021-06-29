@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -375,6 +375,9 @@ static struct msm_soc_info cpu_of_id[] = {
 
 	/* sa8155P ID */
 	[367] = {MSM_CPU_SA8155P, "SA8155P"},
+
+    /* sa8155P-IOT ID */
+	[522] = {MSM_CPU_SA8155P_IOT, "SA8155P-IOT"},
 
 	/* sa8195P ID */
 	[405] = {MSM_CPU_SA8195P, "SA8195P"},
@@ -1364,6 +1367,10 @@ static void * __init setup_dummy_socinfo(void)
 	} else if (early_machine_is_sa8155p()) {
 		dummy_socinfo.id = 367;
 		strlcpy(dummy_socinfo.build_id, "sa8155p - ",
+		sizeof(dummy_socinfo.build_id));
+	} else if (early_machine_is_sa8155p_iot()) {
+		dummy_socinfo.id = 522;
+		strlcpy(dummy_socinfo.build_id, "sa8155p-iot - ",
 		sizeof(dummy_socinfo.build_id));
 	} else if (early_machine_is_sdmshrike()) {
 		dummy_socinfo.id = 340;

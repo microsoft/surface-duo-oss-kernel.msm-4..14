@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -65,6 +65,8 @@
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,sa8155")
 #define early_machine_is_sa8155p()	\
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,sa8155p")
+#define early_machine_is_sa8155p_iot()	\
+	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,sa8155p-iot")
 #define early_machine_is_sdmshrike()	\
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,sdmshrike")
 #define early_machine_is_sm6150()	\
@@ -143,6 +145,7 @@
 #define early_machine_is_sm8150p()	0
 #define early_machine_is_sa8155()	0
 #define early_machine_is_sa8155p()	0
+#define early_machine_is_sa8155p_iot()	0
 #define early_machine_is_sdmshrike()	0
 #define early_machine_is_sm6150()	0
 #define early_machine_is_sa8195p()	0
@@ -194,6 +197,7 @@ enum msm_cpu {
 	MSM_CPU_SM8150P,
 	MSM_CPU_SA8155,
 	MSM_CPU_SA8155P,
+	MSM_CPU_SA8155P_IOT,
 	MSM_CPU_SA8195P,
 	MSM_CPU_SDMSHRIKE,
 	MSM_CPU_SM6150,
