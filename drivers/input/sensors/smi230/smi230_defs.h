@@ -4,7 +4,7 @@
  * redistributing this file, you may do so under either license.
  *
  * GPL LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  * Copyright (c) 2020 Bosch Sensortec GmbH. All rights reserved.
  *
  * This file is free software licensed under the terms of version 2 
@@ -12,8 +12,8 @@
  * in the main directory of this source tree.
  *
  * BSD LICENSE
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  * Copyright (c) 2020 Bosch Sensortec GmbH. All rights reserved.
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
  *
  * BSD-3-Clause
  *
@@ -392,7 +392,7 @@
 #define SMI230_GYRO_RANGE_125_DPS              UINT8_C(0x04)
 
 /**\name    Gyro Output data rate and bandwidth */
-#define SMI230_GYRO_BW_532_ODR_2000_HZ         UINT8_C(0x00)
+#define SMI230_GYRO_BW_523_ODR_2000_HZ         UINT8_C(0x00)
 #define SMI230_GYRO_BW_230_ODR_2000_HZ         UINT8_C(0x01)
 #define SMI230_GYRO_BW_116_ODR_1000_HZ         UINT8_C(0x02)
 #define SMI230_GYRO_BW_47_ODR_400_HZ           UINT8_C(0x03)
@@ -507,6 +507,7 @@
 
 /***\name    Soft reset Value */
 #define SMI230_SOFT_RESET_CMD                  UINT8_C(0xB6)
+#define SMI230_FIFO_RESET_CMD                  UINT8_C(0xB0)
 
 /**\name    Enable/disable macros */
 #define SMI230_DISABLE                         UINT8_C(0)

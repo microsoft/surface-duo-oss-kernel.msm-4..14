@@ -4,14 +4,14 @@
  * redistributing this file, you may do so under either license.
  *
  * GPL LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  *
  * This file is free software licensed under the terms of version 2 
  * of the GNU General Public License, available from the file LICENSE-GPL 
  * in the main directory of this source tree.
  *
  * BSD LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  *
  * BSD-3-Clause
  *
@@ -130,7 +130,7 @@ static ssize_t smi230_acc_show_fifo_wm(struct device *dev,
 		PERR("read failed");
 		return err;
 	}
-	return snprintf(buf, PAGE_SIZE, "fifo water mark is %ud\n", fifo_wm);
+	return snprintf(buf, PAGE_SIZE, "fifo water mark is %u\n", fifo_wm);
 }
 
 static ssize_t smi230_acc_store_fifo_wm(struct device *dev,
@@ -148,12 +148,12 @@ static ssize_t smi230_acc_store_fifo_wm(struct device *dev,
 		return err;
 	}
 
-	PDEBUG("set fifo wm to %d", fifo_wm);
+	PDEBUG("set fifo wm to %u", fifo_wm);
 
 	return count;
 }
 
-static ssize_t smi230_acc_show_acc_pw_cfg(struct device *dev,
+static ssize_t smi230_acc_show_acc_pwr_cfg(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int err;
@@ -166,25 +166,25 @@ static ssize_t smi230_acc_show_acc_pw_cfg(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%x (0:active 3:suspend)\n", p_smi230_dev->accel_cfg.power);
 }
 
-static ssize_t smi230_acc_store_acc_pw_cfg(struct device *dev,
+static ssize_t smi230_acc_store_acc_pwr_cfg(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	int err = 0;
-	unsigned long pw_cfg;
+	unsigned long pwr_cfg;
 
-	err = kstrtoul(buf, 10, &pw_cfg);
+	err = kstrtoul(buf, 10, &pwr_cfg);
 	if (err)
 		return err;
-	if (pw_cfg == 3) {
+	if (pwr_cfg == 3) {
 		p_smi230_dev->accel_cfg.power = SMI230_ACCEL_PM_SUSPEND;
 		err = smi230_acc_set_power_mode(p_smi230_dev);
 	}
-	else if (pw_cfg == 0) {
+	else if (pwr_cfg == 0) {
 		p_smi230_dev->accel_cfg.power = SMI230_ACCEL_PM_ACTIVE;
 		err = smi230_acc_set_power_mode(p_smi230_dev);
 	}
 
-	PDEBUG("set power cfg to %ld, err %d", pw_cfg, err);
+	PDEBUG("set power cfg to %ld, err %d", pwr_cfg, err);
 
 	if (err) {
 		PERR("failed");
@@ -213,6 +213,7 @@ static ssize_t smi230_acc_show_driver_version(struct device *dev,
 		"Driver version: %s\n", DRIVER_VERSION);
 }
 
+#ifdef CONFIG_SMI230_DATA_SYNC
 static ssize_t smi230_acc_show_sync_data(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -231,28 +232,344 @@ static ssize_t smi230_acc_show_sync_data(struct device *dev,
 			);
 }
 
-static DEVICE_ATTR(data_sync, S_IRUGO,
-	smi230_acc_show_sync_data, NULL);
-static DEVICE_ATTR(acc_regs_dump, S_IRUGO,
+static ssize_t smi230_acc_store_datasync_odr(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int err = 0, odr;
+	struct smi230_data_sync_cfg sync_cfg;
+
+	err = kstrtoint(buf, 10, &odr);
+	if (err) {
+		PERR("invalid params");
+		return err;
+	}
+
+	switch(odr) {
+	case 2000:
+		sync_cfg.mode = SMI230_ACCEL_DATA_SYNC_MODE_2000HZ;
+		break;
+	case 1000:
+		sync_cfg.mode = SMI230_ACCEL_DATA_SYNC_MODE_1000HZ;
+		break;
+	case 400:
+		sync_cfg.mode = SMI230_ACCEL_DATA_SYNC_MODE_400HZ;
+		break;
+	default:
+		PERR("ODR not supported");
+		return count;
+	}
+
+	err = smi230_configure_data_synchronization(sync_cfg, p_smi230_dev);
+
+	PDEBUG("set ODR to %d, err %d", odr, err);
+
+	if (err) {
+		PERR("setting datasync ODR failed");
+		return err;
+	}
+	return count;
+}
+#else
+static ssize_t smi230_acc_show_odr(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int err, odr = 0;
+
+        err = smi230_acc_get_meas_conf(p_smi230_dev);
+	if (err) {
+		PERR("read ODR failed");
+		return err;
+	}
+
+	switch(p_smi230_dev->accel_cfg.odr) {
+	case SMI230_ACCEL_ODR_12_5_HZ:
+		odr = 12;
+		break;
+	case SMI230_ACCEL_ODR_25_HZ:
+		odr = 25;
+		break;
+	case SMI230_ACCEL_ODR_50_HZ:
+		odr = 50;
+		break;
+	case SMI230_ACCEL_ODR_100_HZ:
+		odr = 100;
+		break;
+	case SMI230_ACCEL_ODR_200_HZ:
+		odr = 200;
+		break;
+	case SMI230_ACCEL_ODR_400_HZ:
+		odr = 400;
+		break;
+	case SMI230_ACCEL_ODR_800_HZ:
+		odr = 800;
+		break;
+	case SMI230_ACCEL_ODR_1600_HZ:
+		odr = 1600;
+		break;
+	default:
+		PERR("Wrong ODR read");
+	}
+	if(odr == 12)
+		return snprintf(buf, PAGE_SIZE, "%s\n", "12.5");
+	else
+		return snprintf(buf, PAGE_SIZE, "%d\n", odr);
+}
+
+static ssize_t smi230_acc_store_odr(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int err = 0;
+	int odr;
+
+	err = kstrtoint(buf, 10, &odr);
+	if (err) {
+		PERR("invalid params");
+		return err;
+	}
+
+	switch(odr) {
+	case 12:
+		p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_12_5_HZ;
+		break;
+	case 25:
+		p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_25_HZ;
+		break;
+	case 50:
+		p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_50_HZ;
+		break;
+	case 100:
+		p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_100_HZ;
+		break;
+	case 200:
+		p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_200_HZ;
+		break;
+	case 400:
+		p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_400_HZ;
+		break;
+	case 800:
+		p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_800_HZ;
+		break;
+	case 1600:
+		p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_1600_HZ;
+		break;
+	default:
+		PERR("ODR not supported");
+		return count;
+	}
+
+        err |= smi230_acc_set_meas_conf(p_smi230_dev);
+
+	PDEBUG("set ODR to %d, err %d", odr, err);
+
+	if (err) {
+		PERR("setting ODR failed");
+		return err;
+	}
+	return count;
+}
+#endif
+
+static ssize_t smi230_acc_show_bw(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int err;
+
+        err = smi230_acc_get_meas_conf(p_smi230_dev);
+	if (err) {
+		PERR("read BW failed");
+		return err;
+	}
+
+	switch(p_smi230_dev->accel_cfg.bw) {
+	case SMI230_ACCEL_BW_OSR2:
+		return snprintf(buf, PAGE_SIZE, "%s\n", "osr2");
+	case SMI230_ACCEL_BW_OSR4:
+		return snprintf(buf, PAGE_SIZE, "%s\n", "osr4");
+	case SMI230_ACCEL_BW_NORMAL:
+		return snprintf(buf, PAGE_SIZE, "%s\n", "normal");
+	default:
+		return snprintf(buf, PAGE_SIZE, "%s\n", "error");
+	}
+}
+
+static ssize_t smi230_acc_store_bw(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int err = 0;
+
+	if(strncmp(buf, "normal", 6) == 0)
+		p_smi230_dev->accel_cfg.bw = SMI230_ACCEL_BW_NORMAL;
+	else if(strncmp(buf, "osr2", 4) == 0)
+		p_smi230_dev->accel_cfg.bw = SMI230_ACCEL_BW_OSR2;
+	else if(strncmp(buf, "osr4", 4) == 0)
+		p_smi230_dev->accel_cfg.bw = SMI230_ACCEL_BW_OSR4;
+	else{
+		PERR("invalid params");
+		return count;
+	}
+
+        err |= smi230_acc_set_meas_conf(p_smi230_dev);
+
+	PDEBUG("set bw to %s, err %d", buf, err);
+
+	if (err) {
+		PERR("setting BW failed");
+		return err;
+	}
+	return count;
+}
+
+static ssize_t smi230_acc_show_range(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int err, range = 0;
+
+        err = smi230_acc_get_meas_conf(p_smi230_dev);
+	if (err) {
+		PERR("read range failed");
+		return err;
+	}
+
+	switch(p_smi230_dev->accel_cfg.range) {
+	case SMI230_ACCEL_RANGE_2G:
+		range = 2;
+		break;
+	case SMI230_ACCEL_RANGE_4G:
+		range = 4;
+		break;
+	case SMI230_ACCEL_RANGE_8G:
+		range = 8;
+		break;
+	case SMI230_ACCEL_RANGE_16G:
+		range = 16;
+		break;
+	default:
+		PERR("wrong range read");
+	}
+	return snprintf(buf, PAGE_SIZE, "%d\n", range);
+}
+
+static ssize_t smi230_acc_store_range(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int err = 0, range;
+
+	err = kstrtoint(buf, 10, &range);
+	if (err) {
+		PERR("invalid params");
+		return err;
+	}
+
+	switch(range) {
+	case 2:
+		p_smi230_dev->accel_cfg.range = SMI230_ACCEL_RANGE_2G;
+		break;
+	case 4:
+		p_smi230_dev->accel_cfg.range = SMI230_ACCEL_RANGE_4G;
+		break;
+	case 8:
+		p_smi230_dev->accel_cfg.range = SMI230_ACCEL_RANGE_8G;
+		break;
+	case 16:
+		p_smi230_dev->accel_cfg.range = SMI230_ACCEL_RANGE_16G;
+		break;
+	default:
+		PERR("range not supported");
+		return count;
+	}
+
+        err |= smi230_acc_set_meas_conf(p_smi230_dev);
+
+	PDEBUG("set range to %d, err %d", range, err);
+
+	if (err) {
+		PERR("setting range failed");
+		return err;
+	}
+	return count;
+}
+
+
+static ssize_t smi230_acc_show_sensor_temperature(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int err;
+	int32_t sensor_temp;
+
+	err = smi230_acc_get_sensor_temperature(p_smi230_dev, &sensor_temp);
+	if (err != SMI230_OK)
+		return err;
+
+	return snprintf(buf, PAGE_SIZE, "acc temperature: %d\n", sensor_temp);
+}
+
+static ssize_t smi230_acc_store_fifo_reset(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int err = 0;
+
+	if(strncmp(buf, "reset", 5) == 0)
+		err = smi230_acc_fifo_reset(p_smi230_dev);
+	else {
+		PDEBUG("error");
+		return count;
+	}
+
+	if (err) {
+		PERR("failed");
+		return err;
+	}
+	PDEBUG("fifo reseted");
+
+	return count;
+}
+
+static DEVICE_ATTR(regs_dump, S_IRUGO,
 	smi230_acc_reg_dump, NULL);
 static DEVICE_ATTR(chip_id, S_IRUGO,
 	smi230_acc_show_chip_id, NULL);
-static DEVICE_ATTR(acc_fifo_wm, S_IRUGO|S_IWUSR|S_IWGRP,
+static DEVICE_ATTR(fifo_wm, S_IRUGO|S_IWUSR|S_IWGRP,
 	smi230_acc_show_fifo_wm, smi230_acc_store_fifo_wm);
-static DEVICE_ATTR(acc_pw_cfg, S_IRUGO|S_IWUSR|S_IWGRP,
-	smi230_acc_show_acc_pw_cfg, smi230_acc_store_acc_pw_cfg);
+static DEVICE_ATTR(pwr_cfg, S_IRUGO|S_IWUSR|S_IWGRP,
+	smi230_acc_show_acc_pwr_cfg, smi230_acc_store_acc_pwr_cfg);
+static DEVICE_ATTR(bw, S_IRUGO|S_IWUSR|S_IWGRP,
+	smi230_acc_show_bw, smi230_acc_store_bw);
+static DEVICE_ATTR(range, S_IRUGO|S_IWUSR|S_IWGRP,
+	smi230_acc_show_range, smi230_acc_store_range);
+#ifdef CONFIG_SMI230_DATA_SYNC
+static DEVICE_ATTR(data_sync, S_IRUGO,
+	smi230_acc_show_sync_data, NULL);
+static DEVICE_ATTR(datasync_odr, S_IWUSR|S_IWGRP,
+	NULL, smi230_acc_store_datasync_odr);
+#else
+static DEVICE_ATTR(odr, S_IRUGO|S_IWUSR|S_IWGRP,
+	smi230_acc_show_odr, smi230_acc_store_odr);
+#endif
 static DEVICE_ATTR(acc_value, S_IRUGO,
 	smi230_acc_show_acc_value, NULL);
+static DEVICE_ATTR(fifo_reset, S_IWUSR|S_IWGRP,
+	NULL, smi230_acc_store_fifo_reset);
+static DEVICE_ATTR(temp, S_IRUGO,
+	smi230_acc_show_sensor_temperature, NULL);
 static DEVICE_ATTR(driver_version, S_IRUGO,
 	smi230_acc_show_driver_version, NULL);
 
 static struct attribute *smi230_attributes[] = {
-	&dev_attr_data_sync.attr,
-	&dev_attr_acc_regs_dump.attr,
+	&dev_attr_regs_dump.attr,
 	&dev_attr_chip_id.attr,
-	&dev_attr_acc_fifo_wm.attr,
-	&dev_attr_acc_pw_cfg.attr,
+	&dev_attr_fifo_wm.attr,
+	&dev_attr_pwr_cfg.attr,
+	&dev_attr_bw.attr,
+	&dev_attr_range.attr,
+#ifdef CONFIG_SMI230_DATA_SYNC
+	&dev_attr_data_sync.attr,
+	&dev_attr_datasync_odr.attr,
+#else
+	&dev_attr_odr.attr,
+#endif
 	&dev_attr_acc_value.attr,
+	&dev_attr_fifo_reset.attr,
+	&dev_attr_temp.attr,
 	&dev_attr_driver_version.attr,
 	NULL
 };
@@ -286,25 +603,6 @@ static int smi230_input_init(struct smi230_client_data *client_data)
 		input_free_device(dev);
 	return err;
 }
-
-#ifdef CONFIG_SMI230_RAW_DATA
-static void smi230_raw_data_ready_handle(
-	struct smi230_client_data *client_data)
-{
-	struct smi230_sensor_data accel_data;
-	int err = 0;
-
-	err = smi230_acc_get_data(&accel_data, p_smi230_dev);
-	if (err != SMI230_OK)
-		return;
-
-	input_event(client_data->input, EV_MSC, MSC_GESTURE, (int)accel_data.x);
-	input_event(client_data->input, EV_MSC, MSC_GESTURE, (int)accel_data.y);
-	input_event(client_data->input, EV_MSC, MSC_GESTURE, (int)accel_data.z);
-
-	input_sync(client_data->input);
-}
-#endif
 
 #ifdef CONFIG_SMI230_DATA_SYNC
 static void smi230_data_sync_ready_handle(
@@ -346,13 +644,15 @@ static void smi230_acc_fifo_handle(
 	int err = 0, i;
 	uint16_t fifo_length;
 
-	PINFO("ACC FIFO dump!");
-
 	err = smi230_acc_get_fifo_length(&fifo.length, p_smi230_dev);
 	if (err != SMI230_OK) {
 		PERR("FIFO get length error!");
 		return;
 	}
+
+#ifdef CONFIG_SMI230_DEBUG
+	PINFO("ACC FIFO length %d", fifo.length);
+#endif
 
 	fifo.data = fifo_buf;
 	err = smi230_acc_read_fifo_data(&fifo, p_smi230_dev);
@@ -361,9 +661,24 @@ static void smi230_acc_fifo_handle(
 		return;
 	}
 
-	/* this event here is to indicate IRQ timing*/
+#ifdef CONFIG_SMI230_DEBUG
+	PINFO("====================");
+	PINFO("ACC FIFO data %d", fifo.data[0]);
+	PINFO("ACC FIFO data %d", fifo.data[1]);
+	PINFO("ACC FIFO data %d", fifo.data[2]);
+	PINFO("ACC FIFO data %d", fifo.data[3]);
+	PINFO("ACC FIFO data %d", fifo.data[4]);
+	PINFO("ACC FIFO data %d", fifo.data[5]);
+	PINFO("ACC FIFO data %d", fifo.data[6]);
+	PINFO("--------------------");
+#endif
+
+#if 0
+	/* this event shall never be mixed with sensor data  */
+	/* this event here is to indicate IRQ timing if needed */
 	input_event(client_data->input, EV_MSC, MSC_RAW, (int)fifo.length);
 	input_sync(client_data->input);
+#endif
 
 	/* make sure all frames are read out,
 	 * the actual frame numbers will be returned
@@ -378,9 +693,27 @@ static void smi230_acc_fifo_handle(
 		input_event(client_data->input, EV_ABS, ABS_X, (int)fifo_accel_data[i].x);
 		input_event(client_data->input, EV_ABS, ABS_Y, (int)fifo_accel_data[i].y);
 		input_event(client_data->input, EV_ABS, ABS_Z, (int)fifo_accel_data[i].z);
-
 		input_sync(client_data->input);
 	}
+}
+
+#else /* new data */
+
+static void smi230_new_data_ready_handle(
+	struct smi230_client_data *client_data)
+{
+	struct smi230_sensor_data accel_data;
+	int err = 0;
+
+	err = smi230_acc_get_data(&accel_data, p_smi230_dev);
+	if (err != SMI230_OK)
+		return;
+
+	input_event(client_data->input, EV_MSC, MSC_GESTURE, (int)accel_data.x);
+	input_event(client_data->input, EV_MSC, MSC_GESTURE, (int)accel_data.y);
+	input_event(client_data->input, EV_MSC, MSC_GESTURE, (int)accel_data.z);
+
+	input_sync(client_data->input);
 }
 #endif
 
@@ -389,13 +722,12 @@ static void smi230_irq_work_func(struct work_struct *work)
 	struct smi230_client_data *client_data =
 		container_of(work, struct smi230_client_data, irq_work);
 
-	/* int status reg is not available to tell the interupt source */
-#ifdef CONFIG_SMI230_RAW_DATA
-	smi230_raw_data_ready_handle(client_data);
-#endif
 #ifdef CONFIG_SMI230_ACC_FIFO
 	smi230_acc_fifo_handle(client_data);
+#else
+	smi230_new_data_ready_handle(client_data);
 #endif
+
 #ifdef CONFIG_SMI230_DATA_SYNC
 	smi230_data_sync_ready_handle(client_data);
 #endif
@@ -512,69 +844,52 @@ int smi230_acc_probe(struct device *dev, struct smi230_dev *smi230_dev)
 	p_smi230_dev->accel_cfg.power = SMI230_ACCEL_PM_ACTIVE;
 	err |= smi230_acc_set_power_mode(p_smi230_dev);
 
-#ifdef CONFIG_SMI230_RAW_DATA
-	PINFO("ACC raw data is enabled");
+#ifdef CONFIG_SMI230_ACC_INT1
+	/*configure int1 as accel FIFO interrupt pin */
+	int_config.accel_int_config_1.int_pin_cfg.enable_int_pin = SMI230_ENABLE;
 
-	p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_100_HZ;
-	p_smi230_dev->accel_cfg.range = SMI230_ACCEL_RANGE_2G;
+	/*disable acc int2*/
+	int_config.accel_int_config_2.int_pin_cfg.enable_int_pin = SMI230_DISABLE;
+#endif
 
-        err |= smi230_acc_set_meas_conf(p_smi230_dev);
-
-	smi230_delay(100);
-
+#ifdef CONFIG_SMI230_ACC_INT2
 	/*disable acc int1*/
-	int_config.accel_int_config_1.int_channel = SMI230_INT_CHANNEL_1;
-	int_config.accel_int_config_1.int_type = SMI230_ACCEL_SYNC_INPUT;
-	int_config.accel_int_config_1.int_pin_cfg.output_mode = SMI230_INT_MODE_PUSH_PULL;
-	int_config.accel_int_config_1.int_pin_cfg.lvl = SMI230_INT_ACTIVE_HIGH;
 	int_config.accel_int_config_1.int_pin_cfg.enable_int_pin = SMI230_DISABLE;
 
-	/*configure int2 as accel raw data ready interrupt pin */
-	int_config.accel_int_config_2.int_channel = SMI230_INT_CHANNEL_2;
-	int_config.accel_int_config_2.int_type = SMI230_ACCEL_DATA_RDY_INT;
-	int_config.accel_int_config_2.int_pin_cfg.output_mode = SMI230_INT_MODE_PUSH_PULL;
-	int_config.accel_int_config_2.int_pin_cfg.lvl = SMI230_INT_ACTIVE_HIGH;
+	/*configure int2 as accel FIFO interrupt pin */
 	int_config.accel_int_config_2.int_pin_cfg.enable_int_pin = SMI230_ENABLE;
-
-	err |= smi230_acc_set_int_config(&int_config.accel_int_config_1, p_smi230_dev);
-	err |= smi230_acc_set_int_config(&int_config.accel_int_config_2, p_smi230_dev);
-
-	if (err != SMI230_OK)
-	{
-		PERR("ACC raw data init failed");
-		goto exit_free_client_data;
-	}
-
-	smi230_delay(100);
 #endif
+
+	p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_100_HZ;
+	p_smi230_dev->accel_cfg.bw = SMI230_ACCEL_BW_NORMAL;
+	p_smi230_dev->accel_cfg.range = SMI230_ACCEL_RANGE_4G;
+
+        err |= smi230_acc_set_meas_conf(p_smi230_dev);
+	smi230_delay(100);
 
 #ifdef CONFIG_SMI230_ACC_FIFO
 	PINFO("ACC FIFO is enabled");
 
-	p_smi230_dev->accel_cfg.odr = SMI230_ACCEL_ODR_100_HZ;
-	p_smi230_dev->accel_cfg.bw = SMI230_ACCEL_BW_NORMAL;
-        err |= smi230_acc_set_meas_conf(p_smi230_dev);
-
-	smi230_delay(100);
-
-	/*disable acc int1*/
 	int_config.accel_int_config_1.int_channel = SMI230_INT_CHANNEL_1;
-	int_config.accel_int_config_1.int_type = SMI230_ACCEL_SYNC_INPUT;
 	int_config.accel_int_config_1.int_pin_cfg.output_mode = SMI230_INT_MODE_PUSH_PULL;
 	int_config.accel_int_config_1.int_pin_cfg.lvl = SMI230_INT_ACTIVE_HIGH;
-	int_config.accel_int_config_1.int_pin_cfg.enable_int_pin = SMI230_DISABLE;
 
-	/*configure int2 as accel FIFO interrupt pin */
 	int_config.accel_int_config_2.int_channel = SMI230_INT_CHANNEL_2;
-	int_config.accel_int_config_2.int_type = SMI230_FIFO_WM_INT;
 	int_config.accel_int_config_2.int_pin_cfg.output_mode = SMI230_INT_MODE_PUSH_PULL;
 	int_config.accel_int_config_2.int_pin_cfg.lvl = SMI230_INT_ACTIVE_HIGH;
-	int_config.accel_int_config_2.int_pin_cfg.enable_int_pin = SMI230_ENABLE;
+#ifdef CONFIG_SMI230_ACC_FIFO_WM
+	PINFO("ACC FIFO watermark is enabled");
+	int_config.accel_int_config_1.int_type = SMI230_FIFO_WM_INT;
+	int_config.accel_int_config_2.int_type = SMI230_FIFO_WM_INT;
 
-	err |= smi230_acc_set_int_config(&int_config.accel_int_config_1, p_smi230_dev);
+	err |= smi230_acc_set_fifo_wm(91, p_smi230_dev);
+#endif
+#ifdef CONFIG_SMI230_ACC_FIFO_FULL
+	PINFO("ACC FIFO full is enabled");
+	int_config.accel_int_config_2.int_type = SMI230_FIFO_FULL_INT;
+#endif
+
 	err |= smi230_acc_set_int_config(&int_config.accel_int_config_2, p_smi230_dev);
-
-	err |= smi230_acc_set_fifo_wm(700, p_smi230_dev);
 
 	fifo_config.mode = SMI230_ACC_FIFO_MODE;
 	fifo_config.accel_en = 1;
@@ -587,6 +902,36 @@ int smi230_acc_probe(struct device *dev, struct smi230_dev *smi230_dev)
 	}
 
 	smi230_delay(100);
+
+#else /* new data */
+
+	PINFO("ACC new data is enabled");
+
+#ifdef CONFIG_SMI230_ACC_INT1
+	int_config.accel_int_config_1.int_channel = SMI230_INT_CHANNEL_1;
+	int_config.accel_int_config_1.int_type = SMI230_ACCEL_DATA_RDY_INT;
+	int_config.accel_int_config_1.int_pin_cfg.output_mode = SMI230_INT_MODE_PUSH_PULL;
+	int_config.accel_int_config_1.int_pin_cfg.lvl = SMI230_INT_ACTIVE_HIGH;
+
+	err |= smi230_acc_set_int_config(&int_config.accel_int_config_1, p_smi230_dev);
+#endif
+#ifdef CONFIG_SMI230_ACC_INT2
+	int_config.accel_int_config_2.int_channel = SMI230_INT_CHANNEL_2;
+	int_config.accel_int_config_2.int_type = SMI230_ACCEL_DATA_RDY_INT;
+	int_config.accel_int_config_2.int_pin_cfg.output_mode = SMI230_INT_MODE_PUSH_PULL;
+	int_config.accel_int_config_2.int_pin_cfg.lvl = SMI230_INT_ACTIVE_HIGH;
+
+	err |= smi230_acc_set_int_config(&int_config.accel_int_config_2, p_smi230_dev);
+#endif
+
+	if (err != SMI230_OK)
+	{
+		PERR("ACC new data init failed");
+		goto exit_free_client_data;
+	}
+
+	smi230_delay(100);
+
 #endif
 
 #ifdef CONFIG_SMI230_DATA_SYNC
@@ -602,14 +947,9 @@ int smi230_acc_probe(struct device *dev, struct smi230_dev *smi230_dev)
 		goto exit_free_client_data;
 	}
 
-	/*assign accel range setting*/
-	p_smi230_dev->accel_cfg.range = SMI230_ACCEL_RANGE_4G;
-	/*assign gyro range setting*/
-	p_smi230_dev->gyro_cfg.range = SMI230_GYRO_RANGE_2000_DPS;
 	/*! Mode (0 = off, 1 = 400Hz, 2 = 1kHz, 3 = 2kHz) */
 	sync_cfg.mode = SMI230_ACCEL_DATA_SYNC_MODE_2000HZ;
 	err |= smi230_configure_data_synchronization(sync_cfg, p_smi230_dev);
-
 
 	/*set accel interrupt pin configuration*/
 	/*configure host data ready interrupt */
@@ -647,7 +987,8 @@ int smi230_acc_probe(struct device *dev, struct smi230_dev *smi230_dev)
 	}
 #endif
 
-#ifndef CONFIG_SMI230_DEBUG 
+#ifndef CONFIG_SMI230_DATA_SYNC
+#ifndef CONFIG_SMI230_DEBUG
 	/*if not for the convenience of debuging, sensors should be disabled at startup*/
 	p_smi230_dev->accel_cfg.power = SMI230_ACCEL_PM_SUSPEND;
 	err |= smi230_acc_set_power_mode(p_smi230_dev);
@@ -655,6 +996,7 @@ int smi230_acc_probe(struct device *dev, struct smi230_dev *smi230_dev)
 		PERR("set power mode failed");
 		goto exit_free_client_data;
 	}
+#endif
 #endif
 
 	/*acc input device init */

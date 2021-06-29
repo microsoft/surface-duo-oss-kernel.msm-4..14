@@ -8,7 +8,11 @@ endif
 
 
 obj-$(CONFIG_INPUT_SMI230)    += smi230.o
-smi230-objs := smi230_log.o smi230_data_sync.o smi230_acc.o smi230_gyro.o
+smi230-objs := smi230_log.o smi230_acc.o smi230_gyro.o
+
+ifeq ($(CONFIG_SMI230_DATA_SYNC),y)
+	smi230-objs += smi230_data_sync.o
+endif
 
 ifeq ($(CONFIG_SMI230_ACC_DRIVER),y)
 	smi230-objs += smi230_acc_driver.o

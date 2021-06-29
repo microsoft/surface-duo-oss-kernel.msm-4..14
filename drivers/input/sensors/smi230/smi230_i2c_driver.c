@@ -4,14 +4,14 @@
  * redistributing this file, you may do so under either license.
  *
  * GPL LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  *
  * This file is free software licensed under the terms of version 2 
  * of the GNU General Public License, available from the file LICENSE-GPL 
  * in the main directory of this source tree.
  *
  * BSD LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  *
  * BSD-3-Clause
  *
@@ -48,6 +48,7 @@
 #include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/delay.h>
+#include <linux/slab.h>
 
 #include "smi230_driver.h"
 
@@ -133,6 +134,7 @@ static int8_t smi230_i2c_write(uint8_t dev_addr,
 }
 
 /* ACC driver */
+#ifdef CONFIG_SMI230_ACC_DRIVER
 static int smi230_acc_i2c_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
@@ -195,9 +197,10 @@ struct i2c_driver smi230_acc_driver = {
 	.probe = smi230_acc_i2c_probe,
 	.remove = smi230_acc_i2c_remove,
 };
-
+#endif
 
 /* GYRO driver */
+#ifdef CONFIG_SMI230_GYRO_DRIVER
 static int smi230_gyro_i2c_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
@@ -259,10 +262,11 @@ static struct i2c_driver smi230_gyro_driver = {
 	.probe    = smi230_gyro_i2c_probe,
 	.remove    = smi230_gyro_i2c_remove,
 };
+#endif
 
 static int __init smi230_module_init(void)
 {
-	int err;
+	int err = 0;
 
 	smi230_i2c_dev.delay_ms = smi230_delay;
 	smi230_i2c_dev.read_write_len = 32;
@@ -270,19 +274,26 @@ static int __init smi230_module_init(void)
 	smi230_i2c_dev.read = smi230_i2c_read;
 	smi230_i2c_dev.write = smi230_i2c_write;
 
-	/* make sure gyro driver registered first,
-	 * while acc driver uses gyro driver */
-	err = i2c_add_driver(&smi230_gyro_driver);
-	if (err != 0)
-		return err;
+#ifdef CONFIG_SMI230_GYRO_DRIVER
+	/* make sure gyro driver registered first for datasync,
+	 * while acc driver uses gyro driver*/
+	err |= i2c_add_driver(&smi230_gyro_driver);
+#endif
 
-	return i2c_add_driver(&smi230_acc_driver);
+#ifdef CONFIG_SMI230_ACC_DRIVER
+	err |= i2c_add_driver(&smi230_acc_driver);
+#endif
+	return err;
 }
 
 static void __exit smi230_module_exit(void)
 {
+#ifdef CONFIG_SMI230_ACC_DRIVER
 	i2c_del_driver(&smi230_acc_driver);
+#endif
+#ifdef CONFIG_SMI230_GYRO_DRIVER
 	i2c_del_driver(&smi230_gyro_driver);
+#endif
 }
 
 module_init(smi230_module_init);

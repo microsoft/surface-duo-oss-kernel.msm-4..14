@@ -4,7 +4,7 @@
  * redistributing this file, you may do so under either license.
  *
  * GPL LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  * Copyright 2011~2018 Bosch Sensortec GmbH All Rights Reserved
  *
  * This file is free software licensed under the terms of version 2 
@@ -12,8 +12,8 @@
  * in the main directory of this source tree.
  *
  * BSD LICENSE
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  * Copyright (c) 2020 Bosch Sensortec GmbH. All rights reserved.
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
  *
  * BSD-3-Clause
  *

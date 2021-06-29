@@ -4,14 +4,14 @@
  * redistributing this file, you may do so under either license.
  *
  * GPL LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  *
  * This file is free software licensed under the terms of version 2 
  * of the GNU General Public License, available from the file LICENSE-GPL 
  * in the main directory of this source tree.
  *
  * BSD LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  *
  * BSD-3-Clause
  *
@@ -51,7 +51,7 @@
 #include <linux/delay.h>
 #include "smi230_defs.h"
 
-#define DRIVER_VERSION "0.3.0"
+#define DRIVER_VERSION "0.5.0"
 #define MODULE_NAME "SMI230"
 #define SENSOR_ACC_NAME "SMI230ACC"
 #define SENSOR_GYRO_NAME "SMI230GYRO"

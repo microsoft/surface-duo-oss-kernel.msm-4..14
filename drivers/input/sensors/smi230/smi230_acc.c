@@ -4,7 +4,7 @@
  * redistributing this file, you may do so under either license.
  *
  * GPL LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  * Copyright (c) 2020 Bosch Sensortec GmbH. All rights reserved.
  *
  * This file is free software licensed under the terms of version 2 
@@ -12,8 +12,8 @@
  * in the main directory of this source tree.
  *
  * BSD LICENSE
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  * Copyright (c) 2020 Bosch Sensortec GmbH. All rights reserved.
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
  *
  * BSD-3-Clause
  *
@@ -773,6 +773,35 @@ int8_t smi230_acc_soft_reset(const struct smi230_dev *dev)
                 /* Dummy SPI read operation of Chip-ID */
                 rslt = get_regs(SMI230_ACCEL_CHIP_ID_REG, &data, 1, dev);
             }
+        }
+    }
+
+    return rslt;
+}
+
+/*!
+ *  @brief This API resets the accel sensor.
+ */
+int8_t smi230_acc_fifo_reset(const struct smi230_dev *dev)
+{
+    int8_t rslt;
+    uint8_t data;
+
+    /* Check for null pointer in the device structure*/
+    rslt = null_ptr_check(dev);
+
+    /* Proceed if null check is fine */
+    if (rslt == SMI230_OK)
+    {
+        data = SMI230_FIFO_RESET_CMD;
+
+        /* Reset accel device */
+        rslt = set_regs(SMI230_ACCEL_SOFTRESET_REG, &data, 1, dev);
+
+        if (rslt == SMI230_OK)
+        {
+            /* Delay 1 ms after reset value is written to its register */
+            dev->delay_ms(SMI230_ACCEL_SOFTRESET_DELAY_MS);
         }
     }
 
@@ -2107,7 +2136,7 @@ static int8_t unpack_accel_frame(struct smi230_sensor_data *acc,
         case SMI230_FIFO_HEADER_ACC_FRM:
 
             /* Partially read, then skip the data */
-            if (((*idx) + fifo->acc_frm_len) > fifo->length)
+            if (((*idx) + SMI230_FIFO_ACCEL_LENGTH) > fifo->length)
             {
                 /* Update the data index as complete*/
                 (*idx) = fifo->length;

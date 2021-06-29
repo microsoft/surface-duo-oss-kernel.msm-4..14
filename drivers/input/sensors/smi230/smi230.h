@@ -4,7 +4,7 @@
  * redistributing this file, you may do so under either license.
  *
  * GPL LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  * Copyright (c) 2020 Bosch Sensortec GmbH. All rights reserved.
  *
  * This file is free software licensed under the terms of version 2 
@@ -13,7 +13,7 @@
  *
  * BSD LICENSE
  * Copyright (c) 2020 Bosch Sensortec GmbH. All rights reserved.
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  *
  * BSD-3-Clause
  *
@@ -188,6 +188,16 @@ int8_t smi230_acc_get_status(uint8_t *status, const struct smi230_dev *dev);
  *  @retval zero -> Success / -ve value -> Error
  */
 int8_t smi230_acc_soft_reset(const struct smi230_dev *dev);
+
+/*!
+ *  @brief This API resets the accel FIFO.
+ *
+ *  @param[in] dev  : Structure instance of smi230_dev.
+ *
+ *  @return Result of API execution status
+ *  @retval zero -> Success / -ve value -> Error
+ */
+int8_t smi230_acc_fifo_reset(const struct smi230_dev *dev);
 
 /*!
  * @brief This API reads the accel config values ie odr, band width and range from the sensor,

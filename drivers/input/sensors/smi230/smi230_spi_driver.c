@@ -4,14 +4,14 @@
  * redistributing this file, you may do so under either license.
  *
  * GPL LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  *
  * This file is free software licensed under the terms of version 2 
  * of the GNU General Public License, available from the file LICENSE-GPL 
  * in the main directory of this source tree.
  *
  * BSD LICENSE
- * Copyright (c) 2020 Robert Bosch GmbH. All rights reserved.
+ * Copyright (c) 2020-2021 Robert Bosch GmbH. All rights reserved.
  *
  * BSD-3-Clause
  *
@@ -53,7 +53,6 @@
 #include "smi230_log.h"
 #include "smi230.h"
 
-/* #define SMI230_DEBUG 1 */
 #define SMI230_SPI_MAX_BUFFER_SIZE      32
 
 static struct spi_device *smi230_acc_device;
@@ -79,6 +78,9 @@ static int8_t smi230_spi_write(uint8_t dev_addr,
 	spi_message_init(&msg);
 	spi_message_add_tail(&xfer, &msg);
 
+#ifdef CONFIG_SMI230_DEBUG
+	/* PINFO("write xfer reg %x data0 %d\t", reg_addr, data[0]); */
+#endif
 	if (dev_addr == SMI230_ACCEL_CHIP_ID)
 		return spi_sync(smi230_acc_device, &msg);
 	else
@@ -88,8 +90,8 @@ static int8_t smi230_spi_write(uint8_t dev_addr,
 static int8_t smi230_spi_read(uint8_t dev_addr,
 	uint8_t reg_addr, uint8_t *data, uint16_t len)
 {
-#ifdef SMI230_DEBUG
-	int ret, index;
+#ifdef CONFIG_SMI230_DEBUG
+	int ret;
 #endif
 	struct spi_message msg;
 	struct spi_transfer xfer[2] = {
@@ -106,15 +108,15 @@ static int8_t smi230_spi_read(uint8_t dev_addr,
 	spi_message_init(&msg);
 	spi_message_add_tail(&xfer[0], &msg);
 	spi_message_add_tail(&xfer[1], &msg);
-#ifdef SMI230_DEBUG
-        for (index = 0; index < len; index++)
-		PINFO("before spi_sync :%x\n", data[index]);
-	if (dev_addr == SMI230_ACCEL_CHIP_ID)
-		return spi_sync(smi230_acc_device, &msg);
-	else
-		return spi_sync(smi230_gyro_device, &msg);
-        for (index = 0; index < len; index++)
-		PINFO("spi_sync :%x\n", data[index]);
+#ifdef CONFIG_SMI230_DEBUG
+	/* PINFO("read xfer reg %x len %d\t", reg_addr - 0x80, len); */
+
+	if (dev_addr == SMI230_ACCEL_CHIP_ID) {
+		ret = spi_sync(smi230_acc_device, &msg);
+	}
+	else {
+		ret = spi_sync(smi230_gyro_device, &msg);
+	}
 	return ret;
 #else
 	if (dev_addr == SMI230_ACCEL_CHIP_ID)
@@ -125,6 +127,7 @@ static int8_t smi230_spi_read(uint8_t dev_addr,
 }
 
 /* ACC driver */
+#ifdef CONFIG_SMI230_ACC_DRIVER
 static int smi230_acc_spi_probe(struct spi_device *device)
 {
 	int err;
@@ -149,6 +152,7 @@ static int smi230_acc_spi_probe(struct spi_device *device)
 		smi230_acc_device = NULL;
 		PERR("Bosch Sensor Device %s initialization failed, error %d",
 				SENSOR_ACC_NAME, err);
+		return err;
 	}
 
 	if (smi230_gyro_device == NULL) {
@@ -186,8 +190,10 @@ static struct spi_driver smi230_acc_driver = {
 	.probe    = smi230_acc_spi_probe,
 	.remove	= smi230_acc_spi_remove,
 };
+#endif
 
 /* GYRO driver */
+#ifdef CONFIG_SMI230_GYRO_DRIVER
 static int smi230_gyro_spi_probe(struct spi_device *device)
 {
 	int err;
@@ -211,6 +217,8 @@ static int smi230_gyro_spi_probe(struct spi_device *device)
 		smi230_gyro_device = NULL;
 		PERR("Bosch Sensor Device %s initialization failed, error %d",
 			       SENSOR_GYRO_NAME, err);
+
+		return err;
 	}
 
 	return smi230_gyro_probe(&device->dev, &smi230_spi_dev);
@@ -243,10 +251,11 @@ static struct spi_driver smi230_gyro_driver = {
 	.probe    = smi230_gyro_spi_probe,
 	.remove	= smi230_gyro_spi_remove,
 };
+#endif
 
 static int __init smi230_module_init(void)
 {
-	int err;
+	int err = 0;
 
 	smi230_spi_dev.delay_ms = smi230_delay;
 	smi230_spi_dev.read_write_len = 32;
@@ -254,19 +263,25 @@ static int __init smi230_module_init(void)
 	smi230_spi_dev.read = smi230_spi_read;
 	smi230_spi_dev.write = smi230_spi_write;
 
-	/* make sure gyro driver registered first,
+#ifdef CONFIG_SMI230_GYRO_DRIVER
+	/* make sure gyro driver registered first for datasync,
 	 * while acc driver uses gyro driver */
-	err = spi_register_driver(&smi230_gyro_driver);
-	if (err != 0)
-		return err;
-
-	return spi_register_driver(&smi230_acc_driver);
+	err |= spi_register_driver(&smi230_gyro_driver);
+#endif
+#ifdef CONFIG_SMI230_ACC_DRIVER
+	err |= spi_register_driver(&smi230_acc_driver);
+#endif
+	return err;
 }
 
 static void __exit smi230_module_exit(void)
 {
+#ifdef CONFIG_SMI230_ACC_DRIVER
 	spi_unregister_driver(&smi230_acc_driver);
+#endif
+#ifdef CONFIG_SMI230_GYRO_DRIVER
 	spi_unregister_driver(&smi230_gyro_driver);
+#endif
 }
 
 module_init(smi230_module_init);

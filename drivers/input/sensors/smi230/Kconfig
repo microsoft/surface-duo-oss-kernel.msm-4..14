@@ -28,6 +28,23 @@ config SMI230_ACC_DRIVER
 	help
 	 smi230 ACC linux driver
 
+choice
+	prompt "Select ACC interrupt source"
+	depends on (!SMI230_DATA_SYNC) && SMI230_ACC_DRIVER
+
+    config SMI230_ACC_INT1
+	bool "use int1 as source"
+	depends on SMI230_ACC_DRIVER
+	help
+	 This enable INT1 as source for ACC
+
+    config SMI230_ACC_INT2
+	bool "use int2 as source"
+	depends on SMI230_ACC_DRIVER
+	help
+	 This enable INT2 as source for ACC
+endchoice
+
 config SMI230_GYRO_DRIVER
 	bool "SMI230 GYRO driver"
 	depends on (I2C || SPI_MASTER) && SYSFS
@@ -35,41 +52,65 @@ config SMI230_GYRO_DRIVER
 	 smi230 gyroscope linux driver
 
 choice
-	prompt "Select features"
-	help
-	  Note: these are exclusive features which cannot be enabled at the same time.
+	prompt "Select GYRO interrupt source"
+	depends on (!SMI230_DATA_SYNC) && SMI230_GYRO_DRIVER
 
-    config SMI230_RAW_DATA
-	bool "SMI230 raw data"
-	depends on SMI230_ACC_DRIVER || SMI230_GYRO_DRIVER
+    config SMI230_GYRO_INT3
+	bool "use int3 as source"
+	depends on SMI230_GYRO_DRIVER
 	help
-	 This is default option for SMI230 driver which provides interrupt driving raw data sampling for both ACC and GYRO.
+	 This enable INT3 as source for GYRO
 
-    config SMI230_DATA_SYNC
-	bool "SMI230 Data sync"
-	depends on SMI230_ACC_DRIVER && SMI230_GYRO_DRIVER
+    config SMI230_GYRO_INT4
+	bool "use int4 as source"
+	depends on SMI230_GYRO_DRIVER
 	help
-	 SMI230 data sync between accel and gyroscope, this feature can only be exclusively enabled in one compile, while it needs its dedicated config file loaded and interupt pins specially configured
-
-    config SMI230_FIFO
-	bool "SMI230 FIFO"
-	depends on SMI230_ACC_DRIVER || SMI230_GYRO_DRIVER
-	help
-	 enable SMI230 FIFO feature for ACC and GYRO
-
+	 This enable INT4 as source for GYRO
 endchoice
 
 config SMI230_ACC_FIFO
 	bool "SMI230 ACC FIFO enable"
-	depends on SMI230_FIFO && SMI230_ACC_DRIVER
+	depends on !SMI230_DATA_SYNC && SMI230_ACC_DRIVER
 	help
 	 enable ACC FIFO feature.
 
+choice
+	prompt "Select ACC FIFO interrupt type"
+	depends on SMI230_ACC_DRIVER && SMI230_ACC_FIFO
+
+    config SMI230_ACC_FIFO_WM
+	bool "use watermark threshhold to generate interrupt"
+	depends on SMI230_ACC_FIFO
+
+    config SMI230_ACC_FIFO_FULL
+	bool "generate interrupt when FIFO is full"
+	depends on SMI230_ACC_FIFO
+endchoice
+
 config SMI230_GYRO_FIFO
 	bool "SMI230 gyroscope FIFO enable"
-	depends on SMI230_FIFO && SMI230_GYRO_DRIVER
+	depends on !SMI230_DATA_SYNC && SMI230_GYRO_DRIVER
 	help
 	 enable GYRO FIFO feature.
+
+choice
+	prompt "Select GYRO FIFO interrupt type"
+	depends on SMI230_GYRO_DRIVER && SMI230_GYRO_FIFO
+
+    config SMI230_GYRO_FIFO_WM
+	bool "use watermark threshhold to generate interrupt"
+	depends on SMI230_GYRO_FIFO
+
+    config SMI230_GYRO_FIFO_FULL
+	bool "generate interrupt when FIFO is full"
+	depends on SMI230_GYRO_FIFO
+endchoice
+
+config SMI230_DATA_SYNC
+	bool "SMI230 Data sync"
+	depends on SMI230_ACC_DRIVER && SMI230_GYRO_DRIVER
+	help
+	 SMI230 data sync between accel and gyroscope, this feature can only be exclusively enabled in one compile, while it needs its dedicated config file loaded and interupt pins specially configured
 
 config BOSCH_DRIVER_LOG_FUNC
 	bool "Smart log function support"
