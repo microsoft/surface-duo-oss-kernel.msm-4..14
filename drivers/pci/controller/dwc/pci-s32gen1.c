@@ -49,34 +49,30 @@
 #define DEBUG_W
 #endif
 #ifndef DEBUG_FUNC
-#define DEBUG_FUNC pr_info("pci: in %s\n", __func__)
+#define DEBUG_FUNC pr_debug("%s\n", __func__)
 #endif
 #ifndef DEBUG_FID
-#define DEBUG_FID(id) pr_info("pci%d: in %s\n", id, __func__)
-#endif
-#ifndef P
-#define P(x) pr_info("pci: " #x "\n")
+#define DEBUG_FID(id) pr_debug("pci%d: in %s\n", id, __func__)
 #endif
 #else
 #define DEBUG_FUNC
 #define DEBUG_FID(id)
-#define P(x)
 #endif /* DEBUG */
 
 #ifdef DEBUG_R
-#define pr_debug_r(args...) pr_info("pci: " args)
-#define dev_dbg_r(args...) dev_info("pci: " args)
+#define pr_debug_r pr_debug
+#define dev_dbg_r dev_dbg
 #else
-#define pr_debug_r(fmt...)
-#define dev_dbg_r(fmt...)
+#define pr_debug_r(fmt, ...)
+#define dev_dbg_r(fmt, ...)
 #endif
 
 #ifdef DEBUG_W
-#define pr_debug_w(args...) pr_info("pci: " args)
-#define dev_dbg_w(args...) dev_info("pci: " args)
+#define pr_debug_w pr_debug
+#define dev_dbg_w dev_dbg
 #else
-#define pr_debug_w(fmt...)
-#define dev_dbg_w(fmt...)
+#define pr_debug_w(fmt, ...)
+#define dev_dbg_w(fmt, ...)
 #endif
 
 #define PCIE_LINKUP_MASK	(PCIE_SS_SMLH_LINK_UP | PCIE_SS_RDLH_LINK_UP | \
@@ -686,8 +682,6 @@ static void s32gen1_pcie_stop_link(struct dw_pcie *pcie)
 {
 	struct s32gen1_pcie *s32_pp = to_s32gen1_from_dw_pcie(pcie);
 
-	DEBUG_FID(s32_pp->id);
-
 	s32gen1_pcie_disable_ltssm(s32_pp);
 }
 
@@ -1131,14 +1125,12 @@ static int init_pcie_phy(struct s32gen1_pcie *s32_pp)
 		}
 	}
 
-	P(phy_init_0);
 	ret = phy_init(s32_pp->phy0);
 	if (ret) {
 		dev_err(dev, "Failed to init 'serdes_lane0' PHY\n");
 		return ret;
 	}
 
-	P(power_on_0);
 	ret = phy_power_on(s32_pp->phy0);
 	if (ret) {
 		dev_err(dev, "Failed to power on 'serdes_lane0' PHY\n");
@@ -1153,14 +1145,12 @@ static int init_pcie_phy(struct s32gen1_pcie *s32_pp)
 	if (!s32_pp->phy1)
 		s32_pp->phy1 = devm_phy_optional_get(dev, "serdes_lane1");
 
-	P(phy_init_1);
 	ret = phy_init(s32_pp->phy1);
 	if (ret) {
 		dev_err(dev, "Failed to init 'serdes_lane1' PHY\n");
 		return ret;
 	}
 
-	P(phy_power_on_1);
 	ret = phy_power_on(s32_pp->phy1);
 	if (ret) {
 		dev_err(dev, "Failed to power on 'serdes_lane1' PHY\n");
@@ -1179,14 +1169,12 @@ static int deinit_pcie_phy(struct s32gen1_pcie *s32_pp)
 	DEBUG_FID(s32_pp->id);
 
 	if (s32_pp->phy0) {
-		P(phy_power_off_0);
 		ret = phy_power_off(s32_pp->phy0);
 		if (ret) {
 			dev_err(dev, "Failed to power off 'serdes_lane0' PHY\n");
 			return ret;
 		}
 
-		P(phy_exit_0);
 		ret = phy_exit(s32_pp->phy0);
 		if (ret) {
 			dev_err(dev, "Failed to exit 'serdes_lane0' PHY\n");
@@ -1195,14 +1183,12 @@ static int deinit_pcie_phy(struct s32gen1_pcie *s32_pp)
 	}
 
 	if (s32_pp->phy1) {
-		P(phy_power_off_1);
 		ret = phy_power_off(s32_pp->phy1);
 		if (ret) {
 			dev_err(dev, "Failed to power off 'serdes_lane1' PHY\n");
 			return ret;
 		}
 
-		P(phy_exit_1);
 		ret = phy_exit(s32_pp->phy1);
 		if (ret) {
 			dev_err(dev, "Failed to exit 'serdes_lane1' PHY\n");
@@ -1254,8 +1240,6 @@ static bool pcie_link_or_timeout(struct s32gen1_pcie *s32_pp, ktime_t timeout)
 static int wait_phy_data_link(struct s32gen1_pcie *s32_pp)
 {
 	ktime_t timeout = ktime_add_ms(ktime_get(), PCIE_LINK_TIMEOUT_MS);
-
-	DEBUG_FID(s32_pp->id);
 
 	spin_until_cond(pcie_link_or_timeout(s32_pp, timeout));
 	if (!has_data_phy_link(s32_pp)) {
@@ -1329,22 +1313,18 @@ static int s32gen1_pcie_init_controller(struct s32gen1_pcie *s32_pp)
 	struct pcie_port *pp = &(pcie->pp);
 	int ret = 0;
 
-	P(s32gen1_pcie_disable_ltssm);
 	s32gen1_pcie_disable_ltssm(s32_pp);
 
-	P(init_pcie_phy);
 	ret = init_pcie_phy(s32_pp);
 	if (ret)
 		return ret;
 
-	P(init_pcie);
 	ret = init_pcie(s32_pp);
 	if (ret)
 		return ret;
 
 	/* Only wait for link if RC */
 	if (!s32_pp->is_endpoint) {
-		P(wait_phy_data_link);
 		ret = wait_phy_data_link(s32_pp);
 		if (ret)
 			return ret;
@@ -1353,7 +1333,6 @@ static int s32gen1_pcie_init_controller(struct s32gen1_pcie *s32_pp)
 	dev_info(pcie->dev, "Configuring as %s\n",
 			PCIE_EP_RC_MODE(s32_pp->is_endpoint));
 
-	P(pcie_host_ops);
 	if (s32_pp->has_msi_parent)
 		pp->ops = &s32gen1_pcie_host_ops2;
 	else
@@ -1430,10 +1409,8 @@ static int s32gen1_pcie_config_common(struct s32gen1_pcie *s32_pp,
 	}
 #endif /* CONFIG_PCI_S32GEN1_EP_MSI */
 
-	P(pm_runtime_enable);
 	pm_runtime_enable(dev);
 
-	P(pm_runtime_get_sync);
 	ret = pm_runtime_get_sync(dev);
 	if (ret < 0) {
 		dev_err(dev, "Failed to get runtime sync for PCIe dev: %d\n",
@@ -1446,7 +1423,6 @@ static int s32gen1_pcie_config_common(struct s32gen1_pcie *s32_pp,
 		return ret;
 
 	if (!s32_pp->is_endpoint) {
-		P(s32gen1_add_pcie_port);
 		ret = s32gen1_add_pcie_port(pp);
 		if (ret)
 			goto fail_host_init;
@@ -1475,7 +1451,6 @@ static int s32gen1_pcie_config_common(struct s32gen1_pcie *s32_pp,
 			dev_info(dev, "Creating debugfs failed\n");
 #endif /* CONFIG_PCI_S32GEN1_ACCESS_FROM_USER */
 
-		P(s32gen1_add_pcie_ep);
 		ret = s32gen1_add_pcie_ep(s32_pp);
 		if (ret)
 			goto fail_host_init;
@@ -1514,7 +1489,6 @@ static int s32gen1_pcie_probe(struct platform_device *pdev)
 	pcie->dev = dev;
 	pcie->ops = &s32_pcie_ops;
 
-	P(s32gen1_pcie_dt_init);
 	ret = s32gen1_pcie_dt_init(pdev, s32_pp);
 	if (ret)
 		return ret;
@@ -1540,7 +1514,6 @@ static int s32gen1_pcie_probe(struct platform_device *pdev)
 
 err:
 	if (ret) {
-		P(probe_error);
 		pm_runtime_put(dev);
 		pm_runtime_disable(dev);
 	}
@@ -1561,7 +1534,6 @@ static int s32gen1_pcie_suspend(struct device *dev)
 	if (!s32gen1_pcie_link_is_up(pcie))
 		return 0;
 
-	P(save_msi_state);
 	/* Save MSI interrupt vector */
 	s32_pp->msi_ctrl_int = dw_pcie_readl_dbi(pcie,
 					       PORT_MSI_CTRL_INT_0_EN_OFF);
@@ -1595,7 +1567,6 @@ static int s32gen1_pcie_resume(struct device *dev)
 		goto fail_host_init;
 	}
 
-	P(restore_msi_state);
 	/* Restore MSI interrupt vector */
 	dw_pcie_writel_dbi(pcie, PORT_MSI_CTRL_INT_0_EN_OFF,
 			   s32_pp->msi_ctrl_int);
