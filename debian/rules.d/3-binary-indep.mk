@@ -25,6 +25,9 @@ ifeq ($(do_flavour_header_package),true)
 	(find arch -name include -type d -print | \
 		xargs -n1 -i: find : -type f) | \
 		cpio -pd --preserve-modification-time $(indep_hdrdir)
+	(find drivers/staging/android arch -name uapi -type d -print | \
+		xargs -n1 -i: find : -type f) | \
+		cpio -pd --preserve-modification-time $(indep_hdrdir)
 endif
 
 docpkg = $(doc_pkg_name)

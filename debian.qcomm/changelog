@@ -1,3 +1,126 @@
+linux-qcomm (4.14.0-1014.14) focal; urgency=medium
+
+  * INVALID or PRIVATE BUG (LP: #1931727)
+    - defconfig: Remove extra configs not required for sa8155p
+    - Kernel: Fix build errors for sa8155p ubuntu kernel
+    - Security: Kconfig: Correct default security config selection
+    - wil6210: AP should not forward eapol packets
+    - msm:ADSPRPC :Fix to avoid Use after free in fastrpc_internal_munmap
+    - msm: ipa2: Add check to validate rule_cnt
+    - net:sockev: hold file reference till the sock event is sent
+    - msm: kgsl: Compare pid pointer instead of TGID for a new process
+    - msm: ipa: Fix buffer overflow issue
+    - msm: ipa: correct the pointer in idr for FnR stats counter
+    - msm: adsprpc: overflow vulnerability by race condition in adsprpc driver
+    - msm: ipa: add check to see if pm client is not NULL
+    - usb: gadget: f_cdev: Fix use after free of port in f_cdev
+    - msm: ipa: Fix use-after-free in ipa3_alloc_counter_id
+    - crypto: Fix possible stack out-of-bound error
+    - wil6210: accessing 802.3 addresses via utility functions
+    - wil6210: check integrity of received AMSDU packets
+    - wil6210: Drop plaintext frames on secure network
+    - msm: npu: Correct buffer address used to copy stats data to user
+    - msm:npu: resend unload network command if failed due to busy
+    - msm: npu: memset npu_kevent to prevent leak stack information
+    - soc: qcom: hgsl: Fix OOB
+    - diag: Use valid data_source for a valid token
+    - diag: Sanitize the mempools with pool data size check
+    - diag: Prevent out of bound write while sending dci pkt to remote
+    - msm:adsprpc: Prevent use after free in fastrpc_set_process_info
+    - crypto: Fix possible stack out of bound error
+    - msm: adsprpc: Do length check to avoid arbitrary memory access
+    - msm: kgsl: Correct the refcount on current process PID
+    - msm: kgsl: Don't allow re-importing memory owned by KGSL
+    - msm: kgsl: Stop using memdesc->usermem
+    - msm: kgsl: Protect the memdesc->gpuaddr in SVM use cases
+    - msm: kgsl: Deregister gpu address on memdesc_sg_virt failure
+    - drivers: gnss: Add SiRFStarV GNSS boot mode functionality
+    - ARM: dts: msm: enable SiRF GNSS Boot mode gpio
+    - qseecom: Added boundary checks between two subsequent fields
+
+  * Miscellaneous Ubuntu changes
+    - [Config] disable CONFIG_MSM_VIDC_V4L2
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Thu, 17 Jun 2021 17:01:07 +0800
+
+linux-qcomm (4.14.0-1013.13) focal; urgency=medium
+
+  * INVALID or PRIVATE BUG (LP: #1923226)
+    - [Config] updateconfigs to reduce runtime & compile time overheads
+
+  * Miscellaneous upstream changes
+    - Revert "UBUNTU: [Config] CONFIG_EMAC_DWC_EQOS=y, disable
+      CONFIG_DWMAC_QCOM_ETHQOS"
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Fri, 11 Jun 2021 11:22:06 +0800
+
+linux-qcomm (4.14.0-1012.12) focal; urgency=medium
+
+  * INVALID or PRIVATE BUG (LP: #1927006)
+    - [Packaging] build-avb: fix errors in building initrd
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Thu, 10 Jun 2021 03:00:36 +0800
+
+linux-qcomm (4.14.0-1011.11) focal; urgency=medium
+
+  * INVALID or PRIVATE BUG (LP: #1927006)
+    - [Packaging] build-avb: add rules to build AVB (Android Verified Boot) image
+    - [Packaging] build-avb: add packages (build-dependencies) to provide tools to
+      generate android boot img
+    - [Packaging] qcomm: Support building android boot image
+
+  * [Packaging] Support building Flattened Image Tree (FIT) kernels
+    (LP: #1847969)
+    - [Packaging] add rules to build FIT image
+
+  * Miscellaneous Ubuntu changes
+    - [Packaging] enlarge the size of padding
+    - [Packaging] build-fit: specify the kernel version
+    - [Packaging] use ubuntu-core-initramfs to create initrd.img
+    - [Packaging] make firmware and modules available for ubuntu-core-initramfs
+    - [Packaging] build-fit: fix ubuntu-core-initramfs parameters
+    - [Packaging] build-fit: fix PATH and naming issues
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Wed, 09 Jun 2021 20:49:48 +0800
+
+linux-qcomm (4.14.0-1010.10) focal; urgency=medium
+
+  * INVALID or PRIVATE BUG (LP: #1929095)
+    - [Packaging] generate linux-libc-dev package
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Tue, 01 Jun 2021 12:23:53 +0800
+
+linux-qcomm (4.14.0-1009.9) focal; urgency=medium
+
+  * INVALID or PRIVATE BUG (LP: #1929095)
+    - [Packaging] ensure that ion headers are copied
+
+  * INVALID or PRIVATE BUG (LP: #1927199)
+    - SAUCE: msm: vidc: fix linking errors when msm_vidc is built as a module
+    - [Config] CONFIG_MSM_VIDC_V4L2=m by default
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Fri, 28 May 2021 22:36:57 +0800
+
+linux-qcomm (4.14.0-1008.8) focal; urgency=medium
+
+  * Miscellaneous Ubuntu changes
+    - SAUCE: drivers: net: ethernet: qualcomm: adding emac_dwc_eqos driver
+    - SAUCE: drivers: net: ethernet: qualcomm: fix build error in emac_dwc_eqos
+      driver
+    - [Config] CONFIG_EMAC_DWC_EQOS=y, disable CONFIG_DWMAC_QCOM_ETHQOS
+
+  * Miscellaneous upstream changes
+    - msm: adsprpc: Don't create debugfs global file if already exists
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Wed, 26 May 2021 06:31:23 +0800
+
+linux-qcomm (4.14.0-1007.7) focal; urgency=medium
+
+  * Miscellaneous Ubuntu changes
+    - SAUCE: ARM: dts: msm: support only sa8155p-v2-adp-air boards
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Tue, 04 May 2021 13:09:09 +0800
+
 linux-qcomm (4.14.0-1006.6) focal; urgency=medium
 
   * Miscellaneous upstream changes
