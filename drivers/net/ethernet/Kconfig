@@ -185,3 +185,5 @@ source "drivers/net/ethernet/xircom/Kconfig"
 source "drivers/net/ethernet/synopsys/Kconfig"
 
 endif # ETHERNET
+source "drivers/net/ethernet/qualcomm/emac_dwc_eqos/Kconfig"
+source "drivers/net/ethernet/qualcomm/emac_dwc_eqos_app/Kconfig"
