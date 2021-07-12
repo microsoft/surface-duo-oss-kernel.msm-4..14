@@ -57,10 +57,12 @@
 #define ADSP_MMAP_REMOTE_HEAP_ADDR 8
 #define ADSP_MMAP_ADD_PAGES 0x1000
 #define FASTRPC_DMAHANDLE_NOMAP (16)
+#define FASTRPC_CMA_MAP          256
 
 #define FASTRPC_ENOSUCH 39
 #define VMID_SSC_Q6     5
 #define VMID_ADSP_Q6    6
+#define VMID_CDSP_Q6    30
 #define DEBUGFS_SIZE 3072
 #define UL_SIZE 25
 #define PID_SIZE 10
@@ -768,6 +770,24 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map, uint32_t flags)
 			dma_buf_detach(map->buf, map->attach);
 		if (!IS_ERR_OR_NULL(map->buf))
 			dma_buf_put(map->buf);
+	}  else if (map->flags == FASTRPC_CMA_MAP) {
+		int srcVM[2] = {VMID_HLOS, VMID_CDSP_Q6};
+		int destVM[1] = {VMID_HLOS};
+		int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
+
+		VERIFY(err, !hyp_assign_phys(map->phys,
+				(uint64_t)map->size,
+				srcVM, 2, destVM, destVMperm, 1));
+		if (err)
+			pr_err("%s:failed to hyp assign for physical address 0x%llx and size 0x%zx",
+					__func__, map->phys, map->size);
+		if (!IS_ERR_OR_NULL(map->table))
+			dma_buf_unmap_attachment(map->attach, map->table,
+					DMA_BIDIRECTIONAL);
+		if (!IS_ERR_OR_NULL(map->attach))
+			dma_buf_detach(map->buf, map->attach);
+		if (!IS_ERR_OR_NULL(map->buf))
+			dma_buf_put(map->buf);
 	} else {
 		int destVM[1] = {VMID_HLOS};
 		int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
@@ -872,6 +892,43 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd,
 		if (err)
 			goto bail;
 		map->phys = sg_dma_address(map->table->sgl);
+	} else if (mflags == FASTRPC_CMA_MAP) {
+		int srcVM[1] = {VMID_HLOS};
+		int destVM[2] = {VMID_HLOS, VMID_CDSP_Q6};
+		int destVMperm[2] = {PERM_READ | PERM_WRITE,
+				PERM_READ | PERM_WRITE | PERM_EXEC};
+
+		VERIFY(err, !IS_ERR_OR_NULL(map->buf = dma_buf_get(fd)));
+		if (err)
+			goto bail;
+		VERIFY(err, !dma_buf_get_flags(map->buf, &flags));
+		if (err)
+			goto bail;
+		map->secure = flags;
+		map->uncached = 1;
+		map->va = 0;
+		map->phys = 0;
+
+		VERIFY(err, !IS_ERR_OR_NULL(map->attach =
+				dma_buf_attach(map->buf, me->dev)));
+		if (err)
+			goto bail;
+
+		VERIFY(err, !IS_ERR_OR_NULL(map->table =
+			dma_buf_map_attachment(map->attach,
+				DMA_BIDIRECTIONAL)));
+		if (err)
+			goto bail;
+		VERIFY(err, map->table->nents == 1);
+		if (err)
+			goto bail;
+		map->phys = sg_dma_address(map->table->sgl);
+		map->size = sg_dma_len(map->table->sgl);
+		VERIFY(err, !hyp_assign_phys(map->phys,
+				(uint64_t)map->size,
+				srcVM, 1, destVM, destVMperm, 2));
+		if (err)
+			goto bail;
 	} else {
 		if (map->attr && (map->attr & FASTRPC_ATTR_KEEP_MAP)) {
 			pr_info("adsprpc: buffer mapped with persist attr %x\n",
@@ -1494,6 +1551,8 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 
 		if (ctx->attrs && (ctx->attrs[i] & FASTRPC_ATTR_NOMAP))
 			dmaflags = FASTRPC_DMAHANDLE_NOMAP;
+		if (ctx->attrs && (ctx->attrs[i] & FASTRPC_ATTR_CMA_MAP))
+			dmaflags = FASTRPC_CMA_MAP;
 		if (ctx->fds && (ctx->fds[i] != -1))
 			err = fastrpc_mmap_create(ctx->fl, ctx->fds[i],
 					FASTRPC_ATTR_NOVA, 0, 0, dmaflags,
