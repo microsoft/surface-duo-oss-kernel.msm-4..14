@@ -175,6 +175,7 @@ struct stmmac_priv {
 	struct dentry *dbgfs_dma_cap;
 #endif
 	bool hw_offload_enabled;
+	bool en_wol;
 };
 
 struct stmmac_emb_smmu_cb_ctx {
