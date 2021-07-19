@@ -1,0 +1,56 @@
+/* Copyright (c) 2021 Lantronix. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+	lis2dh12_int1_default: lis2dh12_int1_default {
+		mux {
+            pins = "gpio142";
+            function = "gpio";
+        };
+
+        config {
+            pins = "gpio142";
+            drive-strength = <16>;
+            bias-pull-down;
+        };
+    };
+
+    lis2dh12_int2_default: lis2dh12_int2_default {
+        mux {
+            pins = "gpio153";
+            function = "gpio";
+        };
+        config {
+            pins = "gpio153";
+            drive-strength = <16>;
+            bias-pull-down;
+       };
+   };
+};
+
+&qupv3_se17_i2c {
+	status = "ok";
+
+	lis2dh12_accel@19 {
+		status = "okay";
+		compatible = "st,lis2dh12-accel";
+		reg = <0x19>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <142 IRQ_TYPE_EDGE_RISING>,
+			     <152 IRQ_TYPE_EDGE_RISING>;
+        st,drdy-int-pin = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lis2dh12_int1_default
+			&lis2dh12_int2_default>;
+
+	};
+};

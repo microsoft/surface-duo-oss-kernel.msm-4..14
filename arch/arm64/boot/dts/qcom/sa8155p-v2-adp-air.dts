@@ -16,6 +16,7 @@
 #include "sa8155-adp-common.dtsi"
 #include "sa8155-adp-star-display.dtsi"
 #include "sa8155-iot-adp-common.dtsi"
+#include "sa8155p-v2-qed.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. SA8155P V2 ADP AIR";
