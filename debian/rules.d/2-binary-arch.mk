@@ -516,7 +516,7 @@ ifeq ($(fit_signed),true)
 	cp -p $(signingv)/fit-$(abi_release)-$*.fit $(pkgdir_bin)/boot/
 endif
 
-ifeq ($(avb_signed),true)
+ifeq ($(android_kernel_signed),true)
 	install -d $(signingv)
 	cp -p $(pkgdir_bin)/boot/$(instfile)-$(abi_release)-$* \
 		$(signingv)/$(instfile)-$(abi_release)-$*;
@@ -525,7 +525,8 @@ ifeq ($(avb_signed),true)
 		$(abi_release)-$(target_flavour) \
 		$(CURDIR)/$(DROOT)/linux-modules-$(abi_release)-$* \
 		$(signingv)
-	cp -p $(signingv)/boot-$(abi_release)-$*.avb $(pkgdir_bin)/boot/
+	cp -p $(signingv)/boot-$(abi_release)-$*.avb \
+		$(pkgdir_bin)/boot/$(instfile)-$(abi_release)-$*.android-kernel;
 endif
 
 headers_tmp := $(CURDIR)/debian/tmp-headers
