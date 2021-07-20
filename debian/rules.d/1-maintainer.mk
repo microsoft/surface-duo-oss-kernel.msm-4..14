@@ -101,7 +101,7 @@ printenv:
 	@echo " opal_signed               = $(opal_signed)"
 	@echo " sipl_signed               = $(sipl_signed)"
 	@echo " fit_signed                = $(fit_signed)"
-	@echo " avb_signed                = $(avb_signed)"
+	@echo " android_kernel_signed     = $(android_kernel_signed)"
 	@echo "full_build                = $(full_build)"
 	@echo "libc_dev_version          = $(libc_dev_version)"
 	@echo "DEB_HOST_GNU_TYPE         = $(DEB_HOST_GNU_TYPE)"
