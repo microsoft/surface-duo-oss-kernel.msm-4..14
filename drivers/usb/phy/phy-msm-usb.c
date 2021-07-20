@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2020, Linux Foundation. All rights reserved.
+/* Copyright (c) 2009-2021, Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1336,6 +1336,7 @@ static irqreturn_t msm_otg_phy_irq_handler(int irq, void *data)
 
 static void msm_otg_set_vbus_state(int online);
 static void msm_otg_perf_vote_update(struct msm_otg *motg, bool perf_mode);
+static int get_psy_type(struct msm_otg *motg);
 
 #ifdef CONFIG_PM_SLEEP
 static int msm_otg_suspend(struct msm_otg *motg)
@@ -1374,7 +1375,11 @@ lpm_start:
 		msm_otg_perf_vote_update(motg, false);
 
 	host_pc_charger = (motg->chg_type == USB_SDP_CHARGER) ||
-				(motg->chg_type == USB_CDP_CHARGER);
+			(motg->chg_type == USB_CDP_CHARGER) ||
+			(get_psy_type(motg) == POWER_SUPPLY_TYPE_USB) ||
+			(get_psy_type(motg) == POWER_SUPPLY_TYPE_USB_CDP);
+	msm_otg_dbg_log_event(phy, "CHARGER CONNECTED",
+			host_pc_charger, motg->inputs);
 
 	/* !BSV, but its handling is in progress by otg sm_work */
 	sm_work_busy = !test_bit(B_SESS_VLD, &motg->inputs) &&
@@ -1383,17 +1388,6 @@ lpm_start:
 	/* Perform block reset to recover from UDC error events on disconnect */
 	if (motg->err_event_seen)
 		msm_otg_reset(phy);
-
-	/* Enable line state difference wakeup fix for only device and host
-	 * bus suspend scenarios.  Otherwise PHY can not be suspended when
-	 * a charger that pulls DP/DM high is connected.
-	 */
-	config2 = readl_relaxed(USB_GENCONFIG_2);
-	if (device_bus_suspend)
-		config2 |= GENCONFIG_2_LINESTATE_DIFF_WAKEUP_EN;
-	else
-		config2 &= ~GENCONFIG_2_LINESTATE_DIFF_WAKEUP_EN;
-	writel_relaxed(config2, USB_GENCONFIG_2);
 
 	/*
 	 * Abort suspend when,
@@ -1411,6 +1405,17 @@ lpm_start:
 			enable_irq(motg->phy_irq);
 		return -EBUSY;
 	}
+
+	/* Enable line state difference wakeup fix for only device and host
+	 * bus suspend scenarios.  Otherwise PHY can not be suspended when
+	 * a charger that pulls DP/DM high is connected.
+	 */
+	config2 = readl_relaxed(USB_GENCONFIG_2);
+	if (device_bus_suspend)
+		config2 |= GENCONFIG_2_LINESTATE_DIFF_WAKEUP_EN;
+	else
+		config2 &= ~GENCONFIG_2_LINESTATE_DIFF_WAKEUP_EN;
+	writel_relaxed(config2, USB_GENCONFIG_2);
 
 	if (motg->caps & ALLOW_VDD_MIN_WITH_RETENTION_DISABLED) {
 		/* put the controller in non-driving mode */
