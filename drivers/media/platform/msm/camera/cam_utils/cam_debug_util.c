@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundataion. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -100,6 +101,9 @@ const char *cam_get_module_name(unsigned int module_id)
 		break;
 	case CAM_IR_LED:
 		name = "CAM-IR-LED";
+		break;
+	case CAM_THERMAL:
+		name = "CAM-THERMAL";
 		break;
 	default:
 		name = "CAM";

@@ -1,4 +1,5 @@
 /* Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -755,11 +756,14 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
 		rc = smblib_get_prop_usb_online(chg, val);
+		if (is_client_vote_enabled(chg->usb_icl_votable, //MSCHANGE
+						MSE_BATTERYPROTECTION_VOTER))
+			val->intval = 1;
 		if (!val->intval)
 			break;
 
-		if (((chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_DEFAULT) ||
-		   (chg->connector_type == POWER_SUPPLY_CONNECTOR_MICRO_USB))
+		//if (((chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_DEFAULT) || MSCHANGE: When connected to a USB2/3 PCPORT we should show connected
+		if ((chg->connector_type == POWER_SUPPLY_CONNECTOR_MICRO_USB)
 			&& (chg->real_charger_type == POWER_SUPPLY_TYPE_USB))
 			val->intval = 0;
 		else
@@ -767,6 +771,9 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 
 		if (chg->real_charger_type == POWER_SUPPLY_TYPE_UNKNOWN)
 			val->intval = 0;
+		break;
+	case POWER_SUPPLY_PROP_AUTHENTIC:  // MSCHANGE disable parallel charging when USB is disconnected
+		rc = smblib_get_prop_usb_connected(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
 		rc = smblib_get_prop_usb_voltage_max_design(chg, val);
@@ -1220,6 +1227,11 @@ static int smb5_usb_main_get_prop(struct power_supply *psy,
 		rc = smblib_get_prop_fcc_delta(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		// MSCHANGE scheduling MSE Chg heartbeat on every ICL change
+		if(chg->MSEChg_Hw_work.wq != NULL) {
+			cancel_delayed_work_sync(&chg->MSEChg_Hw_work);
+			schedule_delayed_work(&chg->MSEChg_Hw_work, msecs_to_jiffies(chg->MSEHw_Config.PsuHeartbeatTimer));
+		}
 		rc = smblib_get_icl_current(chg, &val->intval);
 		break;
 	case POWER_SUPPLY_PROP_FLASH_ACTIVE:
@@ -1593,6 +1605,7 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 {
 	struct smb_charger *chg = power_supply_get_drvdata(psy);
 	int rc = 0;
+	int rawRsoc = 0;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -1612,6 +1625,9 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		rc = smblib_get_prop_batt_capacity(chg, val);
+		// MSCHANGE
+		rawRsoc = val->intval;
+		val->intval = MSEHwGetBatteryCapacity(&chg->MSEHw_Config, rawRsoc);
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT:
 		rc = smblib_get_prop_system_temp_level(chg, val);
@@ -1715,7 +1731,7 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		rc = smblib_get_prop_from_bms(chg,
-				POWER_SUPPLY_PROP_CHARGE_FULL, val);
+				POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN, val);  // MSCHANGE using CHARGE_FULL_DESIGN for combined charge full calculation for BatteryStats
 		break;
 	case POWER_SUPPLY_PROP_FORCE_RECHARGE:
 		val->intval = 0;
@@ -2875,9 +2891,10 @@ static int smb5_init_hw(struct smb5 *chip)
 		}
 	}
 
+	//MSCHANGE:Disable Hardware autonomous autorecharge
 	rc = smblib_masked_write(chg, CHGR_CFG2_REG, RECHG_MASK,
 				(chip->dt.auto_recharge_soc != -EINVAL) ?
-				SOC_BASED_RECHG_BIT : VBAT_BASED_RECHG_BIT);
+				SOC_BASED_RECHG_BIT : 0);
 	if (rc < 0) {
 		dev_err(chg->dev, "Couldn't configure SOC-rechg CHG_CFG2_REG rc=%d\n",
 			rc);
@@ -3438,6 +3455,9 @@ static void smb5_create_debugfs(struct smb5 *chip)
 	if (IS_ERR_OR_NULL(file))
 		pr_err("Couldn't create force_dc_psy_update file rc=%ld\n",
 			(long)file);
+
+	// MSCHANGE adding additional debug fs nodes for MSE Chg module
+	MSEHwDebugfs(chip->dfs_root, &chip->chg.MSEHw_Config);
 }
 
 #else
@@ -3663,6 +3683,13 @@ static int smb5_probe(struct platform_device *pdev)
 		goto cleanup;
 	}
 
+	// MSCHANGE initializing MSE discrete hw circuit
+	rc = MSEHwInit(chg);
+	if (rc < 0) {
+		pr_err("MSEHwInit failed rc=%d \n", rc);
+		goto cleanup;
+	}
+
 	rc = smb5_post_init(chip);
 	if (rc < 0) {
 		pr_err("Failed in post init rc=%d\n", rc);
@@ -3702,6 +3729,7 @@ static int smb5_remove(struct platform_device *pdev)
 				BC1P2_SRC_DETECT_BIT, BC1P2_SRC_DETECT_BIT);
 
 	smb5_free_interrupts(chg);
+	MSEHwShutdown(chg);   // MSCHANGE MSE Chg system deinit
 	smblib_deinit(chg);
 	platform_set_drvdata(pdev, NULL);
 	return 0;
@@ -3711,6 +3739,8 @@ static void smb5_shutdown(struct platform_device *pdev)
 {
 	struct smb5 *chip = platform_get_drvdata(pdev);
 	struct smb_charger *chg = &chip->chg;
+
+	MSEHwShutdown(chg);  // MSCHANGE adding MSE Chg shutdown routines
 
 	/* disable all interrupts */
 	smb5_disable_interrupts(chg);

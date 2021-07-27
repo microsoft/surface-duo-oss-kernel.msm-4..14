@@ -6,6 +6,7 @@
  *  Copyright (c) 2005 Michael Haboustak <mike-@cinci.rr.com> for Concept2, Inc
  *  Copyright (c) 2006-2007 Jiri Kosina
  *  Copyright (c) 2008 Jiri Slaby
+ *  Copyright (c) 2020 Microsoft Corporation
  */
 
 /*
@@ -19,6 +20,7 @@
 #include <linux/input.h>
 #include <linux/hid.h>
 #include <linux/module.h>
+#include <linux/pm_runtime.h>
 
 #include "hid-ids.h"
 
@@ -28,6 +30,7 @@
 #define MS_RDESC		0x08
 #define MS_NOGET		0x10
 #define MS_DUPLICATE_USAGES	0x20
+#define MS_RUNTIME_PM 0x40
 
 static __u8 *ms_report_fixup(struct hid_device *hdev, __u8 *rdesc,
 		unsigned int *rsize)
@@ -229,14 +232,24 @@ static int ms_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	if (quirks & MS_NOGET)
 		hdev->quirks |= HID_QUIRK_NOGET;
 
+	if (quirks & MS_RUNTIME_PM) {
+		pm_runtime_get_noresume(&hdev->dev);
+		pm_runtime_set_active(&hdev->dev);
+		pm_suspend_ignore_children(&hdev->dev, true);
+		pm_runtime_enable(&hdev->dev);
+		pm_runtime_forbid(&hdev->dev);
+		device_enable_async_suspend(&hdev->dev);
+		pm_runtime_put(&hdev->dev);
+	}
+
 	ret = hid_parse(hdev);
 	if (ret) {
 		hid_err(hdev, "parse failed\n");
 		goto err_free;
 	}
 
-	ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT | ((quirks & MS_HIDINPUT) ?
-				HID_CONNECT_HIDINPUT_FORCE : 0));
+	ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT |
+			((quirks & MS_HIDINPUT) ? HID_CONNECT_HIDINPUT_FORCE : 0));
 	if (ret) {
 		hid_err(hdev, "hw start failed\n");
 		goto err_free;
@@ -246,6 +259,37 @@ static int ms_probe(struct hid_device *hdev, const struct hid_device_id *id)
 err_free:
 	return ret;
 }
+
+static void ms_remove(struct hid_device *hdev)
+{
+	unsigned long quirks = (unsigned long) hid_get_drvdata(hdev);
+	if (quirks & MS_RUNTIME_PM) {
+		pm_runtime_disable(&hdev->dev);
+		pm_suspend_ignore_children(&hdev->dev, false);
+		pm_runtime_set_suspended(&hdev->dev);
+	}
+	hid_hw_stop(hdev);
+}
+
+static int ms_runtime_suspend(struct device *dev)
+{
+	struct hid_device *hdev =
+			dev ? container_of(dev, struct hid_device, dev) : NULL;
+	hid_hw_power(hdev, PM_HINT_NORMAL);
+	return 0;
+}
+
+static int ms_runtime_resume(struct device *dev)
+{
+	struct hid_device *hdev =
+			dev ? container_of(dev, struct hid_device, dev) : NULL;
+	hid_hw_power(hdev, PM_HINT_FULLON);
+	return 0;
+}
+
+static const struct dev_pm_ops ms_pm = {
+	SET_RUNTIME_PM_OPS(ms_runtime_suspend, ms_runtime_resume, NULL)
+};
 
 static const struct hid_device_id ms_devices[] = {
 	{ HID_USB_DEVICE(USB_VENDOR_ID_MICROSOFT, USB_DEVICE_ID_SIDEWINDER_GV),
@@ -281,11 +325,19 @@ static const struct hid_device_id ms_devices[] = {
 
 	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_MICROSOFT, USB_DEVICE_ID_MS_PRESENTER_8K_BT),
 		.driver_data = MS_PRESENTER },
+
+	{ HID_SPI_DEVICE(USB_VENDOR_ID_MICROSOFT, SPI_DEVICE_ID_MS_SURFACE_D5),
+		.driver_data = MS_RUNTIME_PM },
+	{ HID_SPI_DEVICE(USB_VENDOR_ID_MICROSOFT, SPI_DEVICE_ID_MS_SURFACE_D6),
+		.driver_data = MS_RUNTIME_PM },
 	{ }
 };
 MODULE_DEVICE_TABLE(hid, ms_devices);
 
 static struct hid_driver ms_driver = {
+	.driver = {
+		.pm = &ms_pm,
+	},
 	.name = "microsoft",
 	.id_table = ms_devices,
 	.report_fixup = ms_report_fixup,
@@ -293,6 +345,7 @@ static struct hid_driver ms_driver = {
 	.input_mapped = ms_input_mapped,
 	.event = ms_event,
 	.probe = ms_probe,
+	.remove = ms_remove,
 };
 module_hid_driver(ms_driver);
 

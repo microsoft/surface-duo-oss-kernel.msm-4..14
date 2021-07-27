@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
+ * Copyright (c) 2020 Microsoft Corporation
  * Author: Rob Clark <robdclark@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -592,9 +593,10 @@ int sde_encoder_helper_wait_for_irq(struct sde_encoder_phys *phys_enc,
 	for (i = 0; i < EVT_TIME_OUT_SPLIT; i++) {
 		ret = _sde_encoder_wait_timeout(DRMID(phys_enc->parent),
 				irq->hw_idx,
-				(wait_info->timeout_ms/EVT_TIME_OUT_SPLIT),
+				(wait_info->timeout_ms),/*MSCHANGE , wait twice*/
+				//(wait_info->timeout_ms/EVT_TIME_OUT_SPLIT),
 				wait_info);
-		if (ret)
+		if (!ret) /*MSCHANGE, we are good first time*/
 			break;
 	}
 
@@ -2096,6 +2098,13 @@ static int _sde_encoder_update_rsc_client(
 		if (crtc->base.id == wait_vblank_crtc_id) {
 			ret = sde_encoder_wait_for_event(drm_enc,
 					MSM_ENC_VBLANK);
+		/*MSCHANGE start*/
+		/* If this is a builtin display we do not wait for primrys vblank
+		 * because we would rather wait/sleep 2 vsyncs than triggering
+		 * kernel warning on state transition*/
+		} else if (disp_info->is_builtin) {
+			msleep(PRIMARY_VBLANK_WORST_CASE_MS);
+		/*MSCHANGE end*/
 		} else if (primary_crtc->state->active &&
 				!drm_atomic_crtc_needs_modeset(
 						primary_crtc->state)) {

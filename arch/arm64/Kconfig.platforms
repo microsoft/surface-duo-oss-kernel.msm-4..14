@@ -1,3 +1,10 @@
+#
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
 menu "Platform selection"
 
 config ARCH_ACTIONS
@@ -341,5 +348,10 @@ config ARCH_ZYNQMP
 	bool "Xilinx ZynqMP Family"
 	help
 	  This enables support for Xilinx ZynqMP Family
+
+config BOARD_SURFACEDUO
+	bool "Surface Duo Family"
+	depends on ARCH_QCOM
+	select ARCH_SM8150
 
 endmenu

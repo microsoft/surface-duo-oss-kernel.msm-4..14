@@ -1,0 +1,112 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
+
+&qupv3_se7_spi {
+	status = "okay";
+	qcom,rt = "true";
+	spi-max-frequency = <25000000>;
+
+	d5_hid@0 {
+		compatible = "hid-over-spi";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <3 4>;
+		interrupt-names = "d5_irq";
+		vdd-supply = <&pm8150_l9>;
+		pinctrl-names = "active", "sleep", "reset";
+		pinctrl-0 = <&ts_d5_active &ts_d5_reset_deassert &ts_d5_int_bias>;
+		pinctrl-1 = <&ts_d5_sleep &ts_d5_reset_assert &ts_d5_int_unbias>;
+		pinctrl-2 = <&ts_d5_active &ts_d5_reset_assert &ts_d5_int_bias>;
+		hid-descr-addr = <1>;
+		sleep-timeout-ms = <30000>;
+	};
+};
+
+&tlmm {
+	ts_d5 {
+		ts_d5_int_bias: ts_d5_int_bias {
+			mux {
+				pins = "gpio3";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio3";
+				bias-pull-down;
+				input-enable;
+			};
+		};
+
+		ts_d5_int_unbias: ts_d5_int_unbias {
+			mux {
+				pins = "gpio3";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio3";
+				bias-disable;
+				input-enable;
+			};
+		};
+
+		ts_d5_active: ts_d5_active {
+			mux {
+				pins = "gpio1";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio1";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+		};
+
+		ts_d5_sleep: ts_d5_sleep {
+			mux {
+				pins = "gpio1";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio1";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+
+		ts_d5_reset_deassert: ts_d5_reset_deassert {
+			mux {
+				pins = "gpio0";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio0";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+		};
+
+		ts_d5_reset_assert: ts_d5_reset_assert {
+			mux {
+				pins = "gpio0";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio0";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+};
+

@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -752,7 +753,10 @@ int cam_dev_mgr_create_subdev_nodes(void)
 	struct v4l2_subdev *sd;
 
 	if (!g_dev.v4l2_dev)
-		return -EINVAL;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		return -EINVAL;
+		return -EPROBE_DEFER;
+/* MSCHANGE End */
 
 	if (g_dev.state != true) {
 		CAM_ERR(CAM_CRM, "camera root device not ready yet");
