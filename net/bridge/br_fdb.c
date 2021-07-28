@@ -760,6 +760,9 @@ int br_fdb_replay(const struct net_device *br_dev, const struct net_device *dev,
 	unsigned long action;
 	int err = 0;
 
+	if (!nb)
+		return 0;
+
 	if (!netif_is_bridge_master(br_dev))
 		return -EINVAL;
 
@@ -780,7 +783,7 @@ int br_fdb_replay(const struct net_device *br_dev, const struct net_device *dev,
 		struct net_device *dst_dev;
 
 		dst_dev = dst ? dst->dev : br->dev;
-		if (dst_dev != br_dev && dst_dev != dev)
+		if (dst_dev && dst_dev != dev)
 			continue;
 
 		err = br_fdb_replay_one(nb, fdb, dst_dev, action, ctx);
@@ -792,7 +795,6 @@ int br_fdb_replay(const struct net_device *br_dev, const struct net_device *dev,
 
 	return err;
 }
-EXPORT_SYMBOL_GPL(br_fdb_replay);
 
 static void fdb_notify(struct net_bridge *br,
 		       const struct net_bridge_fdb_entry *fdb, int type,

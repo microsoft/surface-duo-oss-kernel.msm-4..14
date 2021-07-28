@@ -74,7 +74,7 @@ static int ip6_finish_output2(struct net *net, struct sock *sk, struct sk_buff *
 
 			if (likely(nskb)) {
 				if (skb->sk)
-					skb_set_owner_w(skb, skb->sk);
+					skb_set_owner_w(nskb, skb->sk);
 				consume_skb(skb);
 			} else {
 				kfree_skb(skb);
@@ -607,7 +607,7 @@ int ip6_forward(struct sk_buff *skb)
 		}
 	}
 
-	mtu = ip6_dst_mtu_forward(dst);
+	mtu = ip6_dst_mtu_maybe_forward(dst, true);
 	if (mtu < IPV6_MIN_MTU)
 		mtu = IPV6_MIN_MTU;
 
