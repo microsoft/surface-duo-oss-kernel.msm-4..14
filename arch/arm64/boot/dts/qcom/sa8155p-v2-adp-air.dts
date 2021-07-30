@@ -24,4 +24,5 @@
 
 &qcom_seecom {
 	/delete-property/ qcom,appsbl-qseecom-support;
+	/delete-property/ qcom,commonlib64-loaded-by-uefi;
 };
