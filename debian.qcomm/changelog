@@ -1,4 +1,4 @@
-linux-qcomm (4.14.0-1015.17) focal; urgency=medium
+linux-qcomm (4.14.0-1015.18) focal; urgency=medium
 
   * INVALID or PRIVATE BUG (LP: #1925117)
     - [Config] disabled dt overlay support
