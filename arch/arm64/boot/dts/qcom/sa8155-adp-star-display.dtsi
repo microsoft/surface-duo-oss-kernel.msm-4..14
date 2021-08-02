@@ -63,7 +63,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
-	status = "disabled";
+	status = "ok";
 
 	pinctrl-0 = <&qupv3_se15_i2c_active
 		&ioexp_intr_active
