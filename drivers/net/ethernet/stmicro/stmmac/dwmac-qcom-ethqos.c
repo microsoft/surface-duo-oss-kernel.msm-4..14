@@ -32,6 +32,7 @@
 #define PHY_LOOPBACK_1000 0x4140
 #define PHY_LOOPBACK_100 0x6100
 #define PHY_LOOPBACK_10 0x4100
+#define MDIO_RD_WR_OPS_CLOCK 1
 
 static void __iomem *tlmm_central_base_addr;
 static void ethqos_rgmii_io_macro_loopback(struct qcom_ethqos *ethqos,
@@ -288,6 +289,52 @@ int ethqos_handle_prv_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 	return ret;
 }
 
+static void ethqos_update_ahb_bus_cfg(struct stmmac_priv *priv,
+				      bool ahb_bus_cfg)
+{
+	static int vote_idx;
+	struct qcom_ethqos *ethqos;
+	int ret;
+
+	if (!priv->plat->bsp_priv)
+		return;
+
+	ethqos = (struct qcom_ethqos *)priv->plat->bsp_priv;
+
+	if (ethqos->skip_mdio_vote)
+		return;
+
+	if (ethqos->bus_hdl && ahb_bus_cfg == ETH_AHB_BUS_CFG_NOMINAL) {
+		vote_idx = ethqos->vote_idx;
+		ethqos->vote_idx = VOTE_IDX_MDIO_NOM_CLK;
+		ret = msm_bus_scale_client_update_request(ethqos->bus_hdl,
+							  ethqos->vote_idx);
+		WARN_ON(ret);
+	}
+
+	else if (ethqos->bus_hdl && ahb_bus_cfg == ETH_AHB_BUS_CFG_RECOVER) {
+		ethqos->vote_idx = vote_idx;
+		ret = msm_bus_scale_client_update_request(ethqos->bus_hdl,
+							  ethqos->vote_idx);
+		WARN_ON(ret);
+	}
+}
+
+static void ethqos_update_ahb_clk_cfg(void *priv_n, bool ahb_bus_cfg,
+				      bool skip_mdio_vote)
+{
+	struct stmmac_priv *priv = priv_n;
+	struct qcom_ethqos *ethqos;
+
+	if (!priv->plat->bsp_priv)
+		return;
+
+	ethqos = (struct qcom_ethqos *)priv->plat->bsp_priv;
+	ethqos->skip_mdio_vote = skip_mdio_vote;
+
+	ethqos_update_ahb_bus_cfg(priv, ahb_bus_cfg);
+}
+
 static int __init set_early_ethernet_ipv4(char *ipv4_addr_in)
 {
 	int ret = 1;
@@ -523,6 +570,9 @@ ethqos_update_rgmii_clk_and_bus_cfg(struct qcom_ethqos *ethqos,
 	}
 
 	switch (speed) {
+	case MDIO_RD_WR_OPS_CLOCK:
+		ethqos->vote_idx = VOTE_IDX_MDIO_NOM_CLK;
+		break;
 	case SPEED_1000:
 		ethqos->vote_idx = VOTE_IDX_1000MBPS;
 		break;
@@ -2972,8 +3022,10 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 		ETHQOSINFO("Early ethernet is enabled\n");
 	}
 
-	ethqos->speed = SPEED_10;
-	ethqos_update_rgmii_clk_and_bus_cfg(ethqos, SPEED_10);
+	ethqos->rgmii_clk_rate =  RGMII_ID_MODE_10_LOW_SVS_CLK_FREQ;
+	ethqos->skip_mdio_vote = true;
+	ethqos->speed = MDIO_RD_WR_OPS_CLOCK;
+	ethqos_update_rgmii_clk_and_bus_cfg(ethqos, MDIO_RD_WR_OPS_CLOCK);
 	ethqos_set_func_clk_en(ethqos);
 	if (ethqos->emac_ver == EMAC_HW_v2_0_0)
 		ethqos->disable_ctile_pc = 1;
@@ -2987,6 +3039,7 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 	plat_dat->tso_en = of_property_read_bool(np, "snps,tso");
 	plat_dat->early_eth = ethqos->early_eth_enabled;
 	plat_dat->handle_mac_err = dwmac_qcom_handle_mac_err;
+	plat_dat->update_ahb_clk_cfg = ethqos_update_ahb_clk_cfg;
 
 	if (of_property_read_bool(pdev->dev.of_node, "qcom,arm-smmu")) {
 		stmmac_emb_smmu_ctx.pdev_master = pdev;
@@ -3143,6 +3196,9 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 #ifdef CONFIG_MSM_BOOT_TIME_MARKER
 	place_marker("M - Ethernet probe end");
 #endif
+	ethqos->skip_mdio_vote = false;
+	ethqos->speed = SPEED_10;
+	ethqos_update_rgmii_clk_and_bus_cfg(ethqos, SPEED_10);
 	return ret;
 
 err_clk:
@@ -3150,7 +3206,9 @@ err_clk:
 
 err_mem:
 	stmmac_remove_config_dt(pdev, plat_dat);
-
+	ethqos->skip_mdio_vote = false;
+	ethqos->speed = SPEED_10;
+	ethqos_update_rgmii_clk_and_bus_cfg(ethqos, SPEED_10);
 	return ret;
 }
 
