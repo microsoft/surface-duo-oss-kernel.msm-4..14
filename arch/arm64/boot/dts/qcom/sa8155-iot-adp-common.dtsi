@@ -20,9 +20,23 @@
 };
 
 &ion {
-	qcom,ion-heap@11 { /* CDSP_SENSOR HEAP */
+	qcom,ion-heap@11 {
 		reg = <11>;
 		memory-region = <&cdsp_sensor_mem>;
 		qcom,ion-heap-type = "DMA";
+	};
+};
+
+&soc {
+	qcom,lpass@17300000 {
+		status = "disabled";
+	};
+
+	qcom,venus@aae0000 {
+		status = "disabled";
+	};
+
+	qcom,spss@1880000 {
+		status = "disabled";
 	};
 };
