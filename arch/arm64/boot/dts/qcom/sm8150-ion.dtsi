@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -69,12 +69,6 @@
 		qcom,ion-heap@9 {
 			reg = <9>;
 			qcom,ion-heap-type = "SYSTEM_SECURE";
-		};
-
-		qcom,ion-heap@11 { /* CDSP_SENSOR HEAP */
-			reg = <11>;
-			memory-region = <&cdsp_sensor_mem>;
-			qcom,ion-heap-type = "DMA";
 		};
 	};
 };
