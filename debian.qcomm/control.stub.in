@@ -40,6 +40,7 @@ Build-Depends:
  libfdt-dev <!stage1>,
  android-tools-mkbootimg <!stage1>,
  ubuntu-core-initramfs <!stage1>,
+ oem-wendover-fdehelper <!stage1>,
 Build-Depends-Indep:
  xmlto <!stage1>,
  docbook-utils <!stage1>,
