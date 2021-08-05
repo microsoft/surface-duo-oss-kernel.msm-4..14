@@ -2864,6 +2864,7 @@ static int stmmac_open(struct net_device *dev)
 	if (priv->plat->mac2mac_en) {
 		stmmac_mac2mac_adjust_link(priv->plat->mac2mac_rgmii_speed,
 					   priv);
+		priv->plat->mac2mac_link = true;
 		netif_carrier_on(dev);
 	}
 
@@ -4863,6 +4864,7 @@ int stmmac_resume(struct device *dev)
 	if (priv->plat->mac2mac_en) {
 		stmmac_mac2mac_adjust_link(priv->plat->mac2mac_rgmii_speed,
 					   priv);
+		priv->plat->mac2mac_link = true;
 		netif_carrier_on(ndev);
 	}
 
