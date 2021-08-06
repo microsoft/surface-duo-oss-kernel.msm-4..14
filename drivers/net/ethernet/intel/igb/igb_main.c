@@ -69,6 +69,9 @@ static const char igb_driver_string[] =
 static const char igb_copyright[] =
 				"Copyright (c) 2007-2014 Intel Corporation.";
 
+static char g_mac_addr[ETH_ALEN];
+static int g_usr_mac;
+
 static const struct e1000_info *igb_info_tbl[] = {
 	[board_82575] = &e1000_82575_info,
 };
@@ -78,7 +81,9 @@ static const struct pci_device_id igb_pci_tbl[] = {
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_SGMII) },
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_BACKPLANE_2_5GBPS) },
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I211_COPPER), board_82575 },
+	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I211_TOOLS_ONLY), board_82575 },
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_COPPER), board_82575 },
+	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_TOOLS_ONLY), board_82575 },
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_FIBER), board_82575 },
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_SERDES), board_82575 },
 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I210_SGMII), board_82575 },
@@ -251,6 +256,20 @@ MODULE_AUTHOR("Intel Corporation, <e1000-devel@lists.sourceforge.net>");
 MODULE_DESCRIPTION("Intel(R) Gigabit Ethernet Network Driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
+
+/* Retrieve  user set MAC address */
+static int __init setup_igb_mac(char *macstr)
+{
+	u8 *mac = macstr;
+
+	if (mac_pton(mac, g_mac_addr))
+		g_usr_mac = 1;
+
+	return 0;
+}
+
+/* IGB Mac address */
+__setup("igb_mac=", setup_igb_mac);
 
 #define DEFAULT_MSG_ENABLE (NETIF_MSG_DRV|NETIF_MSG_PROBE|NETIF_MSG_LINK)
 static int debug = -1;
@@ -2304,6 +2323,103 @@ static s32 igb_init_i2c(struct igb_adapter *adapter)
 	return status;
 }
 
+#include <asm/dma-iommu.h>
+#include <linux/iommu.h>
+#include <linux/platform_device.h>
+
+// FIXME: how to partition??
+#define SMMU_BASE	0x20000000
+#define SMMU_SIZE	0x10000000
+int smmu_count;
+
+static int igb_smmu_init(struct pci_dev *pdev)
+{
+	int rc;
+	int atomic_data = 1;
+	int smmu_bypass = 1;
+	int smmu_fast_map = 1;
+	int smmu_coherent = 1;
+
+	struct dma_iommu_mapping *mapping;
+
+	dev_info(&pdev->dev, "Initialize SMMU, bypass=%d, fastmap=%d, coherent=%d\n",
+		 smmu_bypass, smmu_fast_map, smmu_coherent);
+
+	mapping = arm_iommu_create_mapping(&platform_bus_type,
+					   SMMU_BASE + smmu_count * SMMU_SIZE,
+					   SMMU_SIZE);
+	if (IS_ERR_OR_NULL(mapping)) {
+		rc = PTR_ERR(mapping) ?: -ENODEV;
+		dev_err(&pdev->dev,
+			"Failed to create IOMMU mapping (%d)\n", rc);
+		return rc;
+	}
+
+	if (smmu_bypass) {
+		rc = iommu_domain_set_attr(mapping->domain,
+					   DOMAIN_ATTR_ATOMIC,
+					   &atomic_data);
+		if (rc) {
+			dev_err(&pdev->dev,
+				"Set atomic attribute to SMMU failed (%d)\n",
+				rc);
+			goto release_mapping;
+		}
+	} else {
+		/* Set dma-coherent and page table coherency */
+		if (smmu_coherent) {
+			arch_setup_dma_ops(&pdev->dev, 0, 0, NULL, true);
+			rc = iommu_domain_set_attr(mapping->domain,
+				DOMAIN_ATTR_PAGE_TABLE_FORCE_COHERENT,
+						   &smmu_coherent);
+			if (rc) {
+				dev_err(&pdev->dev,
+					"Set SMMU PAGE_TABLE_FORCE_COHERENT attr failed (%d)\n",
+					rc);
+				goto release_mapping;
+			}
+		}
+
+		if (smmu_fast_map) {
+			rc = iommu_domain_set_attr(mapping->domain,
+					DOMAIN_ATTR_S1_BYPASS,
+					&smmu_fast_map);
+			if (rc) {
+				dev_err(&pdev->dev,
+					"Set fast attribute to SMMU failed (%d)\n",
+					rc);
+				goto release_mapping;
+			}
+		}
+	}
+
+	rc = arm_iommu_attach_device(&pdev->dev, mapping);
+	if (rc) {
+		dev_err(&pdev->dev,
+			"arm_iommu_attach_device failed (%d)\n", rc);
+		goto release_mapping;
+	}
+	dev_info(&pdev->dev, "attached to IOMMU [%08x:%08x]\n",
+		 SMMU_BASE + smmu_count * SMMU_SIZE,
+		 SMMU_BASE + smmu_count * SMMU_SIZE + SMMU_SIZE - 1);
+	smmu_count++;
+	return 0;
+
+release_mapping:
+	arm_iommu_release_mapping(mapping);
+	mapping = NULL;
+	return rc;
+}
+
+static int igb_smmu_exit(struct pci_dev *pdev)
+{
+	arm_iommu_detach_device(&pdev->dev);
+
+	smmu_count--;
+	return 0;
+}
+
+
 /**
  *  igb_probe - Device Initialization Routine
  *  @pdev: PCI device information struct
@@ -2337,6 +2453,10 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	}
 
 	err = pci_enable_device_mem(pdev);
+	if (err)
+		return err;
+
+	err = igb_smmu_init(pdev);
 	if (err)
 		return err;
 
@@ -2503,6 +2623,14 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 				err = -EIO;
 				goto err_eeprom;
 			}
+		} else {
+			dev_err(&pdev->dev, "No Flash detected\n");
+			if (g_usr_mac) {
+				dev_err(&pdev->dev,
+					"Setting MAC address from kernel commandline: %pM\n",
+					g_mac_addr);
+				memcpy(hw->mac.addr, g_mac_addr, ETH_ALEN);
+			}
 		}
 		break;
 	default:
@@ -2514,18 +2642,40 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		break;
 	}
 
+#ifdef LTRX_NOT_SET_MAC
+	/* Since this is a flashless design and mac address is supplied
+	 * via kernel command line, the following lines are not needed.
+	 */
 	if (eth_platform_get_mac_address(&pdev->dev, hw->mac.addr)) {
 		/* copy the MAC address out of the NVM */
 		if (hw->mac.ops.read_mac_addr(hw))
 			dev_err(&pdev->dev, "NVM Read Error\n");
 	}
+#endif
 
 	memcpy(netdev->dev_addr, hw->mac.addr, netdev->addr_len);
 
 	if (!is_valid_ether_addr(netdev->dev_addr)) {
+#ifdef LTRX_NOT_SET_MAC
 		dev_err(&pdev->dev, "Invalid MAC Address\n");
 		err = -EIO;
 		goto err_eeprom;
+#else
+		/* For some reason, if the mac address is not available from
+		 * kernel command line, it will default to random mac address.
+		 */
+
+		struct sockaddr sa = { AF_UNSPEC };
+
+		dev_warn(&pdev->dev, "Invalid MAC Address, defaulting to random\n");
+		eth_hw_addr_random(netdev);
+		memcpy(sa.sa_data, netdev->dev_addr, ETH_ALEN);
+		if (igb_set_mac(netdev, &sa)) {
+			dev_warn(&pdev->dev, "Failed to set MAC address.\n");
+			err = -EIO;
+			goto err_eeprom;
+		}
+#endif
 	}
 
 	igb_set_default_mac_filter(adapter);
@@ -2994,6 +3144,7 @@ static void igb_remove(struct pci_dev *pdev)
 
 	pci_disable_pcie_error_reporting(pdev);
 
+	igb_smmu_exit(pdev);
 	pci_disable_device(pdev);
 }
 

@@ -13,28 +13,66 @@
 &tlmm {
 	lis2dh12_int1_default: lis2dh12_int1_default {
 		mux {
-            pins = "gpio142";
-            function = "gpio";
-        };
+			pins = "gpio142";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio142";
+			drive-strength = <16>;
+			bias-pull-down;
+		};
+	};
 
-        config {
-            pins = "gpio142";
-            drive-strength = <16>;
-            bias-pull-down;
-        };
-    };
+	lis2dh12_int2_default: lis2dh12_int2_default {
+		mux {
+			pins = "gpio153";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio153";
+			drive-strength = <16>;
+			bias-pull-down;
+		};
+	};
 
-    lis2dh12_int2_default: lis2dh12_int2_default {
-        mux {
-            pins = "gpio153";
-            function = "gpio";
-        };
-        config {
-            pins = "gpio153";
-            drive-strength = <16>;
-            bias-pull-down;
-       };
-   };
+	eth_pcie_en: eth_pcie_en {
+		mux {
+			pins = "gpio17";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio17";
+			drive-strength = <8>;
+			bias-pull-down;
+			output-low;
+		};
+	};
+
+	eth_pcie_phy_pwr_en: eth_pcie_phy_pwr_en {
+		mux {
+			pins = "gpio34";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio34";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-high;
+		};
+	};
+
+	pcie0_wake_qed_default: pcie0_wake_qed_default {
+		mux {
+			pins = "gpio37";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio37";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
 };
 
 &qupv3_se17_i2c {
@@ -52,5 +90,166 @@
 		pinctrl-0 = <&lis2dh12_int1_default
 			&lis2dh12_int2_default>;
 
+	};
+};
+
+&qupv3_se19_i2c {
+	status = "ok";
+};
+
+&pcie0 {
+	pinctrl-0 = <&pcie0_clkreq_default
+		&pcie0_perst_default
+		&pcie0_wake_qed_default>;
+	qcom,boot-option = <0x0>;
+};
+
+&pcie1 {
+	qcom,boot-option = <0x0>;
+};
+
+&bluetooth {
+	status = "disabled";
+};
+
+&emac_hw {
+	status = "disabled";
+};
+
+&cam_csiphy0 {
+	status = "disabled";
+};
+
+&cam_csiphy1 {
+	status = "disabled";
+};
+
+&cam_csiphy2 {
+	status = "disabled";
+};
+
+&cam_csiphy2 {
+	status = "disabled";
+};
+
+&cam_cci0 {
+	status = "disabled";
+};
+
+&cam_cci1 {
+	status = "disabled";
+};
+
+&cam_isp_mgr {
+	status = "disabled";
+};
+&cam_fd_mgr {
+	status = "disabled";
+};
+&cam_fd {
+	status = "disabled";
+};
+
+&cam_lrme_mgr {
+	status = "disabled";
+};
+&cam_lrme {
+	status = "disabled";
+};
+&cam_csid0 {
+	status = "disabled";
+};
+
+&cam_vfe0 {
+	status = "disabled";
+};
+
+&cam_csid1 {
+	status = "disabled";
+};
+
+&cam_vfe1 {
+	status = "disabled";
+};
+
+&cam_csid_lite0 {
+	status = "disabled";
+};
+
+&cam_vfe_lite0 {
+	status = "disabled";
+};
+
+&cam_csid_lite1 {
+	status = "disabled";
+};
+
+&cam_vfe_lite1 {
+	status = "disabled";
+};
+
+&cam_smmu {
+	status = "disabled";
+};
+
+&cam_a5 {
+	status = "disabled";
+};
+
+&cam_ipe0 {
+	status = "disabled";
+};
+
+&cam_ipe1 {
+	status = "disabled";
+};
+
+&cam_bps {
+	status = "disabled";
+};
+
+&cam_jpeg_mgr {
+	status = "disabled";
+};
+
+&cam_jpeg_enc {
+	status = "disabled";
+};
+
+&cam_jpeg_dma {
+	status = "disabled";
+};
+
+&soc {
+	/delete-node/ cam_isp_mgr;
+	/delete-node/ cam_fd_mgr;
+	/delete-node/ cam_fd;
+	/delete-node/ cam_lrme_mgr;
+	/delete-node/ cam_lrme;
+	/delete-node/ cam_csid0;
+	/delete-node/ cam_vfe0;
+	/delete-node/ cam_csid1;
+	/delete-node/ cam_vfe1;
+	/delete-node/ cam_csid_lite0;
+	/delete-node/ cam_vfe_lite0;
+	/delete-node/ cam_csid_lite1;
+	/delete-node/ cam_vfe_lite1;
+	/delete-node/ cam_csiphy0;
+	/delete-node/ cam_csiphy1;
+	/delete-node/ cam_csiphy2;
+	/delete-node/ cam_csiphy3;
+	/delete-node/ cam_cci0;
+	/delete-node/ cam_cci1;
+	/delete-node/ cam_smmu;
+	/delete-node/ cam_a5;
+	/delete-node/ cam_ipe0;
+	/delete-node/ cam_ipe1;
+	/delete-node/ cam_bps;
+	/delete-node/ cam_jpeg_mgr;
+	/delete-node/ cam_jpeg_enc;
+	/delete-node/ cam_jpeg_dma;
+
+	qcom,cam-req-mgr {
+		status = "disabled";
 	};
 };
