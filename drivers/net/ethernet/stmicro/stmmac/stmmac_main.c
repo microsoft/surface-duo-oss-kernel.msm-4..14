@@ -2861,9 +2861,11 @@ static int stmmac_open(struct net_device *dev)
 	if (priv->tx_queue[IPA_DMA_TX_CH].skip_sw)
 		ethqos_ipa_offload_event_handler(priv, EV_DEV_OPEN);
 
-	if (priv->plat->mac2mac_en)
+	if (priv->plat->mac2mac_en) {
 		stmmac_mac2mac_adjust_link(priv->plat->mac2mac_rgmii_speed,
 					   priv);
+		netif_carrier_on(dev);
+	}
 
 	return 0;
 
