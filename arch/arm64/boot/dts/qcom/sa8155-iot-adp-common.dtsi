@@ -9,17 +9,20 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+&reserved_memory {
+	cdsp_sensor_mem: cdsp_sensor_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0x30000000>;
+	};
+};
 
-/dts-v1/;
-
-#include "sa8155p-iot-v2.dtsi"
-#include "sa8155-adp-common.dtsi"
-#include "sa8155-adp-star-display.dtsi"
-#include "sa8155-iot-adp-common.dtsi"
-
-/ {
-	model = "Qualcomm Technologies, Inc. SA8155P IOT V2 ADP AIR";
-	compatible = "qcom,sa8155p-v2-adp-air", "qcom,sa8155p",
-	"qcom,sa8155p-iot", "qcom,adp-air";
-	qcom,board-id = <0x01000019 0>;
+&ion {
+	qcom,ion-heap@11 { /* CDSP_SENSOR HEAP */
+		reg = <11>;
+		memory-region = <&cdsp_sensor_mem>;
+		qcom,ion-heap-type = "DMA";
+	};
 };
