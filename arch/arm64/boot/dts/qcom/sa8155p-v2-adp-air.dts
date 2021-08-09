@@ -22,8 +22,3 @@
 	compatible = "qcom,sa8155p-v2-adp-air", "qcom,sa8155p", "qcom,adp-air";
 	qcom,board-id = <0x01000019 0>;
 };
-
-&qcom_seecom {
-	/delete-property/ qcom,appsbl-qseecom-support;
-	/delete-property/ qcom,commonlib64-loaded-by-uefi;
-};
