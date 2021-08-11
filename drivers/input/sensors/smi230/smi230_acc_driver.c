@@ -88,6 +88,7 @@ struct smi230_client_data {
 	int IRQ;
 	uint8_t gpio_pin;
 	uint64_t timestamp;
+	struct mutex acc_temp_read;
 #ifdef CONFIG_ENABLE_SMI230_ACC_GYRO_BUFFERING
 	bool read_acc_boot_sample;
 	int acc_bufsample_cnt;
@@ -276,8 +277,11 @@ static ssize_t smi230_acc_temperature_show(struct device *dev,
 {
 	int32_t sensor_temp = 0;
 	int err;
+	struct smi230_client_data *client_data = dev_get_drvdata(dev);
 
+	mutex_lock(&client_data->acc_temp_read);
 	err = smi230_acc_get_sensor_temperature(p_smi230_dev, &sensor_temp);
+	mutex_unlock(&client_data->acc_temp_read);
 	if (err != SMI230_OK)
 		return err;
 
@@ -445,6 +449,8 @@ static int smi230_input_init(struct smi230_client_data *client_data)
 	input_set_abs_params(dev, ABS_X, SMI230_MIN_VALUE, SMI230_MAX_VALUE, 0, 0);
 	input_set_abs_params(dev, ABS_Y, SMI230_MIN_VALUE, SMI230_MAX_VALUE, 0, 0);
 	input_set_abs_params(dev, ABS_Z, SMI230_MIN_VALUE, SMI230_MAX_VALUE, 0, 0);
+
+	mutex_init(&client_data->acc_temp_read);
 
 	err = input_register_device(dev);
 	if (err)
@@ -707,6 +713,7 @@ static irqreturn_t smi230_irq_work_func(int irq, void *handle)
 	struct smi230_client_data *client_data = handle;
 
 	/* int status reg is not available to tell the interupt source */
+	mutex_lock(&client_data->acc_temp_read);
 #ifdef CONFIG_SMI230_RAW_DATA
 	smi230_raw_data_ready_handle(client_data);
 #endif
@@ -716,6 +723,7 @@ static irqreturn_t smi230_irq_work_func(int irq, void *handle)
 #ifdef CONFIG_SMI230_DATA_SYNC
 	smi230_data_sync_ready_handle(client_data);
 #endif
+	mutex_unlock(&client_data->acc_temp_read);
 	return IRQ_HANDLED;
 }
 

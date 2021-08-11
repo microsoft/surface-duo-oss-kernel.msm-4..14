@@ -1112,7 +1112,7 @@ int8_t smi230_acc_get_sensor_temperature(const struct smi230_dev *dev, int32_t *
             /* sensor temperature */
             *sensor_temp = (temp * 125) + 23000;
         }
-
+		//printk("data %x %x msblsb %d temp %d sensor_temp %d\n", data[0],data[1], msblsb, temp, *sensor_temp);
     }
     else
     {
