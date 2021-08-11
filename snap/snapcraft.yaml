@@ -89,6 +89,17 @@ parts:
             - firmware/brcm
             - firmware/nxp
 
+    qcacld:
+        plugin: dump
+        source: https://source.codeaurora.org/external/imx/qcacld-2.0-imx
+        source-type: git
+        source-tag: rel_imx_5.4.70_2.3.0
+        source-depth: 1
+        organize:
+           '*': qcacld/
+        prime:
+            - -*
+
     firmware-qca:
         plugin: nil
         override-pull: |
