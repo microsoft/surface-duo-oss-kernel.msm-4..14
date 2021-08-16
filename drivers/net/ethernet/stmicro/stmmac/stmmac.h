@@ -158,6 +158,7 @@ struct stmmac_priv {
 	struct dentry *dbgfs_rings_status;
 	struct dentry *dbgfs_dma_cap;
 #endif
+	bool en_wol;
 };
 
 struct stmmac_emb_smmu_cb_ctx {
