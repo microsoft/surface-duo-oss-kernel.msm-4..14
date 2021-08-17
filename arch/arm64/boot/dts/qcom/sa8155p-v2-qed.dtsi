@@ -10,109 +10,7 @@
  * GNU General Public License for more details.
  */
 
-&tlmm {
-	lis2dh12_int1_default: lis2dh12_int1_default {
-		mux {
-			pins = "gpio142";
-			function = "gpio";
-		};
-		config {
-			pins = "gpio142";
-			drive-strength = <16>;
-			bias-pull-down;
-		};
-	};
-
-	lis2dh12_int2_default: lis2dh12_int2_default {
-		mux {
-			pins = "gpio153";
-			function = "gpio";
-		};
-		config {
-			pins = "gpio153";
-			drive-strength = <16>;
-			bias-pull-down;
-		};
-	};
-
-	eth_pcie_en: eth_pcie_en {
-		mux {
-			pins = "gpio17";
-			function = "gpio";
-		};
-		config {
-			pins = "gpio17";
-			drive-strength = <8>;
-			bias-pull-down;
-			output-low;
-		};
-	};
-
-	eth_pcie_phy_pwr_en: eth_pcie_phy_pwr_en {
-		mux {
-			pins = "gpio34";
-			function = "gpio";
-		};
-		config {
-			pins = "gpio34";
-			drive-strength = <8>;
-			bias-pull-up;
-			output-high;
-		};
-	};
-
-	pcie0_wake_qed_default: pcie0_wake_qed_default {
-		mux {
-			pins = "gpio37";
-			function = "gpio";
-		};
-
-		config {
-			pins = "gpio37";
-			drive-strength = <2>;
-			bias-disable;
-		};
-	};
-};
-
-&qupv3_se17_i2c {
-	status = "ok";
-
-	lis2dh12_accel@19 {
-		status = "okay";
-		compatible = "st,lis2dh12-accel";
-		reg = <0x19>;
-		interrupt-parent = <&tlmm>;
-		interrupts = <142 IRQ_TYPE_EDGE_RISING>,
-			     <152 IRQ_TYPE_EDGE_RISING>;
-        st,drdy-int-pin = <1>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&lis2dh12_int1_default
-			&lis2dh12_int2_default>;
-
-	};
-};
-
-&qupv3_se19_i2c {
-	status = "ok";
-};
-
-&pcie0 {
-	pinctrl-0 = <&pcie0_clkreq_default
-		&pcie0_perst_default
-		&pcie0_wake_qed_default>;
-	qcom,boot-option = <0x0>;
-};
-
-&pcie1 {
-	qcom,boot-option = <0x0>;
-};
-
 &bluetooth {
-	status = "disabled";
-};
-
-&emac_hw {
 	status = "disabled";
 };
 
@@ -220,6 +118,58 @@
 	status = "disabled";
 };
 
+&qupv3_se11_i2c {
+	status = "disabled";
+};
+
+&gecko_core_platform {
+	status = "disabled";
+};
+
+&tdm_pri_rx {
+	status = "disabled";
+};
+
+&tdm_pri_tx {
+	status = "disabled";
+};
+
+&tdm_sec_rx {
+	status = "disabled";
+};
+
+&tdm_sec_tx {
+	status = "disabled";
+};
+
+&tdm_tert_rx {
+	status = "disabled";
+};
+
+&tdm_tert_tx {
+	status = "disabled";
+};
+
+&tdm_quat_rx {
+	status = "disabled";
+};
+
+&tdm_quat_tx {
+	status = "disabled";
+};
+
+&tdm_quin_rx {
+	status = "disabled";
+};
+
+&tdm_quin_tx {
+	status = "disabled";
+};
+
+&fsa4480 {
+	status = "disabled";
+};
+
 &soc {
 	/delete-node/ cam_isp_mgr;
 	/delete-node/ cam_fd_mgr;
@@ -248,8 +198,91 @@
 	/delete-node/ cam_jpeg_mgr;
 	/delete-node/ cam_jpeg_enc;
 	/delete-node/ cam_jpeg_dma;
+        /delete-node/ gecko_core_platform;
+        /delete-node/ tdm_pri_rx;
+        /delete-node/ tdm_pri_tx;
+        /delete-node/ tdm_sec_rx;
+        /delete-node/ tdm_sec_tx;
+        /delete-node/ tdm_tert_rx;
+        /delete-node/ tdm_tert_tx;
+        /delete-node/ tdm_quat_rx;
+        /delete-node/ tdm_quat_tx;
+        /delete-node/ tdm_quin_rx;
+        /delete-node/ tdm_quin_tx;
 
 	qcom,cam-req-mgr {
 		status = "disabled";
 	};
+};
+
+&tlmm {
+	lis2dh12_int1_default: lis2dh12_int1_default {
+		mux {
+			pins = "gpio142";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio142";
+			drive-strength = <16>;
+			bias-pull-down;
+		};
+	};
+
+	lis2dh12_int2_default: lis2dh12_int2_default {
+		mux {
+			pins = "gpio153";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio153";
+			drive-strength = <16>;
+			bias-pull-down;
+		};
+	};
+
+	pcie0_wake_qed_default: pcie0_wake_qed_default {
+		mux {
+			pins = "gpio37";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio37";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
+};
+
+&qupv3_se17_i2c {
+	status = "ok";
+
+	lis2dh12_accel@19 {
+		status = "okay";
+		compatible = "st,lis2dh12-accel";
+		reg = <0x19>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <142 IRQ_TYPE_EDGE_RISING>,
+			     <152 IRQ_TYPE_EDGE_RISING>;
+	        st,drdy-int-pin = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lis2dh12_int1_default
+			&lis2dh12_int2_default>;
+	};
+};
+
+&qupv3_se19_i2c {
+	status = "ok";
+};
+
+&pcie0 {
+	pinctrl-0 = <&pcie0_clkreq_default
+		&pcie0_perst_default
+		&pcie0_wake_qed_default>;
+	qcom,boot-option = <0x0>;
+};
+
+&pcie1 {
+	qcom,boot-option = <0x0>;
 };
