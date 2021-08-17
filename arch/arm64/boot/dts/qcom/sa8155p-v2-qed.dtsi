@@ -219,6 +219,23 @@
 		status = "disabled";
 	};
 
+	/* Balance Meter Board */
+	qupv3_se11_2uart: qcom,qup_uart@a8c000 {
+		compatible = "qcom,msm-geni-serial-hs";
+		reg = <0xa8c000 0x4000>;
+		reg-names = "se_phys";
+		clock-names = "se-clk", "m-ahb", "s-ahb";
+		clocks = <&clock_gcc GCC_QUPV3_WRAP1_S3_CLK>,
+                        <&clock_gcc GCC_QUPV3_WRAP_1_M_AHB_CLK>,
+                        <&clock_gcc GCC_QUPV3_WRAP_1_S_AHB_CLK>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&qupv3_se11_2uart_active>;
+		pinctrl-1 = <&qupv3_se11_2uart_sleep>;
+		interrupts = <GIC_SPI 356 0>;
+		qcom,wrapper-core = <&qupv3_1>;
+		status = "okay";
+	};
+
 	/* PLC */
 	qupv3_se16_2uart: qcom,qup_uart@a94000 {
 		compatible = "qcom,msm-geni-serial-hs";
@@ -274,6 +291,34 @@
 			bias-disable;
 		};
 	};
+
+	/* Balance Meter Board Pin Control */
+        qupv3_se11_2uart_pins: qupv3_se11_2uart_pins {
+                qupv3_se11_2uart_active: qupv3_se11_2uart_active {
+                        mux {
+                                pins = "gpio92", "gpio93";
+                                function = "qup11";
+                        };
+                        config {
+                                pins = "gpio92", "gpio93";
+                                drive-strength = <2>;
+                                bias-disable;
+                        };
+                };
+                qupv3_se11_2uart_sleep: qupv3_se11_2uart_sleep {
+                        mux {
+                                pins = "gpio92", "gpio93";
+                                function = "qup11";
+                        };
+
+                        config {
+                                pins = "gpio92", "gpio93";
+                                drive-strength = <2>;
+                                bias-disable;
+                        };
+                };
+        };
+
 };
 
 &qupv3_se17_i2c {
