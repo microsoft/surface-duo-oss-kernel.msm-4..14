@@ -252,6 +252,29 @@
 		qcom,wrapper-core = <&qupv3_1>;
 		status = "okay";
 	};
+
+	/* 169MHz RF module */
+    qupv3_se7_4uart: qcom,qup_uart@89c000 {
+            compatible = "qcom,msm-geni-serial-hs";
+            reg = <0x89c000 0x4000>;
+            reg-names = "se_phys";
+            clock-names = "se-clk", "m-ahb", "s-ahb";
+            clocks = <&clock_gcc GCC_QUPV3_WRAP0_S7_CLK>,
+                     <&clock_gcc GCC_QUPV3_WRAP_0_M_AHB_CLK>,
+                     <&clock_gcc GCC_QUPV3_WRAP_0_S_AHB_CLK>;
+            pinctrl-names = "default", "active", "sleep";
+            pinctrl-0 = <&qupv3_se7_default_ctsrtsrx>,
+                        <&qupv3_se7_default_tx>;
+            pinctrl-1 = <&qupv3_se7_ctsrx>, <&qupv3_se7_rts>,
+                        <&qupv3_se7_tx>;
+            pinctrl-2 = <&qupv3_se7_ctsrx>, <&qupv3_se7_rts>,
+                        <&qupv3_se7_tx>;
+            interrupts-extended = <&pdc GIC_SPI 608 0>,
+                                  <&tlmm 101 0>;
+            qcom,wrapper-core = <&qupv3_0>;
+            qcom,wakeup-byte = <0xFD>;
+            status = "okay";
+    };
 };
 
 &tlmm {
@@ -291,6 +314,74 @@
 			bias-disable;
 		};
 	};
+
+
+	qupv3_se7_4uart_pins: qupv3_se7_4uart_pins {
+           qupv3_se7_default_ctsrtsrx: qupv3_se7_default_ctsrtsrx {
+               mux {
+                    pins = "gpio98", "gpio99", "gpio101";
+                    function = "gpio";
+               };
+
+               config {
+                    pins = "gpio98", "gpio99", "gpio101";
+                    drive-strength = <2>;
+                    bias-pull-down;
+               };
+           };
+
+           qupv3_se7_default_tx: qupv3_se7_default_tx {
+              mux {
+                                      pins = "gpio100";
+                  function = "gpio";
+              };
+
+              config {
+                                      pins = "gpio100";
+                  drive-strength = <2>;
+                  bias-pull-up;
+              };
+           };
+
+           qupv3_se7_ctsrx: qupv3_se7_ctsrx {
+              mux {
+                                      pins = "gpio98", "gpio101";
+                  function = "qup7";
+              };
+
+              config {
+                  pins = "gpio98", "gpio101";
+                  drive-strength = <2>;
+                  bias-disable;
+              };
+          };
+
+          qupv3_se7_rts: qupv3_se7_rts {
+             mux {
+                    pins = "gpio99";
+                    function = "qup7";
+                };
+
+             config {
+                    pins = "gpio99";
+                    drive-strength = <2>;
+                    bias-pull-down;
+                };
+            };
+
+          qupv3_se7_tx: qupv3_se7_tx {
+              mux {
+                   pins = "gpio100";
+                   function = "qup7";
+              };
+
+              config {
+                   pins = "gpio100";
+                   drive-strength = <2>;
+                   bias-pull-up;
+              };
+           };
+        };
 
 	/* Balance Meter Board Pin Control */
         qupv3_se11_2uart_pins: qupv3_se11_2uart_pins {
