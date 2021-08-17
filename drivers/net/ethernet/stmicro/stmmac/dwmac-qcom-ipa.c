@@ -1959,12 +1959,16 @@ static int ethqos_ipa_offload_suspend(struct qcom_ethqos *ethqos)
 		return ret;
 	}
 
+	/* Map RX queue 0 to DMA channel 1 before IPA offload disconnect */
+	priv->hw->mac->map_mtl_to_dma(priv->hw, EMAC_QUEUE_0, EMAC_CHANNEL_1);
+	ETHQOSINFO("Mapped queue 0 to channel 1\n");
+
 	/* Disconnect IPA offload */
 	if (eth_ipa_ctx.ipa_offload_conn) {
 		ret = ethqos_ipa_offload_disconnect(ethqos);
 		if (ret) {
 			ETHQOSERR("IPA Offload Disconnect Failed :%d\n", ret);
-			return ret;
+			goto err_revert_dma_map;
 		}
 		eth_ipa_ctx.ipa_offload_conn = false;
 		ETHQOSDBG("IPA Offload Disconnect Successfully\n");
@@ -1974,7 +1978,7 @@ static int ethqos_ipa_offload_suspend(struct qcom_ethqos *ethqos)
 
 	if (ret != 0) {
 		ETHQOSERR("stop_dma_tx failed %d\n", ret);
-		return ret;
+		goto err_revert_dma_map;
 	}
 
 	if (eth_ipa_ctx.ipa_uc_ready) {
@@ -1990,12 +1994,16 @@ static int ethqos_ipa_offload_suspend(struct qcom_ethqos *ethqos)
 		ret = ethqos_ipa_offload_cleanup(ethqos);
 		if (ret) {
 			ETHQOSERR("IPA Offload Cleanup Failed, err: %d\n", ret);
-			return ret;
+			goto err_revert_dma_map;
 		}
 		ETHQOSDBG("IPA Offload Cleanup Success\n");
 		eth_ipa_ctx.ipa_offload_init = false;
 	}
 
+	return ret;
+
+err_revert_dma_map:
+	priv->hw->mac->map_mtl_to_dma(priv->hw, EMAC_QUEUE_0, EMAC_CHANNEL_0);
 	return ret;
 }
 
@@ -2046,7 +2054,13 @@ static int ethqos_ipa_offload_resume(struct qcom_ethqos *ethqos)
 		priv->hw->mac->map_mtl_to_dma(priv->hw, EMAC_QUEUE_0,
 					      EMAC_CHANNEL_1);
 		ETHQOSINFO("Mapped queue 0 to channel 1 again\n");
+		return ret;
 	}
+
+	/* Map RX queue 0 to DMA channel 0 on successful IPA offload resume */
+	priv->hw->mac->map_mtl_to_dma(priv->hw, EMAC_QUEUE_0, EMAC_CHANNEL_0);
+	ETHQOSINFO("Mapped queue 0 to channel 0\n");
+
 	ETHQOSDBG("Exit\n");
 fail:
 	return ret;
