@@ -213,6 +213,23 @@
 	qcom,cam-req-mgr {
 		status = "disabled";
 	};
+
+	/* PLC */
+	qupv3_se16_2uart: qcom,qup_uart@a94000 {
+		compatible = "qcom,msm-geni-serial-hs";
+		reg = <0xa94000 0x4000>;
+		reg-names = "se_phys";
+		clock-names = "se-clk", "m-ahb", "s-ahb";
+		clocks = <&clock_gcc GCC_QUPV3_WRAP1_S5_CLK>,
+		       <&clock_gcc GCC_QUPV3_WRAP_1_M_AHB_CLK>,
+		       <&clock_gcc GCC_QUPV3_WRAP_1_S_AHB_CLK>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&qupv3_se16_2uart_active>;
+		pinctrl-1 = <&qupv3_se16_2uart_sleep>;
+		interrupts = <GIC_SPI 358 0>;
+		qcom,wrapper-core = <&qupv3_1>;
+		status = "okay";
+	};
 };
 
 &tlmm {
@@ -252,7 +269,6 @@
 			bias-disable;
 		};
 	};
-
 };
 
 &qupv3_se17_i2c {
