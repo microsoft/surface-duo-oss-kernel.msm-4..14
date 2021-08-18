@@ -170,6 +170,10 @@
 	status = "disabled";
 };
 
+&hsi2s {
+	status = "disabled";
+};
+
 &soc {
 	/delete-node/ cam_isp_mgr;
 	/delete-node/ cam_fd_mgr;
@@ -209,6 +213,7 @@
         /delete-node/ tdm_quat_tx;
         /delete-node/ tdm_quin_rx;
         /delete-node/ tdm_quin_tx;
+	/delete-node/ hsi2s;
 
 	qcom,cam-req-mgr {
 		status = "disabled";
