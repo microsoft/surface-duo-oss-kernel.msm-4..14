@@ -116,7 +116,7 @@ parts:
         plugin: dump
         source: https://github.com/NXP/imx-firmware.git
         source-type: git
-        source-tag: rel_imx_5.4.70_2.3.0
+        source-tag: rel_imx_5.4.70_2.3.2
         organize:
             'cyw-wifi-bt/1CX_CYW4356/*': firmware/brcm/
             'cyw-wifi-bt/1FD_CYW4359/*': firmware/brcm/
