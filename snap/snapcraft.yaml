@@ -133,7 +133,7 @@ parts:
         plugin: dump
         source: https://source.codeaurora.org/external/imx/qcacld-2.0-imx
         source-type: git
-        source-tag: rel_imx_5.4.70_2.3.0
+        source-tag: rel_imx_5.4.70_2.3.2
         source-depth: 1
         organize:
            '*': qcacld/
