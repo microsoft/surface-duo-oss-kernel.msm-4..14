@@ -2210,7 +2210,7 @@ fail:
 }
 
 static int ethqos_ipa_offload_connect(
-	struct qcom_ethqos *ethqos, enum ipa_queue_type type)
+	struct qcom_ethqos *ethqos, enum ipa_queue_type type, bool user_resume)
 {
 	struct ethqos_prv_ipa_data *eth_ipa = &eth_ipa_ctx;
 	struct ipa_uc_offload_conn_in_params in;
@@ -2416,7 +2416,7 @@ static int ethqos_ipa_offload_connect(
 		goto mem_free;
 	}
 
-	if (eth_ipa_queue_type_to_send_msg_needed(type))
+	if (eth_ipa_queue_type_to_send_msg_needed(type) && !user_resume)
 		eth_ipa_send_msg(ethqos, IPA_PERIPHERAL_CONNECT, type);
 	if (type == IPA_QUEUE_CV2X)
 		eth_ipa_ctx.cv2x_queue_enabled = true;
@@ -2484,7 +2484,8 @@ static int ethqos_ipa_offload_disconnect(
 	return 0;
 }
 
-static int ethqos_ipa_cv2x_offload_suspend(struct qcom_ethqos *ethqos, int type)
+static int ethqos_ipa_cv2x_offload_suspend(struct qcom_ethqos *ethqos, int type,
+					   bool user_suspend)
 {
 	int ret = 0;
 	struct ipa_perf_profile profile;
@@ -2547,7 +2548,7 @@ static int ethqos_ipa_cv2x_offload_suspend(struct qcom_ethqos *ethqos, int type)
 				  __func__, ret);
 	}
 
-	if (eth_ipa_ctx.ipa_offload_init_cv2x) {
+	if (eth_ipa_ctx.ipa_offload_init_cv2x && !user_suspend) {
 		ret = ethqos_ipa_offload_cleanup(ethqos, type);
 		if (ret) {
 			ETHQOSERR("%s: Cleanup Failed, %d\n",
@@ -2561,7 +2562,8 @@ static int ethqos_ipa_cv2x_offload_suspend(struct qcom_ethqos *ethqos, int type)
 	return ret;
 }
 
-static int ethqos_ipa_cv2x_offload_resume(struct qcom_ethqos *ethqos, int type)
+static int ethqos_ipa_cv2x_offload_resume(struct qcom_ethqos *ethqos, int type,
+					  bool user_resume)
 {
 	int ret = 1;
 	struct ipa_perf_profile profile;
@@ -2578,7 +2580,7 @@ static int ethqos_ipa_cv2x_offload_resume(struct qcom_ethqos *ethqos, int type)
 		return ret;
 	}
 
-	if (!eth_ipa_ctx.ipa_offload_init_cv2x) {
+	if (!eth_ipa_ctx.ipa_offload_init_cv2x && !user_resume) {
 		eth_ipa_ctx.ipa_offload_init_cv2x =
 		!ethqos_ipa_offload_init(ethqos, type);
 		if (!eth_ipa_ctx.ipa_offload_init_cv2x)
@@ -2594,7 +2596,7 @@ static int ethqos_ipa_cv2x_offload_resume(struct qcom_ethqos *ethqos, int type)
 
 	ETHQOSERR("%s\n", __func__);
 
-	ret = ethqos_ipa_offload_connect(ethqos, type);
+	ret = ethqos_ipa_offload_connect(ethqos, type, user_resume);
 	if (ret != 0)
 		goto fail;
 	else
@@ -2621,7 +2623,8 @@ fail:
 	return ret;
 }
 
-static int ethqos_ipa_offload_suspend(struct qcom_ethqos *ethqos)
+static int ethqos_ipa_offload_suspend(struct qcom_ethqos *ethqos,
+				      bool user_suspend)
 {
 	int ret = 0;
 	struct ipa_perf_profile profile;
@@ -2696,7 +2699,7 @@ static int ethqos_ipa_offload_suspend(struct qcom_ethqos *ethqos)
 		}
 	}
 
-	if (eth_ipa_ctx.ipa_offload_init) {
+	if (eth_ipa_ctx.ipa_offload_init && !user_suspend) {
 		for (type = 0; type < IPA_QUEUE_MAX; type++) {
 			if (eth_ipa_queue_type_enabled(type)) {
 				ret = ethqos_ipa_offload_cleanup(ethqos, type);
@@ -2716,7 +2719,8 @@ static int ethqos_ipa_offload_suspend(struct qcom_ethqos *ethqos)
 	return ret;
 }
 
-static int ethqos_ipa_offload_resume(struct qcom_ethqos *ethqos)
+static int ethqos_ipa_offload_resume(struct qcom_ethqos *ethqos,
+				     bool user_resume)
 {
 	int ret = 1;
 	struct ipa_perf_profile profile;
@@ -2727,7 +2731,7 @@ static int ethqos_ipa_offload_resume(struct qcom_ethqos *ethqos)
 
 	ETHQOSDBG("Enter\n");
 
-	if (!eth_ipa_ctx.ipa_offload_init) {
+	if (!eth_ipa_ctx.ipa_offload_init && !user_resume) {
 		for (type = 0; type < IPA_QUEUE_MAX; type++) {
 			if (eth_ipa_queue_type_enabled(type)) {
 				eth_ipa_ctx.ipa_offload_init =
@@ -2751,7 +2755,7 @@ static int ethqos_ipa_offload_resume(struct qcom_ethqos *ethqos)
 	ETHQOSERR("DWC_ETH_QOS_ipa_offload_connect\n");
 	for (type = 0; type < IPA_QUEUE_MAX; type++) {
 		if (eth_ipa_queue_type_enabled(type)) {
-			ret = ethqos_ipa_offload_connect(ethqos, type);
+			ret = ethqos_ipa_offload_connect(ethqos, type, user_resume);
 			if (ret != 0)
 				goto fail;
 			else
@@ -2804,7 +2808,7 @@ static int ethqos_disable_ipa_offload(struct qcom_ethqos *ethqos)
 	/* Not user requested suspend, do not set ipa_offload_susp */
 	if (!eth_ipa_ctx.ipa_offload_susp &&
 	    eth_ipa_ctx.ipa_offload_conn) {
-		ret = ethqos_ipa_offload_suspend(ethqos);
+		ret = ethqos_ipa_offload_suspend(ethqos, false);
 		if (ret) {
 			ETHQOSERR("IPA Suspend Failed, err:%d\n", ret);
 			return ret;
@@ -2847,7 +2851,7 @@ static int ethqos_enable_ipa_offload(struct qcom_ethqos *ethqos)
 	    !eth_ipa_ctx.ipa_offload_susp) {
 		for (type = 0; type < IPA_QUEUE_MAX; type++) {
 			if (eth_ipa_queue_type_enabled(type)) {
-				ret = ethqos_ipa_offload_connect(ethqos, type);
+			ret = ethqos_ipa_offload_connect(ethqos, type, false);
 				if (ret) {
 					ETHQOSERR("Connect Failed, type %d\n",
 						  type);
@@ -3062,11 +3066,11 @@ void ethqos_ipa_offload_event_handler(void *data,
 	switch (ev) {
 	case SSR_EVENT_UP:
 		ethqos_ipa_cv2x_offload_resume(eth_ipa_ctx.ethqos,
-					       IPA_QUEUE_CV2X);
+					       IPA_QUEUE_CV2X, false);
 		break;
 	case SSR_EVENT_DOWN:
 		ethqos_ipa_cv2x_offload_suspend(eth_ipa_ctx.ethqos,
-						IPA_QUEUE_CV2X);
+						IPA_QUEUE_CV2X, false);
 		break;
 	case EV_PHY_LINK_DOWN:
 		if (!eth_ipa_ctx.emac_dev_ready ||
@@ -3076,9 +3080,8 @@ void ethqos_ipa_offload_event_handler(void *data,
 		    !eth_ipa_ctx.ipa_offload_conn)
 			break;
 
-		if (!ethqos_ipa_offload_suspend(eth_ipa_ctx.ethqos))
+		if (!ethqos_ipa_offload_suspend(eth_ipa_ctx.ethqos, false))
 			eth_ipa_ctx.ipa_offload_link_down = true;
-
 		break;
 	case EV_PHY_LINK_UP:
 		if (!eth_ipa_ctx.emac_dev_ready ||
@@ -3088,7 +3091,7 @@ void ethqos_ipa_offload_event_handler(void *data,
 
 		/* Link up event is expected only after link down */
 		if (eth_ipa_ctx.ipa_offload_link_down)
-			ethqos_ipa_offload_resume(eth_ipa_ctx.ethqos);
+			ethqos_ipa_offload_resume(eth_ipa_ctx.ethqos, false);
 		else if (eth_ipa_ctx.emac_dev_ready &&
 			 eth_ipa_ctx.ipa_uc_ready)
 			ethqos_enable_ipa_offload(eth_ipa_ctx.ethqos);
@@ -3175,13 +3178,15 @@ void ethqos_ipa_offload_event_handler(void *data,
 	case EV_USR_SUSPEND:
 		if (!eth_ipa_ctx.ipa_offload_susp &&
 		    !eth_ipa_ctx.ipa_offload_link_down)
-			if (!ethqos_ipa_offload_suspend(eth_ipa_ctx.ethqos))
+			if (!ethqos_ipa_offload_suspend(eth_ipa_ctx.ethqos,
+							true))
 				eth_ipa_ctx.ipa_offload_susp = true;
 
 		break;
 	case EV_DPM_RESUME:
 		if (qcom_ethqos_is_phy_link_up(eth_ipa_ctx.ethqos)) {
-			if (!ethqos_ipa_offload_resume(eth_ipa_ctx.ethqos))
+			if (!ethqos_ipa_offload_resume(eth_ipa_ctx.ethqos,
+						       false))
 				eth_ipa_ctx.ipa_offload_susp = false;
 		} else {
 			/* Reset flag here to allow connection
@@ -3198,9 +3203,9 @@ void ethqos_ipa_offload_event_handler(void *data,
 		break;
 	case EV_USR_RESUME:
 		if (eth_ipa_ctx.ipa_offload_susp)
-			if (!ethqos_ipa_offload_resume(eth_ipa_ctx.ethqos))
+			if (!ethqos_ipa_offload_resume(eth_ipa_ctx.ethqos,
+						       true))
 				eth_ipa_ctx.ipa_offload_susp = false;
-
 		break;
 	case EV_IPA_OFFLOAD_REMOVE:
 		ethqos_free_ipa_queue_mem(eth_ipa_ctx.ethqos);
