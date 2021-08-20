@@ -472,6 +472,40 @@
 	status = "ok";
 };
 
+&pm8150_vadc {
+	amux_thm1_pu2 {
+		reg = <ADC_AMUX_THM1_PU2>;
+		label = "aux_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+	amux_thm2_pu2 {
+		reg = <ADC_AMUX_THM2_PU2>;
+		label = "fpga_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+};
+
+&pm8150_2_vadc {
+	xo_therm {
+		reg = <ADC_XO_THERM_PU2>;
+		label = "ufs_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+	amux_thm2_pu2 {
+		reg = <ADC_AMUX_THM2_PU2>;
+		label = "power_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+};
+
 &pcie0 {
 	pinctrl-0 = <&pcie0_clkreq_default
 		&pcie0_perst_default
