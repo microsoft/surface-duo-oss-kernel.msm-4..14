@@ -275,6 +275,45 @@
             qcom,wakeup-byte = <0xFD>;
             status = "okay";
     };
+
+        gpio_keys {
+                compatible = "gpio-keys";
+                label = "gpio-keys";
+
+                pinctrl-names = "default";
+                pinctrl-0 = <&key_home_default>;
+
+                home {
+                        label = "home";
+                        gpios = <&pm8150_1_gpios 1 GPIO_ACTIVE_LOW>;
+                        linux,input-type = <1>;
+                        linux,code = <KEY_HOME>;
+                        gpio-key,wakeup;
+                        debounce-interval = <15>;
+                        linux,can-disable;
+                };
+        };
+
+        rf_ctl {
+                compatible = "rf-ctl";
+                label = "rf-ctl";
+                pinctrl-names = "default";
+                pinctl-0 = <&gpio9_rf_rst_def
+                                &gpio10_rf_sleep_def>;
+
+                rst {
+                        label = "rf_rst";
+                        gpios = <&pm8150_1_gpios 9 GPIO_ACTIVE_LOW>;
+                };
+
+                sleep {
+                        label = "rf_sleep";
+                        gpios = <&pm8150_1_gpios 10 GPIO_ACTIVE_HIGH>;
+                };
+
+        };
+
+
 };
 
 &tlmm {
@@ -442,4 +481,60 @@
 
 &pcie1 {
 	qcom,boot-option = <0x0>;
+};
+
+
+pm8150_1_gpios: &pm8150_gpios {
+	interrupts = <0x0 0xc0 0 IRQ_TYPE_NONE>,
+			<0x0 0xc2 0 IRQ_TYPE_NONE>,
+			<0x0 0xc3 0 IRQ_TYPE_NONE>,
+			<0x0 0xc5 0 IRQ_TYPE_NONE>,
+			<0x0 0xc6 0 IRQ_TYPE_NONE>,
+			<0x0 0xc8 0 IRQ_TYPE_NONE>,
+			<0x0 0xc9 0 IRQ_TYPE_NONE>;
+	interrupt-names = "pm8150_1_gpio1", "pm8150_1_gpio3",
+			"pm8150_1_gpio4", "pm8150_1_gpio6", "pm8150_1_gpio7",
+			"pm8150_1_gpio9", "pm8150_1_gpio10";
+	gpio-controller;
+	qcom,gpios-disallowed = <2 5 8>;
+
+	gpio6_dc {
+		gpio6_dc_def: gpio6_dc_def {
+			pins = "gpio6";
+			function = "normal";
+			bias-disable;
+			input-enable;
+			power-source = <0>;
+		};
+	};
+
+	gpio7_ac{
+        gpio7_dc_def: gpio7_dc_def {
+                        pins = "gpio7";
+                        function = "normal";
+                        input-enable;
+                        bias-disable;
+                        power-source = <0>;
+                };
+        };
+
+        gpio9_rf_rst {
+                gpio9_rf_rst_def: gpio9_rf_rst_def {
+                        pins = "gpio9";
+                        function = "normal";
+                        input-enable;
+                        bias-pull-up;
+                        power-source = <0>;
+                };
+        };
+
+        gpio10_rf_sleep {
+                gpio10_rf_sleep_def: gpio10_rf_sleep_def {
+                        pins = "gpio10";
+                        function = "normal";
+                        input-enable;
+                        bias-pull-down;
+                        power-source = <0>;
+                };
+        };
 };
