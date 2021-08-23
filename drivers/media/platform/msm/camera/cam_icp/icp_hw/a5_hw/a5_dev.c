@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -189,6 +190,8 @@ int cam_a5_probe(struct platform_device *pdev)
 	return 0;
 
 cpas_reg_failed:
+	/* MSCHANGE Handle errors properly to support Deferring initialization*/
+	cam_soc_util_release_platform_resource(&a5_dev->soc_info);
 init_soc_failure:
 match_err:
 	kfree(a5_dev->core_info);

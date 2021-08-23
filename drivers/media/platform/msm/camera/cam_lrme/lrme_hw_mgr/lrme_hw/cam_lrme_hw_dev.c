@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -234,6 +235,8 @@ deinit_platform_res:
 		CAM_ERR(CAM_LRME, "Failed in soc deinit");
 	mutex_destroy(&lrme_hw->hw_mutex);
 destroy_workqueue:
+	/* MSCHANGE Handle errors properly to support Deferring initialization*/
+	lrme_core->work->task.pool[0].payload = NULL;
 	cam_req_mgr_workq_destroy(&lrme_core->work);
 free_memory:
 	mutex_destroy(&lrme_hw->hw_mutex);

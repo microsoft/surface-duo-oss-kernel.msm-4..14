@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -358,7 +359,10 @@ int cam_cci_parse_dt_info(struct platform_device *pdev,
 		cam_cci_irq, new_cci_dev);
 	if (rc < 0) {
 		CAM_ERR(CAM_CCI, "requesting platform resources failed:%d", rc);
-		return -EINVAL;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		return -EINVAL;
+		return rc;
+/* MSCHANGE End */
 	}
 	new_cci_dev->v4l2_dev_str.pdev = pdev;
 	cam_cci_init_cci_params(new_cci_dev);

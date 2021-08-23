@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2009-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -166,6 +167,22 @@ enum {
 	PLATFORM_SUBTYPE_CHARM = 0x1,
 	PLATFORM_SUBTYPE_STRANGE = 0x2,
 	PLATFORM_SUBTYPE_STRANGE_2A = 0x3,
+// MSCHANGE start
+/* populate the new subtype(s) based on Surface Duo board id */
+	PLATFORM_SUBTYPE_EV1_A		= 0x06,
+	PLATFORM_SUBTYPE_EV1_B		= 0x07,
+	PLATFORM_SUBTYPE_EV1_C		= 0x08,
+	PLATFORM_SUBTYPE_EV1_5_A	= 0x09,
+	PLATFORM_SUBTYPE_EV1_5_B	= 0x0a,
+	PLATFORM_SUBTYPE_EV2_A		= 0x0b,
+	PLATFORM_SUBTYPE_EV2_B		= 0x0c,
+	PLATFORM_SUBTYPE_EV2_1_A	= 0x0d,
+	PLATFORM_SUBTYPE_EV2_1_B	= 0x0e,
+	PLATFORM_SUBTYPE_EV2_1_C	= 0x0f,
+	PLATFORM_SUBTYPE_DV_A_ALIAS_MP_A	= 0x10,
+	PLATFORM_SUBTYPE_DV_B_ALIAS_MP_B	= 0x11,
+	PLATFORM_SUBTYPE_DV_C_ALIAS_MP_C	= 0x12,
+// MSCHANGE end
 	PLATFORM_SUBTYPE_INVALID,
 };
 
@@ -174,6 +191,22 @@ const char *hw_platform_subtype[] = {
 	[PLATFORM_SUBTYPE_CHARM] = "charm",
 	[PLATFORM_SUBTYPE_STRANGE] = "strange",
 	[PLATFORM_SUBTYPE_STRANGE_2A] = "strange_2a",
+// MSCHANGE start
+/* populate the new subtype(s) based on Surface Duo board id */
+	[PLATFORM_SUBTYPE_EV1_A]	=  "EV1_A",
+	[PLATFORM_SUBTYPE_EV1_B]	=  "EV1_B",
+	[PLATFORM_SUBTYPE_EV1_C]	=  "EV1_C",
+	[PLATFORM_SUBTYPE_EV1_5_A]	=  "EV1.5_A",
+	[PLATFORM_SUBTYPE_EV1_5_B]	=  "EV1.5_B",
+	[PLATFORM_SUBTYPE_EV2_A]	=  "EV2_A",
+	[PLATFORM_SUBTYPE_EV2_B]	=  "EV2_B",
+	[PLATFORM_SUBTYPE_EV2_1_A]	=  "EV2.1_A",
+	[PLATFORM_SUBTYPE_EV2_1_B]	=  "EV2.1_B",
+	[PLATFORM_SUBTYPE_EV2_1_C]	=  "EV2.1_C",
+	[PLATFORM_SUBTYPE_DV_A_ALIAS_MP_A]		=  "MP_A",
+	[PLATFORM_SUBTYPE_DV_B_ALIAS_MP_B]=  "MP_B",
+	[PLATFORM_SUBTYPE_DV_C_ALIAS_MP_C]=  "MP_C",
+// MSCHANGE end
 	[PLATFORM_SUBTYPE_INVALID] = "Invalid",
 };
 
@@ -767,10 +800,22 @@ msm_get_hw_platform(struct device *dev,
 			char *buf)
 {
 	uint32_t hw_type;
+// MSCHANGE start
+	uint32_t hw_subtype;
+// MSCHANGE end
 
 	hw_type = socinfo_get_platform_type();
+// MSCHANGE start
+	hw_subtype = socinfo_get_platform_subtype();
 
-	return snprintf(buf, PAGE_SIZE, "%-.32s\n",
+  // plafrom subtype 5 name is not clear from vendor, hence using the hard coded (i.e. 5) value
+  // Only MTP PlatformTypeString is replaced with Surface, But the hw_platform id remains same i.e. 0x08*/
+	if ((hw_subtype  > 5) && (hw_subtype  < PLATFORM_SUBTYPE_INVALID))
+		return snprintf(buf, PAGE_SIZE, "%-.32s\n",
+			"Surface");
+	else
+// MSCHANGE end
+		return snprintf(buf, PAGE_SIZE, "%-.32s\n",
 			hw_platform[hw_type]);
 }
 

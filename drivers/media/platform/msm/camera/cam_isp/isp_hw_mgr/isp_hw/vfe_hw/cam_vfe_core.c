@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -867,7 +868,8 @@ int cam_vfe_core_init(struct cam_vfe_hw_core_info  *core_info,
 	}
 
 	/* Read Bus is not valid for vfe-lite */
-	if ((hw_intf->hw_idx == 0) || (hw_intf->hw_idx == 1)) {
+	/* MSCHANGE: Check bus_rd_hw_info is valid or not before calling bus init */
+	if (vfe_hw_info->bus_rd_hw_info && ((hw_intf->hw_idx == 0) || (hw_intf->hw_idx == 1))) {
 		rc = cam_vfe_bus_init(vfe_hw_info->bus_rd_version, BUS_TYPE_RD,
 			soc_info, hw_intf, vfe_hw_info->bus_rd_hw_info,
 			core_info->vfe_irq_controller, &core_info->vfe_rd_bus);
