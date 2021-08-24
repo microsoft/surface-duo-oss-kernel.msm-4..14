@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -6082,6 +6082,10 @@ static int ipa3_panic_notifier(struct notifier_block *this,
 {
 	int res;
 
+	if (ipa3_ctx && ipa3_ctx->is_device_crashed)
+		return NOTIFY_DONE;
+	ipa3_ctx->is_device_crashed = true;
+
 	ipa3_freeze_clock_vote_and_notify_modem();
 
 	IPADBG("Calling uC panic handler\n");
@@ -7042,6 +7046,7 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 	ipa3_ctx->mhi_evid_limits[1] = resource_p->mhi_evid_limits[1];
 	ipa3_ctx->uc_mailbox17_chk = 0;
 	ipa3_ctx->uc_mailbox17_mismatch = 0;
+	ipa3_ctx->is_device_crashed = false;
 	ipa3_ctx->entire_ipa_block_size = resource_p->entire_ipa_block_size;
 	ipa3_ctx->do_register_collection_on_crash =
 	    resource_p->do_register_collection_on_crash;
