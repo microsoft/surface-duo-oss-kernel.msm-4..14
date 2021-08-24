@@ -341,6 +341,18 @@
 		};
 	};
 
+	nxp_rtc_int_default: nxp_rtc_int_default {
+		mux {
+			pins = "gpio97";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio97";
+			drive-strength = <16>;
+			bias-pull-down;
+		};
+	};
+
 	pcie0_wake_qed_default: pcie0_wake_qed_default {
 		mux {
 			pins = "gpio37";
@@ -465,6 +477,16 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&lis2dh12_int1_default
 			&lis2dh12_int2_default>;
+	};
+
+	nxp_rtc@51 {
+		status = "okay";
+		compatible = "nxp,pcf2129";
+		reg = <0x51>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <97 IRQ_TYPE_EDGE_RISING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&nxp_rtc_int_default>;
 	};
 };
 
