@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -65,6 +65,7 @@
 
 #define ICE_CRYPTO_CXT_FDE 1
 #define ICE_CRYPTO_CXT_FBE 2
+#define ICE_FDE_KEY_INDEX 31
 
 static int ice_fde_flag;
 struct ice_clk_info {
@@ -1321,12 +1322,15 @@ int qcom_ice_config_start(struct request *req, struct ice_data_setting *setting)
 {
 	struct ice_crypto_setting ice_data = {0};
 	unsigned long sec_end = 0;
+	bool is_partition_mapped = false;
+	int8_t slot;
 	sector_t data_size;
+	int ret = 0;
+
 	if (!req) {
 		pr_err("%s: Invalid params passed\n", __func__);
 		return -EINVAL;
 	}
-
 	/*
 	 * It is not an error to have a request with no  bio
 	 * Such requests must bypass ICE. So first set bypass and then
@@ -1344,7 +1348,17 @@ int qcom_ice_config_start(struct request *req, struct ice_data_setting *setting)
 
 	if (ice_fde_flag && req->part && req->part->info
 				&& req->part->info->volname[0]) {
+#if IS_ENABLED(CONFIG_CRYPTO_DEV_QCOM_ICE_MULTI_FDE)
+		slot = get_key_slot(req->part->info->volname);
+		if (slot != -1)
+			is_partition_mapped = true;
+#else
 		if (!strcmp(req->part->info->volname, "userdata")) {
+			is_partition_mapped = true;
+			slot = ICE_FDE_KEY_INDEX;
+		}
+#endif
+		if (is_partition_mapped) {
 			sec_end = req->part->start_sect + req->part->nr_sects -
 					QCOM_UD_FOOTER_SECS;
 			if ((req->__sector >= req->part->start_sect) &&
@@ -1365,10 +1379,14 @@ int qcom_ice_config_start(struct request *req, struct ice_data_setting *setting)
 
 				if ((req->__sector + data_size) > sec_end)
 					return 0;
-				else
-					return qti_ice_setting_config(req,
+				else {
+					ret = qti_ice_setting_config(req,
 						&ice_data, setting,
 						ICE_CRYPTO_CXT_FDE);
+					setting->crypto_data.key_index = slot;
+					return ret;
+				}
+
 			}
 		}
 	}

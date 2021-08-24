@@ -781,4 +781,12 @@ config CRYPTO_DEV_QCOM_ICE
           To compile this driver as a module, choose M here: the
           module will be called ice.
 
+config CRYPTO_DEV_QCOM_ICE_MULTI_FDE
+        tristate "Inline Crypto Module"
+        default n
+        depends on CRYPTO_DEV_QCOM_ICE
+        help
+          Enables the driver to support multiple partitions FDE each paritition
+		  with its own key.
+
 endif # CRYPTO_HW

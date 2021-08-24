@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, 2021 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -727,5 +727,8 @@ struct qseecom_continue_blocked_request_ireq {
 	TZ_SYSCALL_CREATE_PARAM_ID_4( \
 	TZ_SYSCALL_PARAM_TYPE_VAL, TZ_SYSCALL_PARAM_TYPE_VAL, \
 	TZ_SYSCALL_PARAM_TYPE_BUF_RW, TZ_SYSCALL_PARAM_TYPE_VAL)
+
+//Function prototypes defined in qseecom.c
+int get_key_slot(char *partition_name);
 
 #endif /* __QSEECOMI_H_ */

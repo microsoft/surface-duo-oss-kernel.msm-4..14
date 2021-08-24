@@ -1,4 +1,4 @@
-/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -58,7 +58,7 @@ static inline int crypto_qti_enable(void *priv_data)
 {
 	return 0;
 }
-static inline void crypto_qti_disable(void *priv_data)
+static inline int crypto_qti_disable(void *priv_data)
 {
 	return 0;
 }
