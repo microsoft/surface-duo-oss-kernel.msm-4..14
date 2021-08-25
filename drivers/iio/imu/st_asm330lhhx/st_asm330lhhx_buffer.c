@@ -64,6 +64,9 @@ static inline int st_asm330lhhx_reset_hwts(struct st_asm330lhhx_hw *hw)
 	hw->hw_ts_high = 0;
 	hw->tsample = 0ull;
 
+	if (hw->asm330_hrtimer)
+		st_asm330lhhx_set_cpu_idle_state(true);
+
 	return st_asm330lhhx_write_locked(hw, ST_ASM330LHHX_REG_TIMESTAMP2_ADDR,
 					  data);
 }
@@ -189,6 +192,80 @@ iio_dev *st_asm330lhhx_get_iiodev_from_tag(struct st_asm330lhhx_hw *hw, u8 tag)
 
 	return iio_dev;
 }
+#ifdef CONFIG_ENABLE_ASMX_ACC_GYRO_BUFFERING
+int asm330lhhx_check_acc_gyro_early_buff_enable_flag(
+		struct st_asm330lhhx_sensor *sensor)
+{
+	if (sensor->buffer_asm_samples == true)
+		return 0;
+	else
+		return 0;
+}
+int asm330lhhx_check_sensor_enable_flag(
+		struct st_asm330lhhx_sensor *sensor, bool enable)
+{
+	sensor->enable = enable;
+	return 0;
+}
+#else
+int asm330lhhx_check_acc_gyro_early_buff_enable_flag(
+		struct st_asm330lhhx_sensor *sensor)
+{
+	return 0;
+}
+int asm330lhhx_check_sensor_enable_flag(
+		struct st_asm330lhhx_sensor *sensor, bool enable)
+{
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_ENABLE_ASMX_ACC_GYRO_BUFFERING
+static void store_acc_gyro_boot_sample(struct iio_dev *iio_dev,
+					u8 *iio_buf, s64 tsample)
+{
+	struct st_asm330lhhx_sensor *sensor = iio_priv(iio_dev);
+	struct st_asm330lhhx_hw *hw = sensor->hw;
+	int x, y, z;
+
+	if (false == sensor->buffer_asm_samples)
+		return;
+
+	mutex_lock(&sensor->sensor_buff);
+	sensor->timestamp = (ktime_t)tsample;
+	x = iio_buf[1]<<8|iio_buf[0];
+	y = iio_buf[3]<<8|iio_buf[2];
+	z = iio_buf[5]<<8|iio_buf[4];
+
+	if (ktime_to_timespec(sensor->timestamp).tv_sec
+			<  sensor->max_buffer_time) {
+		if (sensor->bufsample_cnt < ASM_MAXSAMPLE) {
+			sensor->asm_samplist[sensor->bufsample_cnt]->xyz[0] = x;
+			sensor->asm_samplist[sensor->bufsample_cnt]->xyz[1] = y;
+			sensor->asm_samplist[sensor->bufsample_cnt]->xyz[2] = z;
+			sensor->asm_samplist[sensor->bufsample_cnt]->tsec =
+				ktime_to_timespec(sensor->timestamp).tv_sec;
+			sensor->asm_samplist[sensor->bufsample_cnt]->tnsec =
+				ktime_to_timespec(sensor->timestamp).tv_nsec;
+			sensor->bufsample_cnt++;
+		}
+	} else {
+		dev_info(sensor->hw->dev, "End of sensor %d buffering %d\n",
+				sensor->id, sensor->bufsample_cnt);
+		sensor->buffer_asm_samples = false;
+		if (sensor->enable != true &&
+				hw->fifo_mode != ST_ASM330LHHX_FIFO_BYPASS)
+			st_asm330lhhx_set_fifo_mode(hw,
+					ST_ASM330LHHX_FIFO_BYPASS);
+	}
+	mutex_unlock(&sensor->sensor_buff);
+}
+#else
+static void store_acc_gyro_boot_sample(struct iio_dev *iio_dev,
+					u8 *iio_buf, s64 tsample)
+{
+}
+#endif
 
 static inline void st_asm330lhhx_sync_hw_ts(struct st_asm330lhhx_hw *hw, s64 ts)
 {
@@ -202,7 +279,7 @@ static inline void st_asm330lhhx_sync_hw_ts(struct st_asm330lhhx_hw *hw, s64 ts)
 int st_asm330lhhx_read_fifo(struct st_asm330lhhx_hw *hw)
 {
 	u8 iio_buf[ALIGN(ST_ASM330LHHX_SAMPLE_SIZE, sizeof(s64)) + sizeof(s64)];
-	u8 buf[32 * ST_ASM330LHHX_FIFO_SAMPLE_SIZE], tag, *ptr;
+	u8 buf[60 * ST_ASM330LHHX_FIFO_SAMPLE_SIZE], tag, *ptr;
 	struct iio_dev *iio_dev, *iio_dev_mlc_fifo_acc;
 	int i, err, word_len, fifo_len, read_len;
 	s64 ts_irq, hw_ts_old;
@@ -307,6 +384,9 @@ int st_asm330lhhx_read_fifo(struct st_asm330lhhx_hw *hw)
 								iio_dev,
 								iio_buf,
 								ts);
+					store_acc_gyro_boot_sample(iio_dev,
+							iio_buf, ts);
+
 						sensor->last_fifo_timestamp =
 							ts;
 					}
@@ -349,6 +429,9 @@ ssize_t st_asm330lhhx_set_watermark(struct device *dev,
 	struct iio_dev *iio_dev = dev_get_drvdata(dev);
 	struct st_asm330lhhx_sensor *sensor = iio_priv(iio_dev);
 	int err, val;
+
+	if (asm330lhhx_check_acc_gyro_early_buff_enable_flag(sensor))
+		return -EBUSY;
 
 	err = iio_device_claim_direct_mode(iio_dev);
 	if (err)
@@ -430,7 +513,7 @@ int st_asm330lhhx_update_batching(struct iio_dev *iio_dev, bool enable)
 	return err;
 }
 
-static int st_asm330lhhx_update_fifo(struct iio_dev *iio_dev, bool enable)
+int st_asm330lhhx_update_fifo(struct iio_dev *iio_dev, bool enable)
 {
 	struct st_asm330lhhx_sensor *sensor = iio_priv(iio_dev);
 	struct st_asm330lhhx_hw *hw = sensor->hw;
@@ -518,12 +601,17 @@ static irqreturn_t st_asm330lhhx_handler_irq(int irq, void *private)
 	hw->delta_ts = ts - hw->ts;
 	hw->ts = ts;
 
+	if (hw->asm330_hrtimer)
+		st_asm330lhhx_hrtimer_reset(hw, hw->delta_ts);
+
 	return IRQ_WAKE_THREAD;
 }
 
 static irqreturn_t st_asm330lhhx_handler_thread(int irq, void *private)
 {
 	struct st_asm330lhhx_hw *hw = (struct st_asm330lhhx_hw *)private;
+	if (hw->asm330_hrtimer)
+		st_asm330lhhx_set_cpu_idle_state(false);
 
 #ifdef CONFIG_IIO_ST_ASM330LHHX_MLC
 	st_asm330lhhx_mlc_check_status(hw);
@@ -539,12 +627,26 @@ static irqreturn_t st_asm330lhhx_handler_thread(int irq, void *private)
 
 static int st_asm330lhhx_fifo_preenable(struct iio_dev *iio_dev)
 {
-	return st_asm330lhhx_update_fifo(iio_dev, true);
+	struct st_asm330lhhx_sensor *sensor = iio_priv(iio_dev);
+
+	asm330lhhx_check_sensor_enable_flag(sensor, true);
+
+	if (asm330lhhx_check_acc_gyro_early_buff_enable_flag(sensor))
+		return 0;
+	else
+		return st_asm330lhhx_update_fifo(iio_dev, true);
 }
 
 static int st_asm330lhhx_fifo_postdisable(struct iio_dev *iio_dev)
 {
-	return st_asm330lhhx_update_fifo(iio_dev, false);
+	struct st_asm330lhhx_sensor *sensor = iio_priv(iio_dev);
+
+	asm330lhhx_check_sensor_enable_flag(sensor, false);
+
+	if (asm330lhhx_check_acc_gyro_early_buff_enable_flag(sensor))
+		return 0;
+	else
+		return st_asm330lhhx_update_fifo(iio_dev, false);
 }
 
 static const struct iio_buffer_setup_ops st_asm330lhhx_fifo_ops = {
@@ -561,7 +663,7 @@ int st_asm330lhhx_buffers_setup(struct st_asm330lhhx_hw *hw)
 	int i, err;
 
 	irq_type = irqd_get_trigger_type(irq_get_irq_data(hw->irq));
-	if (irq_type == IRQF_TRIGGER_NONE)
+	if (irq_type == IRQF_TRIGGER_NONE || irq_type == IRQF_TRIGGER_RISING)
 		irq_type = IRQF_TRIGGER_HIGH;
 
 	switch (irq_type) {
