@@ -468,6 +468,115 @@
 	};
 };
 
+&qupv3_se4_i2c {
+	status = "okay";
+	/delete-node/ fsa4480;
+
+	ioexp_qed: gpio@3e {
+		compatible = "semtech,sx1509q";
+		reg = <0x3e>;
+		gpio-controller;
+		semtech,probe-reset;
+		pinctrl-names = "default";
+		pinctrl-0 = <&front_panel_led1_pins
+			&front_panel_led2_pins
+			&front_panel_led3_pins
+			&front_panel_led4_pins
+			&front_panel_led5_pins
+			&front_panel_led6a_pins
+			&front_panel_led6b_pins
+			&front_panel_led7a_pins
+			&front_panel_led7b_pins
+			&front_panel_led8a_pins
+			&front_panel_led8b_pins
+			&front_panel_inner_led1_pins
+			&front_panel_inner_led2_pins
+			&front_panel_inner_led3_pins
+			&front_panel_inner_led4_pins
+			&front_panel_inner_led5_pins>;
+
+		front_panel_led1_pins: gpio1-led {
+			pins = "gpio0";
+			bias-disable;
+		};
+
+		front_panel_led2_pins: gpio2-led {
+			pins = "gpio1";
+			bias-disable;
+		};
+
+		front_panel_led3_pins: gpio3-led {
+			pins = "gpio2";
+			bias-disable;
+		};
+
+		front_panel_led4_pins: gpio4-led {
+			pins = "gpio3";
+			bias-disable;
+		};
+
+		front_panel_led5_pins: gpio5-led {
+			pins = "gpio4";
+			bias-disable;
+		};
+
+		front_panel_led6a_pins: gpio6a-led {
+			pins = "gpio5";
+			bias-disable;
+		};
+
+		front_panel_led6b_pins: gpio6b-led {
+			pins = "gpio6";
+			bias-disable;
+		};
+
+		front_panel_led7a_pins: gpio7a-led {
+			pins = "gpio7";
+			bias-disable;
+		};
+
+		front_panel_led7b_pins: gpio7b-led {
+			pins = "gpio8";
+			bias-disable;
+		};
+
+		front_panel_led8a_pins: gpio8a-led {
+			pins = "gpio9";
+			bias-disable;
+		};
+
+		front_panel_led8b_pins: gpio8b-led {
+			pins = "gpio10";
+			bias-disable;
+		};
+
+		front_panel_inner_led1_pins: gpio_inner1-led {
+			pins = "gpio11";
+			bias-disable;
+		};
+
+		front_panel_inner_led2_pins: gpio_inner2-led {
+			pins = "gpio12";
+			bias-disable;
+		};
+
+		front_panel_inner_led3_pins: gpio_inner3-led {
+			pins = "gpio13";
+			bias-disable;
+		};
+
+		front_panel_inner_led4_pins: gpio_inner4-led {
+			pins = "gpio14";
+			bias-disable;
+		};
+
+		front_panel_inner_led5_pins: gpio_inner5-led {
+			pins = "gpio15";
+			bias-disable;
+		};
+	};
+};
+
 &qupv3_se19_i2c {
 	status = "ok";
 };
