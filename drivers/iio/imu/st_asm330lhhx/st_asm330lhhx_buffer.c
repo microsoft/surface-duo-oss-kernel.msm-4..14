@@ -253,10 +253,8 @@ static void store_acc_gyro_boot_sample(struct iio_dev *iio_dev,
 		dev_info(sensor->hw->dev, "End of sensor %d buffering %d\n",
 				sensor->id, sensor->bufsample_cnt);
 		sensor->buffer_asm_samples = false;
-		if (sensor->enable != true &&
-				hw->fifo_mode != ST_ASM330LHHX_FIFO_BYPASS)
-			st_asm330lhhx_set_fifo_mode(hw,
-					ST_ASM330LHHX_FIFO_BYPASS);
+		if (sensor->enable != true)
+			st_asm330lhhx_sensor_set_enable(sensor, false);
 	}
 	mutex_unlock(&sensor->sensor_buff);
 }

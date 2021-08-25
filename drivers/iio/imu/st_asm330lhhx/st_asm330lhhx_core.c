@@ -372,7 +372,7 @@ static int strlcmp(const char *s, const char *t, size_t n)
 			++s, ++t;
 		}
 	}
-	return (unsigned char)*s;
+	return 0;
 }
 
 void st_asm330lhhx_set_cpu_idle_state(bool value)
