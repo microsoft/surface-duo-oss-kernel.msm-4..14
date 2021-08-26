@@ -38,6 +38,7 @@ static struct msm_bus_scale_pdata *emac_bus_scale_vec;
 #define PHY_LOOPBACK_1000 0x4140
 #define PHY_LOOPBACK_100 0x6100
 #define PHY_LOOPBACK_10 0x4100
+#define MDIO_RD_WR_OPS_CLOCK 1
 
 #define DMA_TX_SIZE_CV2X 128
 #define DMA_RX_SIZE_CV2X 128
@@ -347,6 +348,52 @@ int ethqos_handle_prv_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 	return ret;
 }
 
+static void ethqos_update_ahb_bus_cfg(struct stmmac_priv *priv,
+				      bool ahb_bus_cfg)
+{
+	static int vote_idx;
+	struct qcom_ethqos *ethqos;
+	int ret;
+
+	if (!priv->plat->bsp_priv)
+		return;
+
+	ethqos = (struct qcom_ethqos *)priv->plat->bsp_priv;
+
+	if (ethqos->skip_mdio_vote)
+		return;
+
+	if (ethqos->bus_hdl && ahb_bus_cfg == ETH_AHB_BUS_CFG_NOMINAL) {
+		vote_idx = ethqos->vote_idx;
+		ethqos->vote_idx = VOTE_IDX_MDIO_NOM_CLK;
+		ret = msm_bus_scale_client_update_request(ethqos->bus_hdl,
+							  ethqos->vote_idx);
+		WARN_ON(ret);
+	}
+
+	else if (ethqos->bus_hdl && ahb_bus_cfg == ETH_AHB_BUS_CFG_RECOVER) {
+		ethqos->vote_idx = vote_idx;
+		ret = msm_bus_scale_client_update_request(ethqos->bus_hdl,
+							  ethqos->vote_idx);
+		WARN_ON(ret);
+	}
+}
+
+static void ethqos_update_ahb_clk_cfg(void *priv_n, bool ahb_bus_cfg,
+				      bool skip_mdio_vote)
+{
+	struct stmmac_priv *priv = priv_n;
+	struct qcom_ethqos *ethqos;
+
+	if (!priv->plat->bsp_priv)
+		return;
+
+	ethqos = (struct qcom_ethqos *)priv->plat->bsp_priv;
+	ethqos->skip_mdio_vote = skip_mdio_vote;
+
+	ethqos_update_ahb_bus_cfg(priv, ahb_bus_cfg);
+}
+
 static int __init set_early_ethernet_ipv4(char *ipv4_addr_in)
 {
 	int ret = 1;
@@ -471,6 +518,7 @@ place_marker("M - Etherent Assigned IPv4 address");
 	return res;
 }
 
+#ifdef CONFIG_IPV6
 static int qcom_ethqos_add_ipv6addr(struct ip_params *ip_info,
 				    struct net_device *dev)
 {
@@ -518,6 +566,7 @@ static int qcom_ethqos_add_ipv6addr(struct ip_params *ip_info,
 		}
 	return ret;
 }
+#endif
 
 static int rgmii_readl(struct qcom_ethqos *ethqos, unsigned int offset)
 {
@@ -584,6 +633,9 @@ ethqos_update_rgmii_clk_and_bus_cfg(struct qcom_ethqos *ethqos,
 	}
 
 	switch (speed) {
+	case MDIO_RD_WR_OPS_CLOCK:
+		ethqos->vote_idx = VOTE_IDX_MDIO_NOM_CLK;
+		break;
 	case SPEED_1000:
 		ethqos->vote_idx = VOTE_IDX_1000MBPS;
 		break;
@@ -1089,6 +1141,9 @@ static int ethqos_mdio_read(struct stmmac_priv  *priv, int phyaddr, int phyreg)
 static int ethqos_phy_intr_config(struct qcom_ethqos *ethqos)
 {
 	int ret = 0;
+	struct platform_device *pdev = ethqos->pdev;
+	struct net_device *dev = platform_get_drvdata(pdev);
+	struct stmmac_priv *priv = netdev_priv(dev);
 
 	ethqos->phy_intr = platform_get_irq_byname(ethqos->pdev, "phy-intr");
 
@@ -1098,6 +1153,8 @@ static int ethqos_phy_intr_config(struct qcom_ethqos *ethqos)
 				"PHY IRQ configuration information not found\n");
 		}
 		ret = 1;
+	} else {
+		priv->wol_irq = ethqos->phy_intr;
 	}
 
 	return ret;
@@ -2820,6 +2877,7 @@ static void qcom_ethqos_request_phy_wol(void *plat_n)
 	struct plat_stmmacenet_data *plat = plat_n;
 	struct qcom_ethqos *ethqos;
 	struct stmmac_priv *priv;
+	int ret = 0;
 
 	if (!plat)
 		return;
@@ -2827,47 +2885,33 @@ static void qcom_ethqos_request_phy_wol(void *plat_n)
 	ethqos = plat->bsp_priv;
 	priv = qcom_ethqos_get_priv(ethqos);
 
-	if (!priv)
+	if (!priv || !priv->en_wol)
 		return;
 
-	ethqos->phy_wol_supported = 0;
-	ethqos->phy_wol_wolopts = 0;
 	/* Check if phydev is valid*/
 	/* Check and enable Wake-on-LAN functionality in PHY*/
-
 	if (priv->phydev) {
 		struct ethtool_wolinfo wol = {.cmd = ETHTOOL_GWOL};
-
-		wol.supported = 0;
-		wol.wolopts = 0;
-		ETHQOSDBG("phydev addr: %x\n", priv->phydev);
 		phy_ethtool_get_wol(priv->phydev, &wol);
-		ethqos->phy_wol_supported = wol.supported;
-		ETHQOSDBG("Get WoL[0x%x] in %s\n", wol.supported,
-			  priv->phydev->drv->name);
 
-	/* Try to enable supported Wake-on-LAN features in PHY*/
-		if (wol.supported) {
-			device_set_wakeup_capable(&ethqos->pdev->dev, 1);
+		wol.cmd = ETHTOOL_SWOL;
+		wol.wolopts = wol.supported;
+		ret = phy_ethtool_set_wol(priv->phydev, &wol);
 
-			wol.cmd = ETHTOOL_SWOL;
-			wol.wolopts = wol.supported;
-
-			if (!phy_ethtool_set_wol(priv->phydev, &wol)) {
-				ethqos->phy_wol_wolopts = wol.wolopts;
-
-				enable_irq_wake(ethqos->phy_intr);
-				device_set_wakeup_enable(&ethqos->pdev->dev, 1);
-
-				ETHQOSDBG("Enabled WoL[0x%x] in %s\n",
-					  wol.wolopts,
-					  priv->phydev->drv->name);
-			} else {
-				ETHQOSINFO("Disabled WoL[0x%x] in %s\n",
-					   wol.wolopts,
-					   priv->phydev->drv->name);
-			}
+		if (ret) {
+			ETHQOSERR("set wol in PHY failed\n");
+			return;
 		}
+
+		if (ret == EOPNOTSUPP) {
+			ETHQOSERR("WOL not supported\n");
+			return;
+		}
+
+		device_set_wakeup_capable(priv->device, 1);
+
+		enable_irq_wake(ethqos->phy_intr);
+		device_set_wakeup_enable(&ethqos->pdev->dev, 1);
 	}
 }
 
@@ -2901,6 +2945,7 @@ static void ethqos_is_ipv4_NW_stack_ready(struct work_struct *work)
 	flush_delayed_work(&ethqos->ipv4_addr_assign_wq);
 }
 
+#ifdef CONFIG_IPV6
 static void ethqos_is_ipv6_NW_stack_ready(struct work_struct *work)
 {
 	struct delayed_work *dwork;
@@ -2930,6 +2975,7 @@ static void ethqos_is_ipv6_NW_stack_ready(struct work_struct *work)
 	cancel_delayed_work_sync(&ethqos->ipv6_addr_assign_wq);
 	flush_delayed_work(&ethqos->ipv6_addr_assign_wq);
 }
+#endif
 
 static void ethqos_set_early_eth_param(
 				struct stmmac_priv *priv,
@@ -2950,6 +2996,7 @@ static void ethqos_set_early_eth_param(
 		schedule_delayed_work(&ethqos->ipv4_addr_assign_wq, 0);
 	}
 
+#ifdef CONFIG_IPV6
 	if (pparams.is_valid_ipv6_addr) {
 		INIT_DELAYED_WORK(&ethqos->ipv6_addr_assign_wq,
 				  ethqos_is_ipv6_NW_stack_ready);
@@ -2958,6 +3005,7 @@ static void ethqos_set_early_eth_param(
 			schedule_delayed_work(&ethqos->ipv6_addr_assign_wq,
 					      msecs_to_jiffies(1000));
 	}
+#endif
 	return;
 }
 
@@ -3781,8 +3829,10 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 		msm_bus_cl_clear_pdata(emac_bus_scale_vec);
 	}
 
-	ethqos->speed = SPEED_10;
-	ethqos_update_rgmii_clk_and_bus_cfg(ethqos, SPEED_10);
+	ethqos->rgmii_clk_rate =  RGMII_ID_MODE_10_LOW_SVS_CLK_FREQ;
+	ethqos->skip_mdio_vote = true;
+	ethqos->speed = MDIO_RD_WR_OPS_CLOCK;
+	ethqos_update_rgmii_clk_and_bus_cfg(ethqos, MDIO_RD_WR_OPS_CLOCK);
 	ethqos_set_func_clk_en(ethqos);
 	if (ethqos->emac_ver == EMAC_HW_v2_0_0)
 		ethqos->disable_ctile_pc = 1;
@@ -3801,6 +3851,7 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 	plat_dat->phy_intr_enable = ethqos_phy_intr_enable;
 	plat_dat->offload_event_handler = ethqos_ipa_offload_event_handler;
 	plat_dat->init_pps = ethqos_init_pps;
+	plat_dat->update_ahb_clk_cfg = ethqos_update_ahb_clk_cfg;
 	/* Get rgmii interface speed for mac2c from device tree */
 	if (of_property_read_u32(np, "mac2mac-rgmii-speed",
 				 &plat_dat->mac2mac_rgmii_speed))
@@ -3937,6 +3988,9 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 	priv = netdev_priv(ndev);
 	priv->clk_csr = STMMAC_CSR_100_150M;
 
+	/* Read en_wol from device tree */
+	priv->en_wol = of_property_read_bool(np, "enable-wol");
+
 	if (pparams.is_valid_mac_addr) {
 		ether_addr_copy(dev_addr, pparams.mac_addr);
 		memcpy(priv->dev->dev_addr, dev_addr, ETH_ALEN);
@@ -4011,6 +4065,9 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 #ifdef CONFIG_MSM_BOOT_TIME_MARKER
 	place_marker("M - Ethernet probe end");
 #endif
+	ethqos->skip_mdio_vote = false;
+	ethqos->speed = SPEED_10;
+	ethqos_update_rgmii_clk_and_bus_cfg(ethqos, SPEED_10);
 	return ret;
 
 err_clk:
@@ -4021,7 +4078,9 @@ err_clk:
 
 err_mem:
 	stmmac_remove_config_dt(pdev, plat_dat);
-
+	ethqos->skip_mdio_vote = false;
+	ethqos->speed = SPEED_10;
+	ethqos_update_rgmii_clk_and_bus_cfg(ethqos, SPEED_10);
 	return ret;
 }
 
