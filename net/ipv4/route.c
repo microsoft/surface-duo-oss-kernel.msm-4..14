@@ -276,12 +276,13 @@ static int rt_cpu_seq_show(struct seq_file *seq, void *v)
 	struct rt_cache_stat *st = v;
 
 	if (v == SEQ_START_TOKEN) {
-		seq_printf(seq, "entries  in_hit in_slow_tot in_slow_mc in_no_route in_brd in_martian_dst in_martian_src  out_hit out_slow_tot out_slow_mc  gc_total gc_ignored gc_goal_miss gc_dst_overflow in_hlist_search out_hlist_search\n");
+		seq_puts(seq, "entries  in_hit   in_slow_tot in_slow_mc in_no_route in_brd   in_martian_dst in_martian_src out_hit  out_slow_tot out_slow_mc gc_total gc_ignored gc_goal_miss gc_dst_overflow in_hlist_search out_hlist_search\n");
 		return 0;
 	}
 
-	seq_printf(seq,"%08x  %08x %08x %08x %08x %08x %08x %08x "
-		   " %08x %08x %08x %08x %08x %08x %08x %08x %08x \n",
+	seq_printf(seq, "%08x %08x %08x    %08x   %08x    %08x %08x       "
+			"%08x       %08x %08x     %08x    %08x %08x   "
+			"%08x     %08x        %08x        %08x\n",
 		   dst_entries_get_slow(&ipv4_dst_ops),
 		   0, /* st->in_hit */
 		   st->in_slow_tot,
@@ -600,14 +601,14 @@ static struct fib_nh_exception *fnhe_oldest(struct fnhe_hash_bucket *hash)
 	return oldest;
 }
 
-static inline u32 fnhe_hashfun(__be32 daddr)
+static u32 fnhe_hashfun(__be32 daddr)
 {
-	static u32 fnhe_hashrnd __read_mostly;
-	u32 hval;
+	static siphash_key_t fnhe_hash_key __read_mostly;
+	u64 hval;
 
-	net_get_random_once(&fnhe_hashrnd, sizeof(fnhe_hashrnd));
-	hval = jhash_1word((__force u32)daddr, fnhe_hashrnd);
-	return hash_32(hval, FNHE_HASH_SHIFT);
+	net_get_random_once(&fnhe_hash_key, sizeof(fnhe_hash_key));
+	hval = siphash_1u32((__force u32)daddr, &fnhe_hash_key);
+	return hash_64(hval, FNHE_HASH_SHIFT);
 }
 
 static void fill_route_from_fnhe(struct rtable *rt, struct fib_nh_exception *fnhe)
@@ -1299,26 +1300,7 @@ static unsigned int ipv4_default_advmss(const struct dst_entry *dst)
 
 INDIRECT_CALLABLE_SCOPE unsigned int ipv4_mtu(const struct dst_entry *dst)
 {
-	const struct rtable *rt = (const struct rtable *)dst;
-	unsigned int mtu = rt->rt_pmtu;
-
-	if (!mtu || time_after_eq(jiffies, rt->dst.expires))
-		mtu = dst_metric_raw(dst, RTAX_MTU);
-
-	if (mtu)
-		goto out;
-
-	mtu = READ_ONCE(dst->dev->mtu);
-
-	if (unlikely(ip_mtu_locked(dst))) {
-		if (rt->rt_uses_gateway && mtu > 576)
-			mtu = 576;
-	}
-
-out:
-	mtu = min_t(unsigned int, mtu, IP_MAX_MTU);
-
-	return mtu - lwtunnel_headroom(dst->lwtstate, mtu);
+	return ip_dst_mtu_maybe_forward(dst, false);
 }
 EXPORT_INDIRECT_CALLABLE(ipv4_mtu);
 
@@ -2831,8 +2813,7 @@ struct dst_entry *ipv4_blackhole_route(struct net *net, struct dst_entry *dst_or
 		new->output = dst_discard_out;
 
 		new->dev = net->loopback_dev;
-		if (new->dev)
-			dev_hold(new->dev);
+		dev_hold(new->dev);
 
 		rt->rt_is_input = ort->rt_is_input;
 		rt->rt_iif = ort->rt_iif;

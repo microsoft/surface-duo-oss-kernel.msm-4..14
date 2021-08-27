@@ -356,6 +356,7 @@ struct mhi_controller_config {
  * @fbc_download: MHI host needs to do complete image transfer (optional)
  * @wake_set: Device wakeup set flag
  * @irq_flags: irq flags passed to request_irq (optional)
+ * @mru: the default MRU for the MHI device
  *
  * Fields marked as (required) need to be populated by the controller driver
  * before calling mhi_register_controller(). For the fields marked as (optional)
@@ -448,6 +449,7 @@ struct mhi_controller {
 	bool fbc_download;
 	bool wake_set;
 	unsigned long irq_flags;
+	u32 mru;
 };
 
 /**
@@ -719,13 +721,8 @@ void mhi_device_put(struct mhi_device *mhi_dev);
  *                            host and device execution environments match and
  *                            channels are in a DISABLED state.
  * @mhi_dev: Device associated with the channels
- * @flags: MHI channel flags
  */
-int mhi_prepare_for_transfer(struct mhi_device *mhi_dev,
-			     unsigned int flags);
-
-/* Automatically allocate and queue inbound buffers */
-#define MHI_CH_INBOUND_ALLOC_BUFS BIT(0)
+int mhi_prepare_for_transfer(struct mhi_device *mhi_dev);
 
 /**
  * mhi_unprepare_from_transfer - Reset UL and DL channels for data transfer.

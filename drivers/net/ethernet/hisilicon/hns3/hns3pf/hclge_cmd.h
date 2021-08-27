@@ -9,6 +9,7 @@
 #include "hnae3.h"
 
 #define HCLGE_CMDQ_TX_TIMEOUT		30000
+#define HCLGE_CMDQ_CLEAR_WAIT_TIME	200
 #define HCLGE_DESC_DATA_LEN		6
 
 struct hclge_dev;
@@ -270,6 +271,9 @@ enum hclge_opcode_type {
 	/* Led command */
 	HCLGE_OPC_LED_STATUS_CFG	= 0xB000,
 
+	/* clear hardware resource command */
+	HCLGE_OPC_CLEAR_HW_RESOURCE	= 0x700B,
+
 	/* NCL config command */
 	HCLGE_OPC_QUERY_NCL_CONFIG	= 0x7011,
 
@@ -316,6 +320,9 @@ enum hclge_opcode_type {
 	/* PHY command */
 	HCLGE_OPC_PHY_LINK_KSETTING	= 0x7025,
 	HCLGE_OPC_PHY_REG		= 0x7026,
+
+	/* Query link diagnosis info command */
+	HCLGE_OPC_QUERY_LINK_DIAGNOSIS	= 0x702A,
 };
 
 #define HCLGE_TQP_REG_OFFSET		0x80000
@@ -1010,16 +1017,6 @@ struct hclge_common_lb_cmd {
 
 #define HCLGE_TYPE_CRQ			0
 #define HCLGE_TYPE_CSQ			1
-#define HCLGE_NIC_CSQ_BASEADDR_L_REG	0x27000
-#define HCLGE_NIC_CSQ_BASEADDR_H_REG	0x27004
-#define HCLGE_NIC_CSQ_DEPTH_REG		0x27008
-#define HCLGE_NIC_CSQ_TAIL_REG		0x27010
-#define HCLGE_NIC_CSQ_HEAD_REG		0x27014
-#define HCLGE_NIC_CRQ_BASEADDR_L_REG	0x27018
-#define HCLGE_NIC_CRQ_BASEADDR_H_REG	0x2701c
-#define HCLGE_NIC_CRQ_DEPTH_REG		0x27020
-#define HCLGE_NIC_CRQ_TAIL_REG		0x27024
-#define HCLGE_NIC_CRQ_HEAD_REG		0x27028
 
 /* this bit indicates that the driver is ready for hardware reset */
 #define HCLGE_NIC_SW_RST_RDY_B		16
@@ -1192,6 +1189,19 @@ struct hclge_dev_specs_1_cmd {
 	__le16 max_qset_num;
 	__le16 max_int_gl;
 	u8 rsv1[18];
+};
+
+/* mac speed type defined in firmware command */
+enum HCLGE_FIRMWARE_MAC_SPEED {
+	HCLGE_FW_MAC_SPEED_1G,
+	HCLGE_FW_MAC_SPEED_10G,
+	HCLGE_FW_MAC_SPEED_25G,
+	HCLGE_FW_MAC_SPEED_40G,
+	HCLGE_FW_MAC_SPEED_50G,
+	HCLGE_FW_MAC_SPEED_100G,
+	HCLGE_FW_MAC_SPEED_10M,
+	HCLGE_FW_MAC_SPEED_100M,
+	HCLGE_FW_MAC_SPEED_200G,
 };
 
 #define HCLGE_PHY_LINK_SETTING_BD_NUM		2

@@ -169,17 +169,19 @@ static bool hclge_is_special_opcode(u16 opcode)
 	/* these commands have several descriptors,
 	 * and use the first one to save opcode and return value
 	 */
-	u16 spec_opcode[] = {HCLGE_OPC_STATS_64_BIT,
-			     HCLGE_OPC_STATS_32_BIT,
-			     HCLGE_OPC_STATS_MAC,
-			     HCLGE_OPC_STATS_MAC_ALL,
-			     HCLGE_OPC_QUERY_32_BIT_REG,
-			     HCLGE_OPC_QUERY_64_BIT_REG,
-			     HCLGE_QUERY_CLEAR_MPF_RAS_INT,
-			     HCLGE_QUERY_CLEAR_PF_RAS_INT,
-			     HCLGE_QUERY_CLEAR_ALL_MPF_MSIX_INT,
-			     HCLGE_QUERY_CLEAR_ALL_PF_MSIX_INT,
-			     HCLGE_QUERY_ALL_ERR_INFO};
+	static const u16 spec_opcode[] = {
+		HCLGE_OPC_STATS_64_BIT,
+		HCLGE_OPC_STATS_32_BIT,
+		HCLGE_OPC_STATS_MAC,
+		HCLGE_OPC_STATS_MAC_ALL,
+		HCLGE_OPC_QUERY_32_BIT_REG,
+		HCLGE_OPC_QUERY_64_BIT_REG,
+		HCLGE_QUERY_CLEAR_MPF_RAS_INT,
+		HCLGE_QUERY_CLEAR_PF_RAS_INT,
+		HCLGE_QUERY_CLEAR_ALL_MPF_MSIX_INT,
+		HCLGE_QUERY_CLEAR_ALL_PF_MSIX_INT,
+		HCLGE_QUERY_ALL_ERR_INFO
+	};
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(spec_opcode); i++) {
@@ -573,9 +575,13 @@ static void hclge_cmd_uninit_regs(struct hclge_hw *hw)
 
 void hclge_cmd_uninit(struct hclge_dev *hdev)
 {
+	set_bit(HCLGE_STATE_CMD_DISABLE, &hdev->state);
+	/* wait to ensure that the firmware completes the possible left
+	 * over commands.
+	 */
+	msleep(HCLGE_CMDQ_CLEAR_WAIT_TIME);
 	spin_lock_bh(&hdev->hw.cmq.csq.lock);
 	spin_lock(&hdev->hw.cmq.crq.lock);
-	set_bit(HCLGE_STATE_CMD_DISABLE, &hdev->state);
 	hclge_cmd_uninit_regs(&hdev->hw);
 	spin_unlock(&hdev->hw.cmq.crq.lock);
 	spin_unlock_bh(&hdev->hw.cmq.csq.lock);
