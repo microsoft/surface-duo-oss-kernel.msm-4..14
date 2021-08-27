@@ -182,6 +182,14 @@
 	status = "disabled";
 };
 
+/ {
+	aliases {
+		hsuart2 = &qupv3_se11_2uart;
+		hsuart3 = &qupv3_se16_2uart;
+		hsuart4 = &qupv3_se7_4uart;
+	};
+};
+
 &soc {
 	/delete-node/ cam_isp_mgr;
 	/delete-node/ cam_fd_mgr;
