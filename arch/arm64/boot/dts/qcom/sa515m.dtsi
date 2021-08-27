@@ -10,20 +10,5 @@
  * GNU General Public License for more details.
  */
 
-&soc {
-	subsys_backup: qcom,subsys-backup {
-		compatible = "qcom,subsys-backup";
-		qcom,buf-size = <0x400000>;
-		memory-region = <&subsys_backup_region>;
-	};
-};
-
-&reserved_mem {
-	subsys_backup_region: subsys_backup_region {
-		compatible = "shared-dma-pool";
-		reusable;
-		size = <0x800000>;
-	};
-};
 
 
