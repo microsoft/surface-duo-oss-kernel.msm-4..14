@@ -277,6 +277,14 @@
             status = "okay";
     };
 
+    meter_board_rst {
+		compatible = "meter-brd-rst";
+		label = "meter-brd-rst";
+		pinctrl-names = "default";
+		pinctl-0 = <&meter_board_default>;
+		reset-gpios = <&tlmm 82 GPIO_ACTIVE_LOW>;
+		status = "ok";
+    };
         rf_ctl {
                 compatible = "rf-ctl";
                 label = "rf-ctl";
@@ -346,6 +354,18 @@
 			pins = "gpio37";
 			drive-strength = <2>;
 			bias-disable;
+		};
+	};
+
+	meter_board_default: meter_board_default {
+		mux {
+			pins = "gpio82";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio82";
+			drive-strength =<2>;
+			bias-pull-down;
 		};
 	};
 
