@@ -8,6 +8,10 @@ type: kernel
 build-base: core20
 adopt-info: kernel
 
+architectures:
+  - build-on: [amd64, arm64]
+    run-on: arm64
+
 parts:
     kernel:
         after:
