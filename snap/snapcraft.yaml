@@ -3,7 +3,7 @@ summary: The Ubuntu iMX Linux kernel
 description: This Ubuntu Linux kernel for NXP iMX family of devices
 
 grade: stable
-confinement: devmode
+confinement: strict
 type: kernel
 build-base: core20
 adopt-info: kernel
@@ -12,20 +12,9 @@ architectures:
   - build-on: [amd64, arm64]
     run-on: arm64
 
-# environment to run fde-setup hook
-environment:
-    LD_LIBRARY_PATH: ${SNAP}/usr/lib
-
-hooks:
-    fde-setup:
-        plugs:
-            - tee
-            - home
 
 parts:
     kernel:
-        after:
-            - optee-fde
         plugin: x-kernel
         source: .
         kdefconfig: [ "s32gen1_emu_snappy_defconfig" ]
@@ -34,9 +23,6 @@ parts:
             arm64: Image
         kernel-initrd-flavour: edge
         kernel-initrd-compression: gz
-        kernel-initrd-addons:
-            - usr/bin/fde-reveal-key
-            - usr/lib/libteec.so*
         override-build: |
             snapcraftctl build
             kernel_version=$(make kernelversion)
@@ -47,80 +33,6 @@ parts:
             - -initrd.img*
             - -Image*
             - -dtbs
-
-    optee-os:
-        plugin: dump
-        source: https://github.com/OP-TEE/optee_os.git
-        source-type: git
-        source-tag: 3.10.0
-        override-build: |
-            # we are building optee-os only to get build export dependency to build REE app
-            # so precise configs are esential
-            if [ "${SNAPCRAFT_TARGET_ARCH}" = "arm64" ]; then
-                export CROSS_COMPILE_ta_arm64="${SNAPCRAFT_ARCH_TRIPLET}-"
-                export CFG_ARM64_core="y"
-                export PLATFORM="vexpress-qemu_armv8a"
-                export CFG_USER_TA_TARGETS="ta_arm64"
-            elif [ "${SNAPCRAFT_TARGET_ARCH}" = "armhf" ]; then
-                export CROSS_COMPILE_ta_arm32="${SNAPCRAFT_ARCH_TRIPLET}-"
-                export PLATFORM="vexpress-qemu_virt"
-                export CFG_USER_TA_TARGETS="ta_arm32"
-            fi
-            export CROSS_COMPILE="${SNAPCRAFT_ARCH_TRIPLET}-"
-            export CROSS_COMPILE_core="${SNAPCRAFT_ARCH_TRIPLET}-"
-            export DEBUG=0
-            export CFG_TEE_CORE_LOG_LEVEL=1
-            export CFG_TEE_TA_LOG_LEVEL=1
-            export CFG_TEE_BENCHMARK=n
-            make O=${SNAPCRAFT_PART_BUILD}/out -j$(nproc)
-            cp -r out/export-ta_arm* ${SNAPCRAFT_PART_INSTALL}/export-ta_arm
-        prime:
-            - -*
-
-    optee-client:
-        plugin: dump
-        source: https://github.com/OP-TEE/optee_client.git
-        source-type: git
-        source-tag: 3.10.0
-        override-build: |
-            export CROSS_COMPILE="${SNAPCRAFT_ARCH_TRIPLET}-"
-            export ARCH="${SNAPCRAFT_TARGET_ARCH}"
-            export CFG_TA_TEST_PATH=0
-            export CFG_TEE_SUPP_LOG_LEVEL=0
-            export DESTDIR="${SNAPCRAFT_PART_INSTALL}"
-            export CFG_TEE_CLIENT_LOAD_PATH=""
-            make install -j$(nproc)
-        prime:
-            - usr/lib/lib*so*
-
-    optee-fde:
-        after:
-            - optee-os
-            - optee-client
-        plugin: nil
-        source: https://git.launchpad.net/~ondrak/+git/optee-uc-fde
-        source-type: git
-        source-branch: master
-        override-build: |
-            # we are not using TA build here (early TA is used), so
-            # it does not matter what key is used to sign built TA
-            # support cross build
-            export CROSS_COMPILE="${SNAPCRAFT_ARCH_TRIPLET}-"
-            export ARCH="${SNAPCRAFT_TARGET_ARCH}"
-            export TA_DEV_KIT_DIR="${SNAPCRAFT_STAGE}/export-ta_arm"
-            export CFG_TEE_CLIENT_LOG_LEVEL="1"
-            export OPTEE_CLIENT_EXPORT="${SNAPCRAFT_STAGE}/usr"
-            export DESTDIR=${SNAPCRAFT_PART_INSTALL}
-            export O="${SNAPCRAFT_PART_BUILD}/out"
-            make -j$(nproc)
-            make install
-        organize:
-            usr/bin/fde-setup: meta/hooks/fde-setup
-        stage:
-            - meta/
-            - usr/bin/fde-reveal-key
-        prime:
-            - meta/
 
     test-keys:
         plugin: dump
