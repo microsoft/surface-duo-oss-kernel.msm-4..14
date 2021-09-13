@@ -93,10 +93,17 @@ static void ionic_lif_deferred_work(struct work_struct *work)
 			ionic_link_status_check(lif);
 			break;
 		case IONIC_DW_TYPE_LIF_RESET:
-			if (w->fw_status)
+			if (w->fw_status) {
 				ionic_lif_handle_fw_up(lif);
-			else
+			} else {
 				ionic_lif_handle_fw_down(lif);
+
+				/* Fire off another watchdog to see
+				 * if the FW is already back rather than
+				 * waiting another whole cycle
+				 */
+				mod_timer(&lif->ionic->watchdog_timer, jiffies + 1);
+			}
 			break;
 		default:
 			break;
@@ -842,10 +849,8 @@ int ionic_lif_create_hwstamp_txq(struct ionic_lif *lif)
 	u64 features;
 	int err;
 
-	mutex_lock(&lif->queue_lock);
-
 	if (lif->hwstamp_txq)
-		goto out;
+		return 0;
 
 	features = IONIC_Q_F_2X_CQ_DESC | IONIC_TXQ_F_HWSTAMP;
 
@@ -887,9 +892,6 @@ int ionic_lif_create_hwstamp_txq(struct ionic_lif *lif)
 		}
 	}
 
-out:
-	mutex_unlock(&lif->queue_lock);
-
 	return 0;
 
 err_qcq_enable:
@@ -900,7 +902,6 @@ err_qcq_init:
 	ionic_qcq_free(lif, txq);
 	devm_kfree(lif->ionic->dev, txq);
 err_qcq_alloc:
-	mutex_unlock(&lif->queue_lock);
 	return err;
 }
 
@@ -912,10 +913,8 @@ int ionic_lif_create_hwstamp_rxq(struct ionic_lif *lif)
 	u64 features;
 	int err;
 
-	mutex_lock(&lif->queue_lock);
-
 	if (lif->hwstamp_rxq)
-		goto out;
+		return 0;
 
 	features = IONIC_Q_F_2X_CQ_DESC | IONIC_RXQ_F_HWSTAMP;
 
@@ -953,9 +952,6 @@ int ionic_lif_create_hwstamp_rxq(struct ionic_lif *lif)
 		}
 	}
 
-out:
-	mutex_unlock(&lif->queue_lock);
-
 	return 0;
 
 err_qcq_enable:
@@ -966,7 +962,6 @@ err_qcq_init:
 	ionic_qcq_free(lif, rxq);
 	devm_kfree(lif->ionic->dev, rxq);
 err_qcq_alloc:
-	mutex_unlock(&lif->queue_lock);
 	return err;
 }
 
@@ -1261,6 +1256,8 @@ int ionic_lif_addr_add(struct ionic_lif *lif, const u8 *addr)
 	struct ionic_rx_filter *f;
 	int err = 0;
 
+	memcpy(ctx.cmd.rx_filter_add.mac.addr, addr, ETH_ALEN);
+
 	spin_lock_bh(&lif->rx_filters.lock);
 	f = ionic_rx_filter_by_addr(lif, addr);
 	if (f) {
@@ -1274,7 +1271,6 @@ int ionic_lif_addr_add(struct ionic_lif *lif, const u8 *addr)
 		f->state = IONIC_FILTER_STATE_SYNCED;
 	} else {
 		/* save as SYNCED to catch any DEL requests while processing */
-		memcpy(ctx.cmd.rx_filter_add.mac.addr, addr, ETH_ALEN);
 		err = ionic_rx_filter_save(lif, 0, IONIC_RXQ_INDEX_ANY, 0, &ctx,
 					   IONIC_FILTER_STATE_SYNCED);
 	}
@@ -1719,7 +1715,6 @@ static int ionic_set_mac_address(struct net_device *netdev, void *sa)
 static void ionic_stop_queues_reconfig(struct ionic_lif *lif)
 {
 	/* Stop and clean the queues before reconfiguration */
-	mutex_lock(&lif->queue_lock);
 	netif_device_detach(lif->netdev);
 	ionic_stop_queues(lif);
 	ionic_txrx_deinit(lif);
@@ -1738,8 +1733,7 @@ static int ionic_start_queues_reconfig(struct ionic_lif *lif)
 	 * DOWN and UP to try to reset and clear the issue.
 	 */
 	err = ionic_txrx_init(lif);
-	mutex_unlock(&lif->queue_lock);
-	ionic_link_status_check_request(lif, CAN_SLEEP);
+	ionic_link_status_check_request(lif, CAN_NOT_SLEEP);
 	netif_device_attach(lif->netdev);
 
 	return err;
@@ -1769,9 +1763,13 @@ static int ionic_change_mtu(struct net_device *netdev, int new_mtu)
 		return 0;
 	}
 
+	mutex_lock(&lif->queue_lock);
 	ionic_stop_queues_reconfig(lif);
 	netdev->mtu = new_mtu;
-	return ionic_start_queues_reconfig(lif);
+	err = ionic_start_queues_reconfig(lif);
+	mutex_unlock(&lif->queue_lock);
+
+	return err;
 }
 
 static void ionic_tx_timeout_work(struct work_struct *ws)
@@ -1787,8 +1785,10 @@ static void ionic_tx_timeout_work(struct work_struct *ws)
 	if (!netif_running(lif->netdev))
 		return;
 
+	mutex_lock(&lif->queue_lock);
 	ionic_stop_queues_reconfig(lif);
 	ionic_start_queues_reconfig(lif);
+	mutex_unlock(&lif->queue_lock);
 }
 
 static void ionic_tx_timeout(struct net_device *netdev, unsigned int txqueue)
@@ -2225,9 +2225,11 @@ static int ionic_open(struct net_device *netdev)
 	if (test_and_clear_bit(IONIC_LIF_F_BROKEN, lif->state))
 		netdev_info(netdev, "clearing broken state\n");
 
+	mutex_lock(&lif->queue_lock);
+
 	err = ionic_txrx_alloc(lif);
 	if (err)
-		return err;
+		goto err_unlock;
 
 	err = ionic_txrx_init(lif);
 	if (err)
@@ -2248,12 +2250,21 @@ static int ionic_open(struct net_device *netdev)
 			goto err_txrx_deinit;
 	}
 
+	/* If hardware timestamping is enabled, but the queues were freed by
+	 * ionic_stop, those need to be reallocated and initialized, too.
+	 */
+	ionic_lif_hwstamp_recreate_queues(lif);
+
+	mutex_unlock(&lif->queue_lock);
+
 	return 0;
 
 err_txrx_deinit:
 	ionic_txrx_deinit(lif);
 err_txrx_free:
 	ionic_txrx_free(lif);
+err_unlock:
+	mutex_unlock(&lif->queue_lock);
 	return err;
 }
 
@@ -2273,9 +2284,11 @@ static int ionic_stop(struct net_device *netdev)
 	if (test_bit(IONIC_LIF_F_FW_RESET, lif->state))
 		return 0;
 
+	mutex_lock(&lif->queue_lock);
 	ionic_stop_queues(lif);
 	ionic_txrx_deinit(lif);
 	ionic_txrx_free(lif);
+	mutex_unlock(&lif->queue_lock);
 
 	return 0;
 }
