@@ -41,6 +41,8 @@ static struct msm_bus_scale_pdata *emac_bus_scale_vec;
 
 #define SSR_SIG_DOWN 0x1
 #define SSR_SIG_UP   0x2
+#define DMA_TX_SIZE_CV2X 128
+#define DMA_RX_SIZE_CV2X 128
 
 static void __iomem *tlmm_central_base_addr;
 static void ethqos_rgmii_io_macro_loopback(struct qcom_ethqos *ethqos,
@@ -1079,6 +1081,9 @@ static int ethqos_mdio_read(struct stmmac_priv  *priv, int phyaddr, int phyreg)
 static int ethqos_phy_intr_config(struct qcom_ethqos *ethqos)
 {
 	int ret = 0;
+	struct platform_device *pdev = ethqos->pdev;
+	struct net_device *dev = platform_get_drvdata(pdev);
+	struct stmmac_priv *priv = netdev_priv(dev);
 
 	ethqos->phy_intr = platform_get_irq_byname(ethqos->pdev, "phy-intr");
 
@@ -1088,6 +1093,8 @@ static int ethqos_phy_intr_config(struct qcom_ethqos *ethqos)
 				"PHY IRQ configuration information not found\n");
 		}
 		ret = 1;
+	} else {
+		priv->wol_irq = ethqos->phy_intr;
 	}
 
 	return ret;
@@ -2469,13 +2476,15 @@ smmu_probe_done:
 	return result;
 }
 
-static int ethqos_update_rgmii_tx_drv_strength(struct qcom_ethqos *ethqos)
+static int ethqos_update_rgmii_tx_drv_strength(struct qcom_ethqos *ethqos,
+					       struct device_node *np)
 {
 	int ret = 0;
 	struct resource *resource = NULL;
 	unsigned long tlmm_central_base = 0;
 	unsigned long tlmm_central_size = 0;
 	unsigned long reg_rgmii_io_pads_voltage = 0;
+	u32 tx_drv_str[3];
 
 	resource =
 	 platform_get_resource_byname(
@@ -2508,6 +2517,111 @@ static int ethqos_update_rgmii_tx_drv_strength(struct qcom_ethqos *ethqos)
 
 	ETHQOSINFO("IOMACRO pads voltage: %u uV\n", reg_rgmii_io_pads_voltage);
 
+	if (np && !of_property_read_u32(np, "rgmii-tx-drv-str-clk",
+					&tx_drv_str[0])) {
+		switch (tx_drv_str[0]) {
+		case 2:
+			tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_2MA;
+			break;
+		case 4:
+			tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_4MA;
+			break;
+		case 6:
+			tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_6MA;
+			break;
+		case 8:
+			tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_8MA;
+			break;
+		case 10:
+			tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_10MA;
+			break;
+		case 12:
+			tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_12MA;
+			break;
+		case 14:
+			tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_14MA;
+			break;
+		case 16:
+			tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA;
+			break;
+		default:
+			tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA;
+			break;
+		}
+	} else {
+		tx_drv_str[0] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA;
+	}
+
+	if (np && !of_property_read_u32(np, "rgmii-tx-drv-str-data",
+					&tx_drv_str[1])) {
+		switch (tx_drv_str[1]) {
+		case 2:
+			tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_2MA;
+			break;
+		case 4:
+			tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_4MA;
+			break;
+		case 6:
+			tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_6MA;
+			break;
+		case 8:
+			tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_8MA;
+			break;
+		case 10:
+			tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_10MA;
+			break;
+		case 12:
+			tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_12MA;
+			break;
+		case 14:
+			tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_14MA;
+			break;
+		case 16:
+			tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA;
+			break;
+		default:
+			tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA;
+			break;
+		}
+	} else {
+		tx_drv_str[1] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA;
+	}
+
+	if (np && !of_property_read_u32(np, "rgmii-tx-drv-str-ctl",
+					&tx_drv_str[2])) {
+		switch (tx_drv_str[2]) {
+		case 2:
+			tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_2MA;
+			break;
+		case 4:
+			tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_4MA;
+			break;
+		case 6:
+			tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_6MA;
+			break;
+		case 8:
+			tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_8MA;
+			break;
+		case 10:
+			tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_10MA;
+			break;
+		case 12:
+			tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_12MA;
+			break;
+		case 14:
+			tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_14MA;
+			break;
+		case 16:
+			tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA;
+			break;
+		default:
+			tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA;
+			break;
+		}
+	} else {
+		tx_drv_str[2] = TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA;
+	}
+
 	switch (reg_rgmii_io_pads_voltage) {
 	case 1500000:
 	case 1800000: {
@@ -2516,9 +2630,9 @@ static int ethqos_update_rgmii_tx_drv_strength(struct qcom_ethqos *ethqos)
 		case EMAC_HW_v2_2_0:
 		case EMAC_HW_v2_3_2: {
 				TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_WR(
-				   TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA,
-				   TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA,
-				   TLMM_RGMII_HDRV_PULL_CTL1_TX_HDRV_16MA);
+				   tx_drv_str[0],
+				   tx_drv_str[1],
+				   tx_drv_str[2]);
 				TLMM_RGMII_RX_HV_MODE_CTL_RGWR(0x0);
 		}
 		break;
@@ -2551,14 +2665,16 @@ static void qcom_ethqos_phy_suspend_clks(struct qcom_ethqos *ethqos)
 
 	ethqos_update_rgmii_clk_and_bus_cfg(ethqos, 0);
 
-	if (priv->plat->stmmac_clk)
-		clk_disable_unprepare(priv->plat->stmmac_clk);
+	if (ethqos->phy_wol_supported) {
+		if (priv->plat->stmmac_clk)
+			clk_disable_unprepare(priv->plat->stmmac_clk);
 
-	if (priv->plat->pclk)
-		clk_disable_unprepare(priv->plat->pclk);
+		if (priv->plat->pclk)
+			clk_disable_unprepare(priv->plat->pclk);
 
-	if (priv->plat->clk_ptp_ref)
-		clk_disable_unprepare(priv->plat->clk_ptp_ref);
+		if (priv->plat->clk_ptp_ref)
+			clk_disable_unprepare(priv->plat->clk_ptp_ref);
+	}
 
 	if (ethqos->rgmii_clk)
 		clk_disable_unprepare(ethqos->rgmii_clk);
@@ -2589,14 +2705,16 @@ static void qcom_ethqos_phy_resume_clks(struct qcom_ethqos *ethqos)
 
 	ETHQOSINFO("Enter\n");
 
-	if (priv->plat->stmmac_clk)
-		clk_prepare_enable(priv->plat->stmmac_clk);
+	if (ethqos->phy_wol_supported) {
+		if (priv->plat->stmmac_clk)
+			clk_prepare_enable(priv->plat->stmmac_clk);
 
-	if (priv->plat->pclk)
-		clk_prepare_enable(priv->plat->pclk);
+		if (priv->plat->pclk)
+			clk_prepare_enable(priv->plat->pclk);
 
-	if (priv->plat->clk_ptp_ref)
-		clk_prepare_enable(priv->plat->clk_ptp_ref);
+		if (priv->plat->clk_ptp_ref)
+			clk_prepare_enable(priv->plat->clk_ptp_ref);
+	}
 
 	if (ethqos->rgmii_clk)
 		clk_prepare_enable(ethqos->rgmii_clk);
@@ -2647,47 +2765,44 @@ static void qcom_ethqos_bringup_iface(struct work_struct *work)
 
 void qcom_ethqos_request_phy_wol(struct plat_stmmacenet_data *plat)
 {
-	struct qcom_ethqos *ethqos = plat->bsp_priv;
-	struct stmmac_priv *priv = qcom_ethqos_get_priv(ethqos);
+	struct qcom_ethqos *ethqos;
+	struct stmmac_priv *priv;
+	int ret = 0;
 
-	ethqos->phy_wol_supported = 0;
-	ethqos->phy_wol_wolopts = 0;
+	if (!plat)
+		return;
+
+	ethqos = plat->bsp_priv;
+	priv = qcom_ethqos_get_priv(ethqos);
+
+	if (!priv || !priv->en_wol)
+		return;
+
 	/* Check if phydev is valid*/
 	/* Check and enable Wake-on-LAN functionality in PHY*/
 
 	if (priv->phydev) {
 		struct ethtool_wolinfo wol = {.cmd = ETHTOOL_GWOL};
-
-		wol.supported = 0;
-		wol.wolopts = 0;
-		ETHQOSDBG("phydev addr: %x\n", priv->phydev);
 		phy_ethtool_get_wol(priv->phydev, &wol);
-		ethqos->phy_wol_supported = wol.supported;
-		ETHQOSDBG("Get WoL[0x%x] in %s\n", wol.supported,
-			  priv->phydev->drv->name);
 
-	/* Try to enable supported Wake-on-LAN features in PHY*/
-		if (wol.supported) {
-			device_set_wakeup_capable(&ethqos->pdev->dev, 1);
+		wol.cmd = ETHTOOL_SWOL;
+		wol.wolopts = wol.supported;
+		ret = phy_ethtool_set_wol(priv->phydev, &wol);
 
-			wol.cmd = ETHTOOL_SWOL;
-			wol.wolopts = wol.supported;
-
-			if (!phy_ethtool_set_wol(priv->phydev, &wol)) {
-				ethqos->phy_wol_wolopts = wol.wolopts;
-
-				enable_irq_wake(ethqos->phy_intr);
-				device_set_wakeup_enable(&ethqos->pdev->dev, 1);
-
-				ETHQOSDBG("Enabled WoL[0x%x] in %s\n",
-					  wol.wolopts,
-					  priv->phydev->drv->name);
-			} else {
-				ETHQOSINFO("Disabled WoL[0x%x] in %s\n",
-					   wol.wolopts,
-					   priv->phydev->drv->name);
-			}
+		if (ret) {
+			ETHQOSERR("set wol in PHY failed\n");
+			return;
 		}
+
+		if (ret == EOPNOTSUPP) {
+			ETHQOSERR("WOL not supported\n");
+			return;
+		}
+
+		device_set_wakeup_capable(priv->device, 1);
+
+		enable_irq_wake(ethqos->phy_intr);
+		device_set_wakeup_enable(&ethqos->pdev->dev, 1);
 	}
 }
 
@@ -3344,32 +3459,43 @@ static struct notifier_block qcom_ethqos_panic_blk = {
 
 static void read_mac_addr_from_fuse_reg(struct device_node *np)
 {
-	int ret, i;
+	int ret, i, count, x;
 	u32 mac_efuse_prop, efuse_size = 8;
-	void __iomem *mac_efuse_addr;
 	unsigned long mac_addr;
 
-	ret = of_property_read_u32(np, "mac-efuse-addr", &mac_efuse_prop);
-	if (!ret) {
-		mac_efuse_addr = ioremap(mac_efuse_prop, efuse_size);
-		if (!mac_efuse_addr) {
-			ETHQOSERR("unable to do ioremap\n");
-			return;
-		}
-		mac_addr = readq(mac_efuse_addr);
-		ETHQOSINFO("Mac address read: %llx\n", mac_addr);
+	/* If the property doesn't exist or empty return */
+	count = of_property_count_u32_elems(np, "mac-efuse-addr");
+	if (!count || count < 0)
+		return;
 
-		/* create byte array out of value read from efuse */
-		for (i = 0; i < ETH_ALEN ; i++) {
-			pparams.mac_addr[ETH_ALEN - 1 - i] = mac_addr & 0xff;
-			mac_addr = mac_addr >> 8;
-		}
+	/* Loop over all addresses given until we get valid address */
+	for (x = 0; x < count; x++) {
+		void __iomem *mac_efuse_addr;
 
-		pparams.is_valid_mac_addr =
-			is_valid_ether_addr(pparams.mac_addr);
-		if (!pparams.is_valid_mac_addr) {
-			ETHQOSERR("Invalid Mac address set: %llx\n", mac_addr);
-			return;
+		ret = of_property_read_u32_index(np, "mac-efuse-addr",
+						 x, &mac_efuse_prop);
+		if (!ret) {
+			mac_efuse_addr = ioremap(mac_efuse_prop, efuse_size);
+			if (!mac_efuse_addr)
+				continue;
+
+			mac_addr = readq(mac_efuse_addr);
+			ETHQOSINFO("Mac address read: %llx\n", mac_addr);
+
+			/* create byte array out of value read from efuse */
+			for (i = 0; i < ETH_ALEN ; i++) {
+				pparams.mac_addr[ETH_ALEN - 1 - i] =
+					mac_addr & 0xff;
+				mac_addr = mac_addr >> 8;
+			}
+
+			iounmap(mac_efuse_addr);
+
+			/* if valid address is found set cookie & return */
+			pparams.is_valid_mac_addr =
+				is_valid_ether_addr(pparams.mac_addr);
+			if (pparams.is_valid_mac_addr)
+				return;
 		}
 	}
 }
@@ -3605,7 +3731,6 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 	plat_dat->tx_select_queue = dwmac_qcom_select_queue;
 	plat_dat->get_plat_tx_coal_frames =  dwmac_qcom_get_plat_tx_coal_frames;
 	plat_dat->has_gmac4 = 1;
-	plat_dat->pmt = 1;
 	plat_dat->tso_en = of_property_read_bool(np, "snps,tso");
 	plat_dat->early_eth = ethqos->early_eth_enabled;
 	plat_dat->handle_mac_err = dwmac_qcom_handle_mac_err;
@@ -3707,8 +3832,7 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 	}
 
 	ethqos->ioaddr = (&stmmac_res)->addr;
-	ethqos_update_rgmii_tx_drv_strength(ethqos);
-
+	ethqos_update_rgmii_tx_drv_strength(ethqos, np);
 	ethqos_mac_rec_init(ethqos);
 
 	ret = stmmac_dvr_probe(&pdev->dev, plat_dat, &stmmac_res);
@@ -3745,6 +3869,9 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 	priv = netdev_priv(ndev);
 	priv->clk_csr = STMMAC_CSR_100_150M;
 
+	/* Read en_wol from device tree */
+	priv->en_wol = of_property_read_bool(np, "enable-wol");
+
 	if (pparams.is_valid_mac_addr) {
 		ether_addr_copy(dev_addr, pparams.mac_addr);
 		memcpy(priv->dev->dev_addr, dev_addr, ETH_ALEN);
@@ -3760,12 +3887,34 @@ static int qcom_ethqos_probe(struct platform_device *pdev)
 		ethqos_set_early_eth_param(priv, ethqos);
 	}
 
-	if (ethqos->cv2x_mode) {
-		for (i = 0; i < plat_dat->rx_queues_to_use; i++) {
+	for (i = 0; i < plat_dat->tx_queues_to_use; i++) {
+		if (of_property_read_u32(np, "dma-tx-desc-cnt",
+					 &priv->tx_queue[i].dma_tx_desc_sz))
+			priv->tx_queue[i].dma_tx_desc_sz = DMA_TX_SIZE;
+
+		if (ethqos->cv2x_mode && i == ethqos->cv2x_vlan.rx_queue)
+			priv->tx_queue[i].dma_tx_desc_sz = DMA_TX_SIZE_CV2X;
+
+		ETHQOSDBG("TX queue[%u] desc cnt = %u\n",
+			  i, priv->tx_queue[i].dma_tx_desc_sz);
+	}
+
+	for (i = 0; i < plat_dat->rx_queues_to_use; i++) {
+		if (of_property_read_u32(np, "dma-rx-desc-cnt",
+					 &priv->rx_queue[i].dma_rx_desc_sz))
+			priv->rx_queue[i].dma_rx_desc_sz = DMA_RX_SIZE;
+
+		if (ethqos->cv2x_mode) {
 			priv->rx_queue[i].en_fep = true;
-			if (i == ethqos->cv2x_vlan.rx_queue)
+			if (i == ethqos->cv2x_vlan.rx_queue) {
 				priv->rx_queue[i].dis_mod = true;
+				priv->rx_queue[i].dma_rx_desc_sz =
+					DMA_RX_SIZE_CV2X;
+			}
 		}
+
+		ETHQOSDBG("RX queue[%u] desc cnt = %u\n",
+			  i, priv->rx_queue[i].dma_rx_desc_sz);
 	}
 
 	if (ethqos->qoe_mode || ethqos->cv2x_mode) {
@@ -3881,6 +4030,16 @@ static int qcom_ethqos_suspend(struct device *dev)
 							       MII_BMCR);
 		} else {
 			ethqos->backup_autoneg = AUTONEG_ENABLE;
+		}
+	}
+	if (ethqos->current_phy_mode == DISABLE_PHY_AT_SUSPEND_ONLY ||
+	    ethqos->current_phy_mode == DISABLE_PHY_SUSPEND_ENABLE_RESUME) {
+		if (priv->phydev) {
+			if (qcom_ethqos_is_phy_link_up(ethqos)) {
+				ETHQOSINFO("Post Link down before PHY off\n");
+				netif_carrier_off(ndev);
+				phy_mac_interrupt(priv->phydev, LINK_DOWN);
+			}
 		}
 	}
 	ret = stmmac_suspend(dev);
