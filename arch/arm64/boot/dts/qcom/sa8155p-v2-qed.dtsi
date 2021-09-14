@@ -661,6 +661,11 @@
 	status = "ok";
 };
 
+/* arm control qup */
+&qupv3_se14_spi {
+	status = "ok";
+};
+
 &pm8150_vadc {
 	amux_thm1_pu2 {
 		reg = <ADC_AMUX_THM1_PU2>;
