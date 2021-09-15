@@ -221,7 +221,6 @@ dm-thin-pool
 dm-zero
 dm-zoned
 dm9601
-dmi-sysfs
 dn_rtmsg
 dnet
 docg3
@@ -544,7 +543,6 @@ lkkbd
 llc2
 lm8323
 lm8333
-locktorture
 lp
 lpddr_cmds
 lru_cache
@@ -976,7 +974,6 @@ rc-winfast
 rc-winfast-usbii-deluxe
 rc-zx-irdec
 rcuperf
-rcutorture
 rdma_cm
 rdma_ucm
 rds
@@ -1003,7 +1000,6 @@ rt2800usb
 rt2x00lib
 rt2x00usb
 rt73usb
-rtc-efi
 rtc-pm8xxx
 rtl8150
 rtl8187
@@ -1371,7 +1367,6 @@ xt_socket
 xt_tcpmss
 xtkbd
 xusbatm
-xz_dec_test
 yurex
 z3fold
 zaurus

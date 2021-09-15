@@ -1,4 +1,29 @@
-linux-qcomm (4.14.0-1015.17) focal; urgency=medium
+linux-qcomm (4.14.0-1016.19) focal; urgency=medium
+
+  * INVALID or PRIVATE BUG (LP: #1940100)
+    - ARM: dts: msm: Disable lpass, spss nodes for sa8155 iot
+    - qcom: Changes in qseecom node for commonlib64 loading
+    - mhi: core: Fix find_last_bit() usage
+    - ARM: dts: msm: update tsens thermal zone thresholds for sa8155p-iot
+    - net : stmmac: Fix the MAC2MAC crash
+    - net: stmmac: Refract mac2mac adjust link API
+    - net:stmmac:ETH phy link operations
+    - net: stmmac: Call adjust link for mac2mac
+    - net: stmmac: Add feature to detect mac2mac link
+    - Revert "ARM: dts: msm: Add ION memory region for ADP AIR"
+    - Revert "ARM: dts: msm: disable unused qup se for sa8155"
+    - Revert "ARM: dts: msm: Disable lpass, spss nodes for sa8155 iot"
+    - ARM: dts: msm: Add CDSP Sensor ION memory region for sa8155p-iot
+    - ARM: dts: msm: Disable lpass, venus, spss nodes for sa8155p-iot
+    - ARM: dts: msm: Disable QUPv3 SE entries for CDSP Sensor use case
+    - ARM: dts: msm: Add support for ADP Air platform for sa8155p-iot
+    - ARM: dts: msm: qseecom node update for commonlib64 and TA loading
+    - defconfig: ubuntu: create 2 flavours for ubuntu
+    - [Packaging] fix kernel debian binary builds
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Tue, 31 Aug 2021 22:02:29 +0800
+
+linux-qcomm (4.14.0-1015.18) focal; urgency=medium
 
   * INVALID or PRIVATE BUG (LP: #1925117)
     - [Config] disabled dt overlay support
