@@ -8,6 +8,7 @@
 /* AD7768 registers definition */
 #define AD7768_CH_STANDBY           0x00
 #define AD7768_CH_MODE              0x01
+#define AD7768_CH_MODE_B            0x02
 #define AD7768_POWER_MODE           0x04
 #define AD7768_DATA_CONTROL         0x06
 #define AD7768_INTERFACE_CFG        0x07

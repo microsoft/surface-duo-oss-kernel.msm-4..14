@@ -11,56 +11,71 @@
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
-#include <linux/workqueue.h> 
+#include <linux/workqueue.h>
 
 #include "ad7768.h"
 #include "fpga.h"
 
 /* forward declarations */
 static int fpga_get_id(void);
+static int fpga_get_window_size(void);
+static int fpga_set_window_size(uint8_t);
+
 static int fpga_get_test_mode(void);
 static int fpga_set_test_mode1(void);
 static int fpga_set_test_mode2(void);
 static int fpga_set_test_mode_disable(void);
+
 static int fpga_set_pps_enable(void);
 static int fpga_set_pps_disable(void);
+
 static int fpga_set_cfg_normal(void);
 static int fpga_set_cfg_adc0(void);
 static int fpga_set_cfg_adc1(void);
+
 static int fpga_get_soft_reset(void);
 static int fpga_get_slices_enabled(void);
 static int fpga_assert_soft_reset(void);
 static int fpga_release_soft_reset(void);
-static int fpga_get_window_size(void);
+
 static int fpga_set_slices_enabled(unsigned char);
-static int fpga_set_window_size(uint8_t);
+
 static int fpga_get_irq_offset(void);
 static int fpga_set_irq_offset(uint8_t);
+
 static int fpga_get_ch_irq_mask_hi(void);
 static int fpga_set_ch_irq_mask_hi(uint8_t);
 static int fpga_get_ch_irq_mask_low(void);
 static int fpga_set_ch_irq_mask_low(uint8_t);
+
 static int fpga_get_ch_overflow_hi(void);
 static int fpga_get_ch_overflow_low(void);
 static int fpga_get_ch_underflow_hi(void);
 static int fpga_get_ch_underflow_low(void);
+
+static int fpga_get_stat(void);
+static int fpga_clear_stat(void);
+
+static int fpga_get_adc_reset(void);
+static int fpga_adc_reset(uint32_t);
+static int fpga_adc_reset_assert(void);
+static int fpga_adc_reset_deassert(void);
+
 static int ad7768_set_sampling_freq(unsigned int);
 static int ad7768_get_sampling_freq(void);
 static int ad7768_set_power_mode(unsigned int);
 static int ad7768_get_power_mode(void);
 static int ad7768_set_filter_type(unsigned int);
 static int ad7768_get_filter_type(void);
+
 static int ad7768_set_channel_standby(unsigned char);
 static int ad7768_get_channel_standby(void);
+
 static int ad7768_get_revision(void);
 static int ad7768_get_interface_mode(void);
+
 static int ad7768_read_register(uint8_t);
-static int fpga_get_stat(void);
-static int fpga_clear_stat(void);
-static int fpga_get_adc_reset(void);
-static int fpga_adc_reset(uint32_t);
-static int fpga_adc_reset_assert(void);
-static int fpga_adc_reset_deassert(void);
+
 
 /* static void fpga_spi_data_read(void); */
 
@@ -298,7 +313,7 @@ static ssize_t slices_enable_show(struct kobject *kobj,
                                char *buf)
 {
         int ret = fpga_get_slices_enabled();
-        
+
         if (ret < 0) {
                 pr_err("Failed to get fpga soft reset\n");
                 return -ENODEV;
@@ -616,7 +631,7 @@ static ssize_t fpga_stat_store(struct kobject *kobj,
                 pr_err("Failed to clear fpga stat\n");
                 return -ENODEV;
         }
-        
+
         return count;
 }
 
@@ -662,15 +677,14 @@ static ssize_t write_reg_store(struct kobject *kobj,
         uint32_t addr = 0, val = 0;
 
         sscanf(buf,"%x %x",&addr, &val);
-
-		pr_info("send cmd: addr %02x, val %02x\n", addr, val);
+        pr_info("send cmd: addr %02x, val %02x\n", addr, val);
         if (addr != 0) {
-			uint16_t tx = cpu_to_be16(((addr & 0x7F) << 8) | (0x00ff & val));
-			pr_info("send cmd: Data to set be_to_cpu %04x\n", tx);
-			pr_info("send cmd: Data to set be_to_cpu 0 address: %02x\n", ((uint8_t *)&tx)[0]);
-			pr_info("send cmd: Data to set be_to_cpu 1 value: %02x\n", ((uint8_t *)&tx)[1]);
-			spi_write(st.spi_cfg, &tx, sizeof(tx));
-			return count;
+                uint16_t tx = cpu_to_be16(((addr & 0x7F) << 8) | (0x00ff & val));
+                pr_info("send cmd: Data to set be_to_cpu %04x\n", tx);
+                pr_info("send cmd: Data to set be_to_cpu 0 address: %02x\n", ((uint8_t *)&tx)[0]);
+                pr_info("send cmd: Data to set be_to_cpu 1 value: %02x\n", ((uint8_t *)&tx)[1]);
+                spi_write(st.spi_cfg, &tx, sizeof(tx));
+                return count;
         }
 
         else  {
@@ -892,13 +906,6 @@ static ssize_t interface_config_show(struct kobject *kobj,
                                      char *buf)
 {
         int ret;
-#if 0
-        ret = fpga_get_cfg_cfg();
-        if (ret < 0) {
-                pr_err("Failed to get fpga cfg cfg\n");
-                return -ENODEV;
-        }
-#endif
 
         ret = ad7768_get_interface_mode();
         if (ret < 0) {
@@ -918,19 +925,6 @@ static ssize_t interface_config_store(struct kobject *kobj,
         sscanf(buf,"%d",&interface_mode);
         pr_info("interface_mode %d\n", interface_mode);
 
-#if 0
-        if (power_mode >= 0) {
-                ret = ad7768_set_power_mode(power_mode);
-                if (ret < 0) {
-                        pr_err("Failed to set ad7768 power mode\n");
-                        return -ENODEV;
-                }
-        }
-        else  {
-                pr_err("Failed to set ad7768 power mode\n");
-                return -ENODEV;
-        }
-#endif
         return count;
 }
 
@@ -942,41 +936,27 @@ static ssize_t adc_reg_show(struct kobject *kobj,
 {
         int ret, i;
 
-		buf[0] = '\0';
+        char buf_l[1024] = {0};
         for (i = 0; i < 0x0a; i++)
         {
-	        ret = ad7768_read_register(i);
-			if (ret < 0) {
-				pr_err("Failed to get ad7768 register %02x\n", i);
-				return -ENODEV;
-			}
-			sprintf(buf + strlen(buf), " reg: %02x: val: %08x\n", i, ret);
-		}
-
-        return sprintf(buf + strlen(buf), "\n");
+                ret = ad7768_read_register(i);
+                if (ret < 0) {
+                        pr_err("Failed to get ad7768 register %02x\n", i);
+                        return -ENODEV;
+                }
+                sprintf(buf_l + strlen(buf_l), " reg_%02x: %02x", i, ret);
+        }
+        return sprintf(buf, "%s\n", buf_l);
 }
 
-static ssize_t adc_reg_store(struct kobject *kobj,
-                             struct kobj_attribute *attr,
-                             const char *buf,
-                             size_t count)
-{
-        int blah;
-
-        sscanf(buf,"%d",&blah);
-        pr_info("bla %d\n", blah);
-
-        return count;
-}
-
-fpga_attr(adc_reg);
+fpga_attr_ro(adc_reg);
 
 static ssize_t adc_channel_standby_show(struct kobject *kobj,
                                         struct kobj_attribute *attr,
                                         char *buf)
 {
         int ret;
-        pr_info("channel standby\n");
+        pr_info("%s\n", __FUNCTION__ );
 
         ret = ad7768_get_channel_standby();
         if (ret < 0) {
@@ -994,8 +974,8 @@ static ssize_t adc_channel_standby_store(struct kobject *kobj,
         int standby, ret;
 
         pr_info("%s\n", __FUNCTION__ );
-        sscanf(buf,"%d",&filter_type);
-        pr_info("filter_type %d\n", standby);
+        sscanf(buf,"%d", &standby);
+        pr_info("standby value: %02x\n", standby);
 
         if (filter_type >= 0) {
                 ret = ad7768_set_channel_standby(standby);
@@ -1122,7 +1102,7 @@ struct spi_board_info fpga_spi_device_cfg_info =
         .mode         = SPI_MODE_0            // SPI mode 0
 };
 
-static struct fpga_state *fpga_get_data(/* struct iio_dev *indio_dev */void)
+static struct fpga_state *fpga_get_data(void)
 {
         /* struct axiadc_converter *conv; */
         return &st;
@@ -1146,9 +1126,7 @@ static int fpga_spi_reg_read(struct fpga_state *st, unsigned int addr,
 
         int ret;
 
-#if 1
         pr_info("Read: Data to send in tx %04x\n", tx);
-#endif
 
         ret = spi_sync_transfer(st->spi_cfg, t, ARRAY_SIZE(t));
         if (ret < 0)
@@ -1159,58 +1137,13 @@ static int fpga_spi_reg_read(struct fpga_state *st, unsigned int addr,
         /* printk("Read: Data recieved be_to_cpu %02x\n", st->d16); */
         pr_info("Read: Data received rx 0: %02x\n", ((uint8_t *)&rx)[0]);
         pr_info("Read: Data received rx 1: %02x\n", ((uint8_t *)&rx)[1]);
-        
+
         *val = be16_to_cpu(rx);
         pr_info("Read: Data received  val : %02x\n", *val);
         /* #endif */
 
         return ret;
 }
-
-#if 0
-void fpga_spi_data_read(void)
-{
-
-        int ret, i, j = 16;
-        struct spi_transfer t[] = {{0}};
-        
-        pr_err("Spi   Read data\n");
-        
-        if(rxb == NULL) {
-                pr_err("FPGA: rxb buffer is not available\n");
-                return;
-        }
-        
-        t[0].tx_buf = 0;
-        t[0].len = rxb_size;
-        t[0].cs_change = 0; /* do not hold low */
-        t[0].bits_per_word = 8;
-        t[0].rx_buf = rxb;
-
-        /* test with different indices */
-        return;
-        ret = spi_sync_transfer(st.spi_data[data_qup], t, ARRAY_SIZE(t));
-        if (ret < 0) {
-                pr_err( "Failed to transfer FPGA data\n");
-                return;
-        }
-        
-        pr_info("Read: Data received slice %d\n", data_qup);
-        for (i = 0; i < rxb_size; i += j)
-        {
-                pr_info("[%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x]\n",
-                        rxb[i*j + 0],  rxb[i*j + 1],
-                        rxb[i*j + 2],  rxb[i*j + 3],
-                        rxb[i*j + 4],  rxb[i*j + 5],
-                        rxb[i*j + 6],  rxb[i*j + 7],
-                        rxb[i*j + 8],  rxb[i*j + 9],
-                        rxb[i*j + 10],  rxb[i*j + 11],
-                        rxb[i*j + 12],  rxb[i*j + 13],
-                        rxb[i*j + 14],  rxb[i*j + 15]
-                       );
-        }
-}
-#endif
 
 static int fpga_spi_reg_write(struct fpga_state *st,
                               unsigned int addr,
@@ -1277,7 +1210,7 @@ static int ad7768_spi_reg_read(struct fpga_state *st, unsigned int addr,
         pr_info("ad7768_spi_reg_read: Data to send st->d16 addr [0] %02x\n", 0x7f & ((unsigned char*)&st->d16)[0]);
         pr_info("ad7768_spi_reg_read: Data to send st->d16 [1] %02x\n", ((unsigned char*)&st->d16)[1]);
         /* #endif */
-        
+
         ret = spi_sync_transfer(st->spi_cfg, t, ARRAY_SIZE(t));
         if (ret < 0)
                 return ret;
@@ -1289,7 +1222,7 @@ static int ad7768_spi_reg_read(struct fpga_state *st, unsigned int addr,
         pr_info("ad7768_spi_reg_read: Data recieved st->d16 [0] %02x\n", ((unsigned char*)&st->d16)[0]);
         pr_info("ad7768_spi_reg_read: Data recieved st->d16 [1] %02x\n", ((unsigned char*)&st->d16)[1]);
         pr_info("ad7768_spi_reg_read: Data recieved be_to_cpu %04x\n", *val);
-        
+
         /* pr_info("ad7768_spi_reg_read: Data in tx [0] %02x\n", ((unsigned char*)&tx)[0]); */
         /* pr_info("ad7768_spi_reg_read: Data in tx [1] %02x\n", ((unsigned char*)&tx)[1]); */
         /* #endif */
@@ -1319,6 +1252,7 @@ static int ad7768_spi_write_mask(struct fpga_state *st,
         int ret;
         short local_mask = ~mask;
 
+        pr_info("%s\n", __FUNCTION__);
         ret = ad7768_spi_reg_read(st, addr, &regval);
         if (ret < 0)
                 return ret;
@@ -1517,9 +1451,9 @@ int fpga_get_test_mode()
 int fpga_set_test_mode1()
 {
         struct fpga_state *st = fpga_get_data(/* dev */);
-        
+
         pr_info( "SET FPGA test mode1: %u\n", FPGA_TEST_MODE1);
-        
+
         /* PPS aligment is to be disabled */
         return fpga_spi_reg_write(st, FPGA_TEST_MODE, FPGA_TEST_MODE1);
 }
@@ -1592,20 +1526,6 @@ int fpga_clear_stat()
         return regval;
 }
 
-#if 0
-static int fpga_reset_stat()
-{
-        struct fpga_state *st = fpga_get_data(/* dev */);
-
-        if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
-                return -EAGAIN;
-        }
-
-        pr_info( "SET FPGA reset stat : %02x\n", 0);
-        return fpga_spi_reg_write(st, FPGA_STAT, 0);
-}
-#endif
-
 int fpga_get_soft_reset()
 {
         struct fpga_state *st = fpga_get_data(/* dev */);
@@ -1653,7 +1573,7 @@ int fpga_assert_soft_reset()
         if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
                 return -EAGAIN;
         }
-        
+
         return fpga_spi_write_mask(st, FPGA_SOFT_RESET, FPGA_SOFT_RESET_MSK, FPGA_SOFT_RESET_SET);
 }
 
@@ -1663,7 +1583,7 @@ int fpga_release_soft_reset()
         if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
                 return -EAGAIN;
         }
-        
+
         return fpga_spi_write_mask(st, FPGA_SOFT_RESET, FPGA_SOFT_RESET_MSK, FPGA_SOFT_RESET_RELEASE);
 }
 
@@ -1672,11 +1592,11 @@ int fpga_set_slices_enabled(unsigned char slices_enabled)
         struct fpga_state *st = fpga_get_data(/* dev */);
         int ret;
         unsigned char regval;
-        
+
         if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
                 return -EAGAIN;
         }
-        
+
         pr_info( "slices enable\n");
         ret = fpga_spi_reg_read(st, FPGA_SOFT_RESET, &regval);
         if (ret < 0) {
@@ -1684,63 +1604,17 @@ int fpga_set_slices_enabled(unsigned char slices_enabled)
                 return ret;
         }
         pr_info( "slices enable read %02x\n", regval);
-        
+
         if (!(regval & 0x1)) {
                 pr_err( "Soft reset is deasserted, can't change the slice enabled\n");
                 return -EAGAIN;
         }
-        
+
         pr_info( "slices enable write with mask  val: %02x\n", slices_enabled);
         pr_info( "slices enable write with mask  val << 4: %02x\n", slices_enabled << 4);
         fpga_spi_write_mask(st, FPGA_SOFT_RESET, FPGA_SOFT_RESET_SLICE_MSK, 0);
         return fpga_spi_write_mask(st, FPGA_SOFT_RESET, FPGA_SOFT_RESET_SLICE_MSK, slices_enabled << 4);
 }
-
-#if 0
-static int fpga_get_cfg_cfg()
-{
-        struct fpga_state *st = fpga_get_data(/* dev */);
-        unsigned char regval;
-        int ret;
-
-        if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
-                return -EAGAIN;
-        }
-
-        ret = fpga_spi_reg_read(st, FPGA_CFG_MODE, &regval);
-        if (ret < 0)
-                return ret;
-
-        pr_info( "CURRENT FPGA CFG_MODE = %04x\n", regval);
-        /* pr_info( "CURRENT FPGA CFG_SPI_MODE = %02x\n", (regval >> 3) & 0x2); */
-        pr_info( "CURRENT FPGA CFG_CFG_MODE = %02x\n", regval & 0x3);
-
-        regval &= 0x3;
-        return regval;
-}
-#endif
-
-#if 0
-static int fpga_get_cfg_spi()
-{
-        struct fpga_state *st = fpga_get_data(/* dev */);
-        unsigned char regval;
-        int ret;
-
-        if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
-                return -EAGAIN;
-        }
-
-        ret = fpga_spi_reg_read(st, FPGA_CFG_MODE, &regval);
-        if (ret < 0)
-                return ret;
-
-        pr_info( "GET CFG_SPI_MODE = %02x\n", (regval >> 3) & 0x2);
-
-        regval = (regval >> 3) & 0x2;
-        return regval;
-}
-#endif
 
 int fpga_set_cfg_adc0()
 {
@@ -1835,22 +1709,22 @@ int fpga_adc_reset(uint32_t reset)
         struct fpga_state *st = fpga_get_data(/* dev */);
         int ret;
         unsigned char regval;
-        
+
         if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
                 return -EAGAIN;
         }
-        
+
         ret = fpga_spi_reg_read(st, FPGA_SOFT_RESET, &regval);
         if (ret < 0) {
                 pr_err( "Failed to read FPGA soft reset\n");
                 return ret;
         }
-        
+
         if (!(regval & 0x1)) {
                 pr_err( "Soft reset is deasserted, can't change the adc reset\n");
                 return -EAGAIN;
         }
-        
+
         pr_info( "adc reset write with mask value: %02x\n", reset);
         return fpga_spi_write_mask(st, FPGA_SOFT_RESET, FPGA_ADC_RESET_MSK, reset);
 }
@@ -1864,48 +1738,6 @@ int fpga_adc_reset_deassert()
 {
         return fpga_adc_reset(FPGA_ADC_RESET_RELEASE);
 }
-#if 0
-static int fpga_soft_reset_release()
-{
-        struct fpga_state *st = fpga_get_data(/* dev */);
-
-        if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
-                return -EAGAIN;
-        }
-
-        return fpga_spi_reg_write(st, FPGA_SOFT_RESET, FPGA_SOFT_RESET_RELEASE);
-}
-
-static int fpga_soft_reset_set()
-{
-        struct fpga_state *st = fpga_get_data(/* dev */);
-
-        if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
-                return -EAGAIN;
-        }
-
-        return fpga_spi_reg_write(st, FPGA_SOFT_RESET, FPGA_SOFT_RESET_SET);
-}
-
-static int fpga_soft_reset_get()
-{
-        struct fpga_state *st = fpga_get_data(/* dev */);
-        unsigned char regval;
-        int ret;
-
-        if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
-                return -EAGAIN;
-        }
-
-        ret = fpga_spi_reg_read(st, FPGA_SOFT_RESET, &regval);
-        if (ret < 0)
-                return ret;
-
-        pr_info( "FPGA CFG_SOFT_RESET = %02x\n", ((regval >> 0) & 0x1));
-
-        return regval;
-}
-#endif
 
 static int ad7768_sync(struct fpga_state *st)
 {
@@ -1967,7 +1799,14 @@ static int ad7768_set_clk_divs(struct fpga_state *st,
         if (ret < 0)
                 return ret;
 
-        return ad7768_spi_write_mask(st, AD7768_CH_MODE,
+        ret = ad7768_spi_write_mask(st, AD7768_CH_MODE,
+                                     AD7768_CH_MODE_DEC_RATE_MSK,
+                                     AD7768_CH_MODE_DEC_RATE_MODE(dec));
+        if (ret < 0) {
+                pr_err("failed to set decimation rate on ch mode A : %u\n", AD7768_CH_MODE_DEC_RATE_MODE(dec));
+                return ret;
+        }
+        return ad7768_spi_write_mask(st, AD7768_CH_MODE_B,
                                      AD7768_CH_MODE_DEC_RATE_MSK,
                                      AD7768_CH_MODE_DEC_RATE_MODE(dec));
 }
@@ -2053,11 +1892,11 @@ int ad7768_read_register(uint8_t reg)
         int ret;
 
         if (st->cfg_mode == FPGA_CFG_MODE_CFG_NORMAL) {
-                pr_err("Failed to read ad7768 power mode, fpga is in normal mode\n");
+                pr_err("Failed to read ad7768 reg %02x, fpga is in normal mode\n", reg);
                 return -EAGAIN;
         }
 
-		if (reg > 0x59)
+        if (reg > 0x59)
                 return -EAGAIN;
 
         ret = ad7768_spi_reg_read(st, reg, &regval);
@@ -2066,9 +1905,9 @@ int ad7768_read_register(uint8_t reg)
                 pr_err("Failed to read ad7768 register %02x\n", reg);
                 return ret;
         }
-        pr_info("reg: %02x value: %04x\n", reg, regval);
+        pr_info("reg: %02x value: %02x\n", reg, regval);
 
-        return 0;
+        return regval;
 }
 
 int ad7768_get_power_mode(void)
@@ -2143,12 +1982,13 @@ int ad7768_set_channel_standby(unsigned char ch_mask)
         struct fpga_state *st = fpga_get_data(/* dev */);
         int ret;
 
+        pr_info("%s E\n", __FUNCTION__);
         if (st->cfg_mode == FPGA_CFG_MODE_CFG_NORMAL) {
                 pr_err("Failed to set ad7768 filter type, fpga is in normal mode\n");
                 return -EAGAIN;
         }
 
-        pr_err("writing channel standby: addr: %02x, channels %02x\n",
+        pr_err("Writing channel standby: addr: %02x, channel mask %02x\n",
                AD7768_CH_STANDBY,
                ch_mask);
         ret = ad7768_spi_reg_write(st, AD7768_CH_STANDBY,
@@ -2172,6 +2012,8 @@ int ad7768_get_channel_standby(void)
                 return -EAGAIN;
         }
 
+        pr_err("Reading channel standby: addr: %02x\n",
+               AD7768_CH_STANDBY);
         ret = ad7768_spi_reg_read(st, AD7768_CH_STANDBY, &standby);
         if (ret < 0) {
                 pr_err("Failed to get ad7768 channel standby, spi read\n");
@@ -2294,13 +2136,13 @@ static int __init fpga_spi_init(void)
                 pr_err("Cannot create sysfs file......\n");
                 goto err_sysfs;
         }
-        
+
 
         /* conf QEd */
         cfg_master = spi_busnum_to_master(fpga_spi_device_cfg_info.bus_num);
         if(cfg_master == NULL) {
                 pr_err("SPI cfg_master not found.\n");
-				goto err_gpio;
+                goto err_gpio;
         }
 
         /* create a new slave device for cfg */
@@ -2308,43 +2150,41 @@ static int __init fpga_spi_init(void)
 
         if(fpga_spi_cfg == NULL) {
                 pr_err("Failed to create slave.\n");
-				goto err_gpio;
+                goto err_gpio;
         }
 
         ret = spi_setup(fpga_spi_cfg);
         if(ret) {
                 pr_err("Failed to setup slave.\n");
                 spi_unregister_device(fpga_spi_cfg);
-				goto err_gpio;
+                goto err_gpio;
         }
 
         st.spi_cfg = fpga_spi_cfg;
-        
+
         mutex_init(&st.lock);
-#if 1
         /* GPIO fpga reset */
         if(gpio_is_valid(FPGA_RESET_GPIO) == false){
                 pr_err("GPIO %d is not valid\n", FPGA_RESET_GPIO);
-				goto err_gpio;
+                goto err_gpio;
         }
         else {
 
                 if(gpio_request(FPGA_RESET_GPIO,"FPGA_RESET_GPIO") < 0){
                         pr_err("ERROR: GPIO %d request\n", FPGA_RESET_GPIO);
-						goto err_gpio;
+                        goto err_gpio;
                 }
                 else {
                         gpio_direction_output(FPGA_RESET_GPIO, 1);
                         pr_info("Set reset gpio to %d\n", gpio_get_value(FPGA_RESET_GPIO));
                 }
         }
-#endif
 
         ret = fpga_get_id();
         if (ret < 0) {
                 pr_err("Failed to get fpga id\n");
                 spi_unregister_device(fpga_spi_cfg);
-				goto err_kzalloc;
+                goto err_kzalloc;
         }
         pr_info("FPGA ID %02x", ret);
 
@@ -2352,7 +2192,7 @@ static int __init fpga_spi_init(void)
         if (ret < 0) {
                 pr_err("Failed to get fpga windows size\n");
                 spi_unregister_device(fpga_spi_cfg);
-				goto err_kzalloc;
+                goto err_kzalloc;
         }
         pr_info("FPGA windows size %02x", ret);
 
@@ -2360,7 +2200,7 @@ static int __init fpga_spi_init(void)
         if (ret < 0) {
                 pr_err("Failed to get stat\n");
                 spi_unregister_device(fpga_spi_cfg);
-				goto err_kzalloc;
+                goto err_kzalloc;
         }
         pr_info("FPGA stat %02x", ret);
 
@@ -2385,17 +2225,17 @@ static void __exit fpga_spi_exit(void)
         {
           kfree(rxb);
         }
-        
+
         free_irq(irq_number, NULL);
         free_irq(irq_overflow, NULL);
 
         gpio_free(FPGA_RESET_GPIO);
         gpio_free(FPGA_IRQ_GPIO);
-        
+
         if(fpga_spi_cfg) {
-                spi_unregister_device(fpga_spi_cfg); 
-        } 
-        
+                spi_unregister_device(fpga_spi_cfg);
+        }
+
         kobject_put(fpga_kobj);
         device_destroy(dev_class,dev);
         class_destroy(dev_class);
