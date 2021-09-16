@@ -936,7 +936,7 @@ static ssize_t adc_reg_show(struct kobject *kobj,
 {
         int ret, i;
 
-        char buf_l[1024] = {0};
+        char buf_l[512] = {0};
         for (i = 0; i < 0x0a; i++)
         {
                 ret = ad7768_read_register(i);
@@ -2163,14 +2163,33 @@ static int __init fpga_spi_init(void)
         st.spi_cfg = fpga_spi_cfg;
 
         mutex_init(&st.lock);
+
+        /* GPIO fpga power */
+        if(gpio_is_valid(FPGA_POWER_GPIO) == false) {
+                pr_err("GPIO %d is not valid\n", FPGA_POWER_GPIO);
+                goto err_gpio;
+        }
+        else {
+                if(gpio_request(FPGA_POWER_GPIO,"FPGA_POWER_GPIO") < 0) {
+                        pr_err("ERROR: GPIO %d request\n", FPGA_POWER_GPIO);
+                        goto err_gpio;
+                }
+                else {
+                        gpio_direction_output(FPGA_POWER_GPIO, 1);
+                        pr_info("Set power gpio to %d\n", gpio_get_value(FPGA_POWER_GPIO));
+                        /* let at least 100ms to load firmware */
+                        msleep(250);
+                        pr_info("Paused for 250 ms power gpio to %d\n", gpio_get_value(FPGA_POWER_GPIO));
+                }
+        }
+
         /* GPIO fpga reset */
-        if(gpio_is_valid(FPGA_RESET_GPIO) == false){
+        if(gpio_is_valid(FPGA_RESET_GPIO) == false) {
                 pr_err("GPIO %d is not valid\n", FPGA_RESET_GPIO);
                 goto err_gpio;
         }
         else {
-
-                if(gpio_request(FPGA_RESET_GPIO,"FPGA_RESET_GPIO") < 0){
+                if(gpio_request(FPGA_RESET_GPIO,"FPGA_RESET_GPIO") < 0) {
                         pr_err("ERROR: GPIO %d request\n", FPGA_RESET_GPIO);
                         goto err_gpio;
                 }
@@ -2229,8 +2248,8 @@ static void __exit fpga_spi_exit(void)
         free_irq(irq_number, NULL);
         free_irq(irq_overflow, NULL);
 
-        gpio_free(FPGA_RESET_GPIO);
-        gpio_free(FPGA_IRQ_GPIO);
+        /* gpio_free(FPGA_RESET_GPIO); */
+        gpio_free(FPGA_POWER_GPIO);
 
         if(fpga_spi_cfg) {
                 spi_unregister_device(fpga_spi_cfg);

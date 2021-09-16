@@ -3,14 +3,11 @@
 
 #define FPGA_CFG_SPI_DEV_CFG 1
 
-#define FPGA_CFG_SPI_DEV_DATA_COUNT 4
-
 #define FPGA_CFG_SPI_CS 0
 
 #define FPGA_ID_VALUE 0x56	
-#define FPGA_IRQ_GPIO 0x8
 #define FPGA_RESET_GPIO 0x3e
-#define FPGA_OVERFLOW_GPIO 61
+#define FPGA_POWER_GPIO 0x4f8
 
 /* FPGA registers definition */
 #define FPGA_ID 0x7f
@@ -199,7 +196,6 @@ enum fpga_cfg {
 
 struct fpga_state {
         struct spi_device *spi_cfg;
-        struct spi_device *spi_data[FPGA_CFG_SPI_DEV_DATA_COUNT];
         struct mutex lock;
         /* struct regulator *vref; */
         /* struct clk *mclk; */
