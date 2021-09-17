@@ -147,18 +147,24 @@ enum qseecom_key_management_usage_type {
 struct qseecom_create_key_req {
 	unsigned char hash32[QSEECOM_HASH_SIZE];
 	enum qseecom_key_management_usage_type usage;
+	unsigned char *partition_name;
+	unsigned int len;
 };
 
 struct qseecom_wipe_key_req {
 	enum qseecom_key_management_usage_type usage;
 	int wipe_key_flag;/* 1->remove key from storage(alone with clear key) */
 			  /* 0->do not remove from storage (clear key) */
+	unsigned char *partition_name;
+	unsigned int len;
 };
 
 struct qseecom_update_key_userinfo_req {
 	unsigned char current_hash32[QSEECOM_HASH_SIZE];
 	unsigned char new_hash32[QSEECOM_HASH_SIZE];
 	enum qseecom_key_management_usage_type usage;
+	unsigned char *partition_name;
+	unsigned int len;
 };
 
 #define SHA256_DIGEST_LENGTH	(256/8)
