@@ -197,8 +197,6 @@ enum fpga_cfg {
 struct fpga_state {
         struct spi_device *spi_cfg;
         struct mutex lock;
-        /* struct regulator *vref; */
-        /* struct clk *mclk; */
         unsigned long clock_rate;
         unsigned int sampling_freq;
         enum ad7768_power_modes power_mode;

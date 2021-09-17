@@ -1,5 +1,6 @@
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/cdev.h>
 #include <linux/kdev_t.h>
 #include <linux/fs.h>
@@ -10,11 +11,15 @@
 #include <linux/spi/spi.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
-#include <linux/interrupt.h>
-#include <linux/workqueue.h>
 
 #include "ad7768.h"
 #include "fpga.h"
+
+int power_gpio = FPGA_POWER_GPIO;
+int reset_gpio = FPGA_RESET_GPIO;
+
+module_param(power_gpio, int, S_IRUSR|S_IWUSR);
+module_param(reset_gpio, int, S_IRUSR|S_IWUSR);
 
 /* forward declarations */
 static int fpga_get_id(void);
@@ -107,10 +112,7 @@ static int ad7768_read_register(uint8_t);
                 .store	= _name##_store,		\
         }
 
-unsigned int irq_number, irq_overflow;
 dev_t dev = 0;
-
-static uint8_t *rxb;
 
 static struct spi_device *fpga_spi_cfg;
 
@@ -650,11 +652,11 @@ static ssize_t fpga_reset_store(struct kobject *kobj,
                                size_t count)
 {
 
-        gpio_direction_output(FPGA_RESET_GPIO, 0);
-        pr_info("Set reset gpio to %d\n", gpio_get_value(FPGA_RESET_GPIO));
+        gpio_direction_output(reset_gpio, 0);
+        pr_info("Set reset gpio to %d\n", gpio_get_value(reset_gpio));
         msleep(100);
-        gpio_direction_output(FPGA_RESET_GPIO, 1);
-        pr_info("Set reset gpio to %d\n", gpio_get_value(FPGA_RESET_GPIO));
+        gpio_direction_output(reset_gpio, 1);
+        pr_info("Set reset gpio to %d\n", gpio_get_value(reset_gpio));
 
         return count;
 }
@@ -1268,7 +1270,7 @@ static int ad7768_spi_write_mask(struct fpga_state *st,
 
 int fpga_get_id(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1283,7 +1285,7 @@ int fpga_get_id(void)
 
 int fpga_get_window_size()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1300,14 +1302,14 @@ int fpga_get_window_size()
 
 int fpga_set_window_size(uint8_t size)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         pr_info( "SET FPGA window size = %u\n", size);
         return fpga_spi_reg_write(st, FPGA_WINDOW_SIZE, size);
 }
 
 int fpga_get_irq_offset()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1322,14 +1324,14 @@ int fpga_get_irq_offset()
 
 int fpga_set_irq_offset(uint8_t offset)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         pr_info( "Set irq offset: %u\n", offset);
         return fpga_spi_reg_write(st, FPGA_IRQ_OFFSET, offset);
 }
 
 int fpga_get_ch_irq_mask_hi()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1344,14 +1346,14 @@ int fpga_get_ch_irq_mask_hi()
 
 int fpga_set_ch_irq_mask_hi(uint8_t mask)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         pr_info( "SET FPGA irq mask high: %u\n", mask);
         return fpga_spi_reg_write(st, FPGA_IRQ_MSK_HI, mask);
 }
 
 int fpga_get_ch_irq_mask_low()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1366,14 +1368,14 @@ int fpga_get_ch_irq_mask_low()
 
 int fpga_set_ch_irq_mask_low(uint8_t mask)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         pr_info( "SET FPGA irq mask low: %u\n", mask);
         return fpga_spi_reg_write(st, FPGA_IRQ_MSK_LOW, mask);
 }
 
 int fpga_get_ch_overflow_hi(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1388,7 +1390,7 @@ int fpga_get_ch_overflow_hi(void)
 
 int fpga_get_ch_overflow_low(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1403,7 +1405,7 @@ int fpga_get_ch_overflow_low(void)
 
 int fpga_get_ch_underflow_hi(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1418,7 +1420,7 @@ int fpga_get_ch_underflow_hi(void)
 
 int fpga_get_ch_underflow_low(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1433,7 +1435,7 @@ int fpga_get_ch_underflow_low(void)
 
 int fpga_get_test_mode()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1450,7 +1452,7 @@ int fpga_get_test_mode()
 
 int fpga_set_test_mode1()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
 
         pr_info( "SET FPGA test mode1: %u\n", FPGA_TEST_MODE1);
 
@@ -1460,7 +1462,7 @@ int fpga_set_test_mode1()
 
 int fpga_set_test_mode2()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         pr_info( "SET FPGA test mode1: %u\n", FPGA_TEST_MODE2);
         /* PPS aligment is to be disabled */
         return fpga_spi_reg_write(st, FPGA_TEST_MODE, FPGA_TEST_MODE2);
@@ -1468,7 +1470,7 @@ int fpga_set_test_mode2()
 
 int fpga_set_test_mode_disable()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         pr_info( "SET FPGA test mode disable: %u\n", FPGA_TEST_MODE_DEFAULT);
         /* PPS aligment is to be enabled */
         return fpga_spi_reg_write(st, FPGA_TEST_MODE, FPGA_TEST_MODE_DEFAULT);
@@ -1476,7 +1478,7 @@ int fpga_set_test_mode_disable()
 
 int fpga_set_pps_enable()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         pr_info( "SET FPGA PPS enable: %01x\n", FPGA_TEST_MODE_PPS_SET);
         /* PPS aligment to be enabled */
         return fpga_spi_write_mask(st, FPGA_TEST_MODE, FPGA_TEST_MODE_PPS_MSK, FPGA_TEST_MODE_PPS_SET);
@@ -1484,7 +1486,7 @@ int fpga_set_pps_enable()
 
 int fpga_set_pps_disable()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         pr_info( "SET FPGA PPS disable: %01x\n", FPGA_TEST_MODE_PPS_UNSET);
         /* PPS aligment is to be disabled, normal mode enabled */
         return fpga_spi_write_mask(st, FPGA_TEST_MODE, FPGA_TEST_MODE_PPS_MSK, FPGA_TEST_MODE_PPS_UNSET);
@@ -1492,7 +1494,7 @@ int fpga_set_pps_disable()
 
 int fpga_get_stat()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1510,7 +1512,7 @@ int fpga_get_stat()
 
 int fpga_clear_stat()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1528,7 +1530,7 @@ int fpga_clear_stat()
 
 int fpga_get_soft_reset()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1548,7 +1550,7 @@ int fpga_get_soft_reset()
 
 int fpga_get_slices_enabled(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1568,7 +1570,7 @@ int fpga_get_slices_enabled(void)
 
 int fpga_assert_soft_reset()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
 
         if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
                 return -EAGAIN;
@@ -1579,7 +1581,7 @@ int fpga_assert_soft_reset()
 
 int fpga_release_soft_reset()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
                 return -EAGAIN;
         }
@@ -1589,7 +1591,7 @@ int fpga_release_soft_reset()
 
 int fpga_set_slices_enabled(unsigned char slices_enabled)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         int ret;
         unsigned char regval;
 
@@ -1618,7 +1620,7 @@ int fpga_set_slices_enabled(unsigned char slices_enabled)
 
 int fpga_set_cfg_adc0()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         mutex_lock(&st->lock);
         if (st->cfg_mode != FPGA_CFG_MODE_CFG_ADC0) {
                 int ret = fpga_spi_reg_write(st, FPGA_CFG_MODE,
@@ -1641,7 +1643,7 @@ int fpga_set_cfg_adc0()
 
 int fpga_set_cfg_adc1()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
 
         mutex_lock(&st->lock);
         if (st->cfg_mode != FPGA_CFG_MODE_CFG_ADC1) {
@@ -1664,7 +1666,7 @@ int fpga_set_cfg_adc1()
 
 int fpga_set_cfg_normal()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         mutex_lock(&st->lock);
         if (st->cfg_mode != FPGA_CFG_MODE_CFG_NORMAL) {
                 int ret = fpga_spi_reg_write(st, FPGA_CFG_MODE,
@@ -1686,7 +1688,7 @@ int fpga_set_cfg_normal()
 
 int fpga_get_adc_reset()
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned char regval;
         int ret;
 
@@ -1706,7 +1708,7 @@ int fpga_get_adc_reset()
 
 int fpga_adc_reset(uint32_t reset)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         int ret;
         unsigned char regval;
 
@@ -1813,7 +1815,7 @@ static int ad7768_set_clk_divs(struct fpga_state *st,
 
 int ad7768_set_power_mode(unsigned int mode)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned int regval;
         int ret;
         /* Check if this mode supports the current sampling rate */
@@ -1866,7 +1868,7 @@ int ad7768_set_power_mode(unsigned int mode)
 
 int ad7768_get_interface_mode(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned int regval;
         int ret;
 
@@ -1887,7 +1889,7 @@ int ad7768_get_interface_mode(void)
 
 int ad7768_read_register(uint8_t reg)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned int regval;
         int ret;
 
@@ -1912,7 +1914,7 @@ int ad7768_read_register(uint8_t reg)
 
 int ad7768_get_power_mode(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned int regval;
         int ret;
 
@@ -1934,7 +1936,7 @@ int ad7768_get_power_mode(void)
 
 int ad7768_set_filter_type(unsigned int filter)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         int ret;
 
         if (st->cfg_mode == FPGA_CFG_MODE_CFG_NORMAL) {
@@ -1959,7 +1961,7 @@ int ad7768_set_filter_type(unsigned int filter)
 
 int ad7768_get_filter_type(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned int filter;
         int ret;
 
@@ -1979,7 +1981,7 @@ int ad7768_get_filter_type(void)
 
 int ad7768_set_channel_standby(unsigned char ch_mask)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         int ret;
 
         pr_info("%s E\n", __FUNCTION__);
@@ -2003,7 +2005,7 @@ int ad7768_set_channel_standby(unsigned char ch_mask)
 
 int ad7768_get_channel_standby(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned int standby;
         int ret;
 
@@ -2025,7 +2027,7 @@ int ad7768_get_channel_standby(void)
 
 int ad7768_get_revision(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         unsigned int revision;
         int ret;
 
@@ -2045,7 +2047,7 @@ int ad7768_get_revision(void)
 
 static int ad7768_set_sampling_freq(unsigned int freq)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
         int power_mode = -1;
         unsigned int i, j;
         int ret = 0;
@@ -2086,7 +2088,7 @@ static int ad7768_set_sampling_freq(unsigned int freq)
 
         st->sampling_freq = freq;
 
-        ret = ad7768_set_power_mode(/* dev, NULL, */power_mode);
+        ret = ad7768_set_power_mode(power_mode);
         if (ret < 0)
                 goto freq_err;
 
@@ -2098,7 +2100,7 @@ freq_err:
 
 static int ad7768_get_sampling_freq(void)
 {
-        struct fpga_state *st = fpga_get_data(/* dev */);
+        struct fpga_state *st = fpga_get_data();
 
         return st->sampling_freq;
 }
@@ -2137,7 +2139,6 @@ static int __init fpga_spi_init(void)
                 goto err_sysfs;
         }
 
-
         /* conf QEd */
         cfg_master = spi_busnum_to_master(fpga_spi_device_cfg_info.bus_num);
         if(cfg_master == NULL) {
@@ -2165,37 +2166,37 @@ static int __init fpga_spi_init(void)
         mutex_init(&st.lock);
 
         /* GPIO fpga power */
-        if(gpio_is_valid(FPGA_POWER_GPIO) == false) {
-                pr_err("GPIO %d is not valid\n", FPGA_POWER_GPIO);
+        if(gpio_is_valid(power_gpio) == false) {
+                pr_err("GPIO %d is not valid\n", power_gpio);
                 goto err_gpio;
         }
         else {
-                if(gpio_request(FPGA_POWER_GPIO,"FPGA_POWER_GPIO") < 0) {
-                        pr_err("ERROR: GPIO %d request\n", FPGA_POWER_GPIO);
+                if(gpio_request(power_gpio,"FPGA_POWER_GPIO") < 0) {
+                        pr_err("ERROR: GPIO %d request\n", power_gpio);
                         goto err_gpio;
                 }
                 else {
-                        gpio_direction_output(FPGA_POWER_GPIO, 1);
-                        pr_info("Set power gpio to %d\n", gpio_get_value(FPGA_POWER_GPIO));
+                        gpio_direction_output(power_gpio, 1);
+                        pr_info("Set power gpio to %d\n", gpio_get_value(power_gpio));
                         /* let at least 100ms to load firmware */
-                        msleep(250);
-                        pr_info("Paused for 250 ms power gpio to %d\n", gpio_get_value(FPGA_POWER_GPIO));
+                        msleep(150);
+                        pr_info("Paused for 150 ms power gpio to %d\n", gpio_get_value(power_gpio));
                 }
         }
 
         /* GPIO fpga reset */
-        if(gpio_is_valid(FPGA_RESET_GPIO) == false) {
-                pr_err("GPIO %d is not valid\n", FPGA_RESET_GPIO);
+        if(gpio_is_valid(reset_gpio) == false) {
+                pr_err("GPIO %d is not valid\n", reset_gpio);
                 goto err_gpio;
         }
         else {
-                if(gpio_request(FPGA_RESET_GPIO,"FPGA_RESET_GPIO") < 0) {
-                        pr_err("ERROR: GPIO %d request\n", FPGA_RESET_GPIO);
+                if(gpio_request(reset_gpio,"FPGA_RESET_GPIO") < 0) {
+                        pr_err("ERROR: GPIO %d request\n", reset_gpio);
                         goto err_gpio;
                 }
                 else {
-                        gpio_direction_output(FPGA_RESET_GPIO, 1);
-                        pr_info("Set reset gpio to %d\n", gpio_get_value(FPGA_RESET_GPIO));
+                        gpio_direction_output(reset_gpio, 1);
+                        pr_info("Set reset gpio to %d\n", gpio_get_value(reset_gpio));
                 }
         }
 
@@ -2240,16 +2241,8 @@ err_class:
 
 static void __exit fpga_spi_exit(void)
 {
-        if(rxb != NULL)
-        {
-          kfree(rxb);
-        }
-
-        free_irq(irq_number, NULL);
-        free_irq(irq_overflow, NULL);
-
-        /* gpio_free(FPGA_RESET_GPIO); */
-        gpio_free(FPGA_POWER_GPIO);
+		gpio_free(reset_gpio);
+        gpio_free(power_gpio);
 
         if(fpga_spi_cfg) {
                 spi_unregister_device(fpga_spi_cfg);
