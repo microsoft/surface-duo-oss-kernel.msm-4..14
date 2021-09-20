@@ -17,6 +17,9 @@
 		alignment = <0x0 0x400000>;
 		size = <0x0 0x30000000>;
 	};
+
+	/delete-node/ cont_splash_region;
+	/delete-node/ disp_rdump_region;
 };
 
 &ion {
