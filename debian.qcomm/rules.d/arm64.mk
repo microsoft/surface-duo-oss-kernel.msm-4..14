@@ -9,7 +9,7 @@ build_image	= Image-dtb
 kernel_file	= arch/$(build_arch)/boot/Image-dtb
 install_file	= vmlinuz
 no_dumpfile	= true
-android_kernel_signed = true
+android_kernel_signed = false
 
 loader		= grub
 
