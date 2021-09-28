@@ -193,7 +193,9 @@ enum ath11k_dev_flags {
 };
 
 enum ath11k_monitor_flags {
-	ATH11K_FLAG_MONITOR_ENABLED,
+	ATH11K_FLAG_MONITOR_CONF_ENABLED,
+	ATH11K_FLAG_MONITOR_STARTED,
+	ATH11K_FLAG_MONITOR_VDEV_CREATED,
 };
 
 struct ath11k_vif {
@@ -362,6 +364,7 @@ struct ath11k_sta {
 	enum hal_pn_type pn_type;
 
 	struct work_struct update_wk;
+	struct work_struct set_4addr_wk;
 	struct rate_info txrate;
 	struct rate_info last_txrate;
 	u64 rx_duration;
@@ -374,6 +377,9 @@ struct ath11k_sta {
 	/* protected by conf_mutex */
 	bool aggr_mode;
 #endif
+
+	bool use_4addr_set;
+	u16 tcl_metadata;
 };
 
 #define ATH11K_MIN_5G_FREQ 4150
@@ -484,7 +490,6 @@ struct ath11k {
 	u32 chan_tx_pwr;
 	u32 num_stations;
 	u32 max_num_stations;
-	bool monitor_present;
 	/* To synchronize concurrent synchronous mac80211 callback operations,
 	 * concurrent debugfs configuration and concurrent FW statistics events.
 	 */
@@ -559,6 +564,7 @@ struct ath11k {
 	struct ath11k_per_peer_tx_stats cached_stats;
 	u32 last_ppdu_id;
 	u32 cached_ppdu_id;
+	int monitor_vdev_id;
 #ifdef CONFIG_ATH11K_DEBUGFS
 	struct ath11k_debug debug;
 #endif
@@ -591,6 +597,8 @@ struct ath11k_pdev_cap {
 	u32 tx_chain_mask_shift;
 	u32 rx_chain_mask_shift;
 	struct ath11k_band_cap band[NUM_NL80211_BANDS];
+	bool nss_ratio_enabled;
+	u8 nss_ratio_info;
 };
 
 struct ath11k_pdev {

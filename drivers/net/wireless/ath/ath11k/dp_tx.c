@@ -78,7 +78,7 @@ enum hal_encrypt_type ath11k_dp_tx_get_encrypt_type(u32 cipher)
 }
 
 int ath11k_dp_tx(struct ath11k *ar, struct ath11k_vif *arvif,
-		 struct sk_buff *skb)
+		 struct ath11k_sta *arsta, struct sk_buff *skb)
 {
 	struct ath11k_base *ab = ar->ab;
 	struct ath11k_dp *dp = &ab->dp;
@@ -145,7 +145,15 @@ tcl_ring_sel:
 		     FIELD_PREP(DP_TX_DESC_ID_MSDU_ID, ret) |
 		     FIELD_PREP(DP_TX_DESC_ID_POOL_ID, pool_id);
 	ti.encap_type = ath11k_dp_tx_get_encap_type(arvif, skb);
-	ti.meta_data_flags = arvif->tcl_metadata;
+
+	if (ieee80211_has_a4(hdr->frame_control) &&
+	    is_multicast_ether_addr(hdr->addr3) && arsta &&
+	    arsta->use_4addr_set) {
+		ti.meta_data_flags = arsta->tcl_metadata;
+		ti.flags0 |= FIELD_PREP(HAL_TCL_DATA_CMD_INFO1_TO_FW, 1);
+	} else {
+		ti.meta_data_flags = arvif->tcl_metadata;
+	}
 
 	if (ti.encap_type == HAL_TCL_ENCAP_TYPE_RAW) {
 		if (skb_cb->flags & ATH11K_SKB_CIPHER_SET) {
@@ -1068,11 +1076,15 @@ int ath11k_dp_tx_htt_monitor_mode_ring_config(struct ath11k *ar, bool reset)
 
 	for (i = 0; i < ab->hw_params.num_rxmda_per_pdev; i++) {
 		ring_id = dp->rx_mon_status_refill_ring[i].refill_buf_ring.ring_id;
-		if (!reset)
+		if (!reset) {
 			tlv_filter.rx_filter =
 					HTT_RX_MON_FILTER_TLV_FLAGS_MON_STATUS_RING;
-		else
+		} else {
 			tlv_filter = ath11k_mac_mon_status_filter_default;
+
+			if (ath11k_debugfs_is_extd_rx_stats_enabled(ar))
+				tlv_filter.rx_filter = ath11k_debugfs_rx_filter(ar);
+		}
 
 		ret = ath11k_dp_tx_htt_rx_filter_setup(ab, ring_id,
 						       dp->mac_id + i,
