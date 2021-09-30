@@ -387,6 +387,8 @@ ieee802154
 ieee802154_6lowpan
 ieee802154_socket
 ifb
+igb
+igbvf
 igorplugusb
 iguanair
 iio-mux
@@ -1104,6 +1106,7 @@ spi-loopback-test
 spi-nor
 spi-slave-system-control
 spi-slave-time
+spi_fpga_driver
 sr9700
 sr9800
 ssb

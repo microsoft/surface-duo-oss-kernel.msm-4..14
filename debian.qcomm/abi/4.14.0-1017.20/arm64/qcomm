@@ -4722,6 +4722,7 @@ EXPORT_SYMBOL vmlinux 0x743aaccd	nvm_alloc_dev
 EXPORT_SYMBOL vmlinux 0x745531c3	blk_cleanup_queue
 EXPORT_SYMBOL vmlinux 0x7466f967	drm_dp_find_vcpi_slots
 EXPORT_SYMBOL vmlinux 0x74670eb0	drm_crtc_init
+EXPORT_SYMBOL vmlinux 0x746bdb0f	qcom_ice_set_fde_flag
 EXPORT_SYMBOL vmlinux 0x747195f0	hdmi_vendor_infoframe_init
 EXPORT_SYMBOL vmlinux 0x74725e69	ZSTD_compressContinue
 EXPORT_SYMBOL vmlinux 0x747ed9f5	drm_modeset_drop_locks
@@ -6195,6 +6196,7 @@ EXPORT_SYMBOL vmlinux 0xad4481c6	video_usercopy
 EXPORT_SYMBOL vmlinux 0xad494797	sync_dirty_buffer
 EXPORT_SYMBOL vmlinux 0xad552422	dst_release_immediate
 EXPORT_SYMBOL vmlinux 0xad585425	qcom_scm_pas_supported
+EXPORT_SYMBOL vmlinux 0xad5a1fdc	qcom_ice_get_variant_ops
 EXPORT_SYMBOL vmlinux 0xad64c063	bio_integrity_clone
 EXPORT_SYMBOL vmlinux 0xad699b07	security_dentry_create_files_as
 EXPORT_SYMBOL vmlinux 0xad6ce89b	radix_tree_tag_set
@@ -7734,6 +7736,7 @@ EXPORT_SYMBOL vmlinux 0xe6e5471f	iunique
 EXPORT_SYMBOL vmlinux 0xe6f042c0	kmalloc_caches
 EXPORT_SYMBOL vmlinux 0xe6f0ef0a	gen_pool_first_fit
 EXPORT_SYMBOL vmlinux 0xe6ff85d9	load_nls_default
+EXPORT_SYMBOL vmlinux 0xe70e4ff9	qcom_ice_config_start
 EXPORT_SYMBOL vmlinux 0xe70f903f	pskb_extract
 EXPORT_SYMBOL vmlinux 0xe7197773	drm_ht_insert_item
 EXPORT_SYMBOL vmlinux 0xe724d420	drm_fb_helper_remove_one_connector
