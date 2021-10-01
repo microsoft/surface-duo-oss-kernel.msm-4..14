@@ -267,9 +267,7 @@ void mlx5e_ethtool_get_strings(struct mlx5e_priv *priv, u32 stringset, u8 *data)
 		break;
 
 	case ETH_SS_TEST:
-		for (i = 0; i < mlx5e_self_test_num(priv); i++)
-			strcpy(data + i * ETH_GSTRING_LEN,
-			       mlx5e_self_tests[i]);
+		mlx5e_self_test_fill_strings(priv, data);
 		break;
 
 	case ETH_SS_STATS:
@@ -2036,6 +2034,17 @@ static int set_pflag_tx_port_ts(struct net_device *netdev, bool enable)
 	}
 
 	new_params = priv->channels.params;
+	/* Don't allow enabling TX-port-TS if MQPRIO mode channel  offload is
+	 * active, since it defines explicitly which TC accepts the packet.
+	 * This conflicts with TX-port-TS hijacking the PTP traffic to a specific
+	 * HW TX-queue.
+	 */
+	if (enable && new_params.mqprio.mode == TC_MQPRIO_MODE_CHANNEL) {
+		netdev_err(priv->netdev,
+			   "%s: MQPRIO mode channel offload is active, cannot set the TX-port-TS\n",
+			   __func__);
+		return -EINVAL;
+	}
 	MLX5E_SET_PFLAG(&new_params, MLX5E_PFLAG_TX_PORT_TS, enable);
 	/* No need to verify SQ stop room as
 	 * ptpsq.txqsq.stop_room <= generic_sq->stop_room, and both
