@@ -132,7 +132,6 @@ static inline void bio_crypt_set_ctx(struct bio *bio,
 	memcpy(bc->bc_dun, dun, sizeof(bc->bc_dun));
 	bc->bc_ksm = NULL;
 	bc->bc_keyslot = -1;
-	bc->is_ext4 = 0;
 
 	bio->bi_crypt_context = bc;
 }
