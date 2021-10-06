@@ -106,7 +106,6 @@ struct bio_crypt_ctx {
 	 * with keyslot.
 	 */
 	struct keyslot_manager		*bc_ksm;
-	bool is_ext4;
 };
 
 int bio_crypt_ctx_init(void);
