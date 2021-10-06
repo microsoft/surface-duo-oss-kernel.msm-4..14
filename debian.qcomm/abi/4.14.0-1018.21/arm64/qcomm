@@ -127,6 +127,8 @@ EXPORT_SYMBOL drivers/gpu/drm/ttm/ttm 0xfd02a176	ttm_bo_default_io_mem_pfn
 EXPORT_SYMBOL drivers/gpu/drm/ttm/ttm 0xfe71ae26	ttm_eu_reserve_buffers
 EXPORT_SYMBOL drivers/i2c/algos/i2c-algo-pca 0xba0028d4	i2c_pca_add_bus
 EXPORT_SYMBOL drivers/i2c/algos/i2c-algo-pca 0xe7ea066a	i2c_pca_add_numbered_bus
+EXPORT_SYMBOL drivers/iio/accel/st_accel 0xea4409be	st_accel_common_probe
+EXPORT_SYMBOL drivers/iio/accel/st_accel 0xf9c20035	st_accel_common_remove
 EXPORT_SYMBOL drivers/iio/buffer/industrialio-triggered-buffer 0x27cc0de0	iio_triggered_buffer_setup
 EXPORT_SYMBOL drivers/iio/buffer/industrialio-triggered-buffer 0x5d19f48c	iio_triggered_buffer_cleanup
 EXPORT_SYMBOL drivers/iio/common/hid-sensors/hid-sensor-iio-common 0x21e8358e	hid_sensor_parse_common_attributes
