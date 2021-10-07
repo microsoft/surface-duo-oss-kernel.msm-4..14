@@ -79,6 +79,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.supports_shadow_regs = false,
 		.idle_ps = false,
 		.cold_boot_calib = true,
+		.fw_mem_mode = 0,
 		.supports_suspend = false,
 		.hal_desc_sz = sizeof(struct hal_rx_desc_ipq8074),
 		.fix_l1ss = true,
@@ -128,6 +129,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.supports_shadow_regs = false,
 		.idle_ps = false,
 		.cold_boot_calib = true,
+		.fw_mem_mode = 0,
 		.supports_suspend = false,
 		.hal_desc_sz = sizeof(struct hal_rx_desc_ipq8074),
 		.fix_l1ss = true,
@@ -176,6 +178,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.supports_shadow_regs = true,
 		.idle_ps = true,
 		.cold_boot_calib = false,
+		.fw_mem_mode = 0,
 		.supports_suspend = true,
 		.hal_desc_sz = sizeof(struct hal_rx_desc_ipq8074),
 		.fix_l1ss = true,
@@ -225,6 +228,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.idle_ps = false,
 		.cold_boot_calib = false,
 		.supports_suspend = false,
+		.fw_mem_mode = 2,
 		.hal_desc_sz = sizeof(struct hal_rx_desc_qcn9074),
 		.fix_l1ss = true,
 	},
@@ -273,8 +277,24 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.idle_ps = true,
 		.cold_boot_calib = false,
 		.supports_suspend = true,
+		.fw_mem_mode = 0,
 		.hal_desc_sz = sizeof(struct hal_rx_desc_wcn6855),
 		.fix_l1ss = false,
+	},
+};
+
+static const struct ath11k_num_vdevs_peers ath11k_vdevs_peers[] = {
+	{
+		.num_vdevs = (16 + 1),
+		.num_peers = 512,
+	},
+	{
+		.num_vdevs = (8 + 1),
+		.num_peers = 128,
+	},
+	{
+		.num_vdevs = 8,
+		.num_peers = 128,
 	},
 };
 
@@ -679,6 +699,7 @@ static int ath11k_core_soc_create(struct ath11k_base *ab)
 {
 	int ret;
 
+	ab->num_vdevs_peers = ath11k_vdevs_peers[ab->hw_params.fw_mem_mode];
 	ret = ath11k_qmi_init_service(ab);
 	if (ret) {
 		ath11k_err(ab, "failed to initialize qmi :%d\n", ret);
@@ -969,7 +990,7 @@ static int ath11k_core_reconfigure_on_crash(struct ath11k_base *ab)
 	ath11k_dp_free(ab);
 	ath11k_hal_srng_deinit(ab);
 
-	ab->free_vdev_map = (1LL << (ab->num_radios * TARGET_NUM_VDEVS)) - 1;
+	ab->free_vdev_map = (1LL << (ab->num_radios * TARGET_NUM_VDEVS(ab))) - 1;
 
 	ret = ath11k_hal_srng_init(ab);
 	if (ret)

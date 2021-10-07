@@ -667,6 +667,11 @@ struct ath11k_soc_dp_stats {
 	struct ath11k_dp_ring_bp_stats bp_stats;
 };
 
+struct ath11k_num_vdevs_peers {
+	u32 num_vdevs;
+	u32 num_peers;
+};
+
 /* Master structure to hold the hw data which may be used in core module */
 struct ath11k_base {
 	enum ath11k_hw_rev hw_rev;
@@ -757,6 +762,7 @@ struct ath11k_base {
 	struct timer_list mon_reap_timer;
 
 	struct completion htc_suspend;
+	struct ath11k_num_vdevs_peers num_vdevs_peers;
 
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
