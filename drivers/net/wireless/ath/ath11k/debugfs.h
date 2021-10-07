@@ -108,6 +108,8 @@ enum ath11k_dbg_aggr_mode {
 };
 
 #ifdef CONFIG_ATH11K_DEBUGFS
+int ath11k_debugfs_create(void);
+void ath11k_debugfs_destroy(void);
 int ath11k_debugfs_soc_create(struct ath11k_base *ab);
 void ath11k_debugfs_soc_destroy(struct ath11k_base *ab);
 int ath11k_debugfs_pdev_create(struct ath11k_base *ab);
@@ -150,6 +152,15 @@ static inline int ath11k_debugfs_rx_filter(struct ath11k *ar)
 }
 
 #else
+static inline int ath11k_debugfs_create(void)
+{
+	return 0;
+}
+
+static inline void ath11k_debugfs_destroy(void)
+{
+}
+
 static inline int ath11k_debugfs_soc_create(struct ath11k_base *ab)
 {
 	return 0;

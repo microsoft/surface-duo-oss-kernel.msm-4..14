@@ -13,6 +13,8 @@
 #include "debugfs_htt_stats.h"
 #include "peer.h"
 
+struct dentry *debugfs_ath11k;
+
 static const char *htt_bp_umac_ring[HTT_SW_UMAC_RING_IDX_MAX] = {
 	"REO2SW1_RING",
 	"REO2SW2_RING",
@@ -836,10 +838,6 @@ int ath11k_debugfs_pdev_create(struct ath11k_base *ab)
 	if (test_bit(ATH11K_FLAG_REGISTERED, &ab->dev_flags))
 		return 0;
 
-	ab->debugfs_soc = debugfs_create_dir(ab->hw_params.name, ab->debugfs_ath11k);
-	if (IS_ERR(ab->debugfs_soc))
-		return PTR_ERR(ab->debugfs_soc);
-
 	debugfs_create_file("simulate_fw_crash", 0600, ab->debugfs_soc, ab,
 			    &fops_simulate_fw_crash);
 
@@ -851,23 +849,57 @@ int ath11k_debugfs_pdev_create(struct ath11k_base *ab)
 
 void ath11k_debugfs_pdev_destroy(struct ath11k_base *ab)
 {
-	debugfs_remove_recursive(ab->debugfs_soc);
-	ab->debugfs_soc = NULL;
 }
 
 int ath11k_debugfs_soc_create(struct ath11k_base *ab)
 {
-	ab->debugfs_ath11k = debugfs_create_dir("ath11k", NULL);
+	struct device *dev = ab->dev;
+	char soc_name[64] = {0};
 
-	return PTR_ERR_OR_ZERO(ab->debugfs_ath11k);
+	if (!(IS_ERR_OR_NULL(ab->debugfs_soc)))
+		return 0;
+
+	if (ab->hif.bus == ATH11K_BUS_AHB) {
+		snprintf(soc_name, sizeof(soc_name), "%s", ab->hw_params.name);
+	} else {
+		snprintf(soc_name, sizeof(soc_name), "%s_%s",
+			 ab->hw_params.name, dev_name(dev));
+	}
+
+	ab->debugfs_soc = debugfs_create_dir(soc_name, debugfs_ath11k);
+	if (IS_ERR_OR_NULL(ab->debugfs_soc)) {
+		if (IS_ERR(ab->debugfs_soc))
+			return PTR_ERR(ab->debugfs_soc);
+		return -ENOMEM;
+	}
+
+	return 0;
 }
 
 void ath11k_debugfs_soc_destroy(struct ath11k_base *ab)
 {
-	debugfs_remove_recursive(ab->debugfs_ath11k);
-	ab->debugfs_ath11k = NULL;
+	debugfs_remove_recursive(ab->debugfs_soc);
+	ab->debugfs_soc = NULL;
 }
 EXPORT_SYMBOL(ath11k_debugfs_soc_destroy);
+
+int ath11k_debugfs_create(void)
+{
+	debugfs_ath11k = debugfs_create_dir("ath11k", NULL);
+	if (IS_ERR_OR_NULL(debugfs_ath11k)) {
+		if (IS_ERR(debugfs_ath11k))
+			return PTR_ERR(debugfs_ath11k);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+void ath11k_debugfs_destroy(void)
+{
+	debugfs_remove_recursive(debugfs_ath11k);
+	debugfs_ath11k = NULL;
+}
 
 void ath11k_debugfs_fw_stats_init(struct ath11k *ar)
 {
@@ -1074,6 +1106,9 @@ int ath11k_debugfs_register(struct ath11k *ar)
 	char pdev_name[5];
 	char buf[100] = {0};
 
+	if (!(IS_ERR_OR_NULL(ar->debug.debugfs_pdev)))
+		return 0;
+
 	snprintf(pdev_name, sizeof(pdev_name), "%s%d", "mac", ar->pdev_idx);
 
 	ar->debug.debugfs_pdev = debugfs_create_dir(pdev_name, ab->debugfs_soc);
@@ -1112,4 +1147,6 @@ int ath11k_debugfs_register(struct ath11k *ar)
 
 void ath11k_debugfs_unregister(struct ath11k *ar)
 {
+	debugfs_remove_recursive(ar->debug.debugfs_pdev);
+	ar->debug.debugfs_pdev = NULL;
 }

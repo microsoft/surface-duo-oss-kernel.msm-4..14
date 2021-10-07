@@ -1201,5 +1201,17 @@ err_sc_free:
 }
 EXPORT_SYMBOL(ath11k_core_alloc);
 
+static int ath11k_init(void)
+{
+	return ath11k_debugfs_create();
+}
+module_init(ath11k_init);
+
+static void ath11k_exit(void)
+{
+	ath11k_debugfs_destroy();
+}
+module_exit(ath11k_exit);
+
 MODULE_DESCRIPTION("Core module for Qualcomm Atheros 802.11ax wireless LAN cards.");
 MODULE_LICENSE("Dual BSD/GPL");
