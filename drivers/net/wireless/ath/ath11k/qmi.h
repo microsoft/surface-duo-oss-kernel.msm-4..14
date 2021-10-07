@@ -97,6 +97,9 @@ struct target_mem_chunk {
 	u32 *vaddr;
 };
 
+/* used to get the chip id in struct target_info */
+#define ATH11K_CHIP_ID_MASK 0x10
+
 struct target_info {
 	u32 chip_id;
 	u32 chip_family;
