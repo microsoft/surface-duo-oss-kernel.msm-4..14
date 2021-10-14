@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1573,7 +1574,10 @@ static int cam_jpeg_init_devices(struct device_node *of_node,
 		if (!child_dev_intf) {
 			CAM_ERR(CAM_JPEG, "no child device");
 			of_node_put(child_node);
-			rc = -ENODEV;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//			rc = -ENODEV;
+			rc = -EPROBE_DEFER;
+/* MSCHANGE End */
 			goto compat_hw_name_failed;
 		}
 		CAM_DBG(CAM_JPEG, "child_intf %pK type %d id %d",

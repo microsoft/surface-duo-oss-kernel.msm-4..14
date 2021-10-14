@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,10 +26,11 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/qpnp/qpnp-revid.h>
-#include "smb-reg.h"
-#include "smb-lib.h"
+#include "smb5-reg.h"    // MSCHANGE enabling USBIN-USBIN
+#include "smb5-lib.h"    // MSCHANGE enabling USBIN-USBIN
 #include "storm-watch.h"
 #include <linux/pmic-voter.h>
+#include <linux/thermal.h>  // MSCHANGE enabling smb therms
 
 #define SMB138X_DEFAULT_FCC_UA 1000000
 #define SMB138X_DEFAULT_ICL_UA 1500000
@@ -47,6 +49,19 @@
 #define TDIE_AVG_COUNT	10
 #define MAX_SPEED_READING_TIMES		5
 
+// MSCHANGE enabling USBIN USBIN
+#define MISC_BUCK_OPTIONS_CFG		(MISC_BASE + 0x80)
+
+#define BATIF_BATOCP_THRESHOLD_CFG	(BATIF_BASE + 0x50)
+#define BATIF_BATOCP_INTRPT_DELAY_TMR_CFG	(BATIF_BASE + 0x51)
+
+#define MIN_PARALLEL_ICL_UA		250000
+#define SMB138x_MAX_PARALLEL_FCC_UA	3703000
+
+#define IS_USBIN(mode)				\
+	((mode == POWER_SUPPLY_PL_USBIN_USBIN) \
+	 || (mode == POWER_SUPPLY_PL_USBIN_USBIN_EXT))
+
 enum {
 	OOB_COMP_WA_BIT = BIT(0),
 };
@@ -54,14 +69,14 @@ enum {
 static struct smb_params v1_params = {
 	.fcc		= {
 		.name	= "fast charge current",
-		.reg	= FAST_CHARGE_CURRENT_CFG_REG,
+		.reg	= CHGR_FAST_CHARGE_CURRENT_CFG_REG,  // MSCHANGE enabling smb5-reg
 		.min_u	= 0,
 		.max_u	= 6000000,
 		.step_u	= 25000,
 	},
 	.fv		= {
 		.name	= "float voltage",
-		.reg	= FLOAT_VOLTAGE_CFG_REG,
+		.reg	= CHGR_FLOAT_VOLTAGE_CFG_REG,   // MSCHANGE enabling smb5-reg
 		.min_u	= 2450000,
 		.max_u	= 4950000,
 		.step_u	= 10000,
@@ -73,13 +88,13 @@ static struct smb_params v1_params = {
 		.max_u	= 6000000,
 		.step_u	= 25000,
 	},
-	.dc_icl		= {
+	/*.dc_icl		= {       // MSCHANGE enabling smb5-reg
 		.name	= "dc input current limit",
 		.reg	= DCIN_CURRENT_LIMIT_CFG_REG,
 		.min_u	= 0,
 		.max_u	= 6000000,
 		.step_u	= 25000,
-	},
+	},*/
 	.freq_buck	= {
 		.name	= "buck switching frequency",
 		.reg	= CFG_BUCKBOOST_FREQ_SELECT_BUCK_REG,
@@ -97,6 +112,7 @@ struct smb_dt_props {
 	int	chg_temp_max_mdegc;
 	int	connector_temp_max_mdegc;
 	int	pl_mode;
+	int	pl_batfet_mode;  // MSCHANGE enabling USBIN USBIN
 };
 
 struct smb138x {
@@ -104,6 +120,7 @@ struct smb138x {
 	struct smb_dt_props	dt;
 	struct power_supply	*parallel_psy;
 	u32			wa_flags;
+	int max_fcc;   // MSCHANGE enabling USBIN USBIN
 };
 
 static int __debug_mask;
@@ -111,7 +128,8 @@ module_param_named(
 	debug_mask, __debug_mask, int, 0600
 );
 
-static irqreturn_t smb138x_handle_slave_chg_state_change(int irq, void *data)
+// MSCHANGE we don't register for any interrupts for smb138x
+/*static irqreturn_t smb138x_handle_slave_chg_state_change(int irq, void *data)
 {
 	struct smb_irq_data *irq_data = data;
 	struct smb138x *chip = irq_data->parent_data;
@@ -120,9 +138,10 @@ static irqreturn_t smb138x_handle_slave_chg_state_change(int irq, void *data)
 		power_supply_changed(chip->parallel_psy);
 
 	return IRQ_HANDLED;
-}
+}*/
 
-static int smb138x_get_prop_charger_temp(struct smb138x *chip,
+// MSCHANGE enabling smb1381
+/*static int smb138x_get_prop_charger_temp(struct smb138x *chip,
 				 union power_supply_propval *val)
 {
 	union power_supply_propval pval;
@@ -149,7 +168,7 @@ static int smb138x_get_prop_charger_temp(struct smb138x *chip,
 	}
 	val->intval = avg / die_avg_count;
 	return rc;
-}
+}*/
 
 static int smb138x_parse_dt(struct smb138x *chip)
 {
@@ -199,6 +218,13 @@ static int smb138x_parse_dt(struct smb138x *chip)
 				&chip->dt.connector_temp_max_mdegc);
 	if (rc < 0)
 		chip->dt.connector_temp_max_mdegc = 105000;
+
+	/*
+	 * If stacked-batfet property is not present default
+	 * configuration is NON-STACKED-BATFET.
+	 */
+	// MSCHANGE enabling USBIN USBIN, we will need a NON-STACKED batfet configuration
+	chip->dt.pl_batfet_mode = POWER_SUPPLY_PL_NON_STACKED_BATFET;
 
 	return 0;
 }
@@ -376,10 +402,10 @@ static int smb138x_batt_get_prop(struct power_supply *psy,
 		rc = smblib_get_prop_batt_capacity(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_CHARGER_TEMP:
-		rc = smb138x_get_prop_charger_temp(chip, val);
+		//rc = smb138x_get_prop_charger_temp(chip, val);  // MSCHANGE enabling smb1381
 		break;
 	case POWER_SUPPLY_PROP_CHARGER_TEMP_MAX:
-		rc = smblib_get_prop_charger_temp_max(chg, val);
+		//rc = smblib_get_prop_charger_temp_max(chg, val);  // MSCHANGE enabling smb1381
 		break;
 	case POWER_SUPPLY_PROP_SET_SHIP_MODE:
 		/* Not in ship mode as long as device is active */
@@ -474,10 +500,11 @@ static int smb138x_init_batt_psy(struct smb138x *chip)
  * PARALLEL PSY REGISTRATION *
  *****************************/
 
+// MSCHANGE we're not going to monitor the connector temp
 static int smb138x_get_prop_connector_health(struct smb138x *chip)
 {
-	struct smb_charger *chg = &chip->chg;
-	int rc, lb_mdegc, ub_mdegc, rst_mdegc, connector_mdegc;
+	//struct smb_charger *chg = &chip->chg;
+	/*int rc, lb_mdegc, ub_mdegc, rst_mdegc, connector_mdegc;
 
 	if (!chg->iio.connector_temp_chan ||
 		PTR_ERR(chg->iio.connector_temp_chan) == -EPROBE_DEFER)
@@ -521,8 +548,8 @@ static int smb138x_get_prop_connector_health(struct smb138x *chip)
 		return POWER_SUPPLY_HEALTH_WARM;
 	else if (connector_mdegc < rst_mdegc)
 		return POWER_SUPPLY_HEALTH_HOT;
-
-	return POWER_SUPPLY_HEALTH_OVERHEAT;
+	*/
+	return POWER_SUPPLY_HEALTH_COOL;  // MSCHANGE always return a good value
 }
 
 static enum power_supply_property smb138x_parallel_props[] = {
@@ -593,14 +620,16 @@ static int smb138x_parallel_get_prop(struct power_supply *psy,
 		rc = smblib_get_charge_param(chg, &chg->param.fcc,
 					     &val->intval);
 		break;
-	case POWER_SUPPLY_PROP_CURRENT_NOW:
+	/*case POWER_SUPPLY_PROP_CURRENT_NOW:  // MSCHANGE slave current using TADC is not being queried anywhere
 		rc = smblib_get_prop_slave_current_now(chg, val);
-		break;
+		break;*/
 	case POWER_SUPPLY_PROP_CHARGER_TEMP:
-		rc = smb138x_get_prop_charger_temp(chip, val);
+		//rc = smb138x_get_prop_charger_temp(chip, val);    // MSCHANGE enabling smb1381
+		rc = -ENODATA;
 		break;
 	case POWER_SUPPLY_PROP_CHARGER_TEMP_MAX:
-		rc = smblib_get_prop_charger_temp_max(chg, val);
+		//rc = smblib_get_prop_charger_temp_max(chg, val);  // MSCHANGE enabling smb1381
+		rc = -ENODATA;
 		break;
 	case POWER_SUPPLY_PROP_MODEL_NAME:
 		val->strval = "smb138x";
@@ -614,6 +643,16 @@ static int smb138x_parallel_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_SET_SHIP_MODE:
 		/* Not in ship mode as long as device is active */
 		val->intval = 0;
+		break;
+	// MSCHANGE adding props for USBIN USBIN parallel configuration
+	case POWER_SUPPLY_PROP_PARALLEL_BATFET_MODE:
+		val->intval = chip->dt.pl_batfet_mode;
+		break;
+	case POWER_SUPPLY_PROP_PARALLEL_FCC_MAX:
+		val->intval = chip->max_fcc;
+		break;
+	case POWER_SUPPLY_PROP_MIN_ICL:
+		val->intval = MIN_PARALLEL_ICL_UA;
 		break;
 	default:
 		pr_err("parallel power supply get prop %d not supported\n",
@@ -634,6 +673,7 @@ static int smb138x_set_parallel_suspend(struct smb138x *chip, bool suspend)
 	struct smb_charger *chg = &chip->chg;
 	int rc = 0;
 
+#if 0 //MSCHANGE: Enable Parallel charging
 	rc = smblib_masked_write(chg, WD_CFG_REG, WDOG_TIMER_EN_BIT,
 				 suspend ? 0 : WDOG_TIMER_EN_BIT);
 	if (rc < 0) {
@@ -641,6 +681,7 @@ static int smb138x_set_parallel_suspend(struct smb138x *chip, bool suspend)
 		       suspend ? "disable" : "enable", rc);
 		suspend = true;
 	}
+#endif
 
 	rc = smblib_masked_write(chg, USBIN_CMD_IL_REG, USBIN_SUSPEND_BIT,
 				 suspend ? USBIN_SUSPEND_BIT : 0);
@@ -660,6 +701,7 @@ static int smb138x_parallel_set_prop(struct power_supply *psy,
 	struct smb138x *chip = power_supply_get_drvdata(psy);
 	struct smb_charger *chg = &chip->chg;
 	int rc = 0;
+	int chg_en = 0;//MSCHANGE: prevent discharging when bucking
 
 	switch (prop) {
 	case POWER_SUPPLY_PROP_INPUT_SUSPEND:
@@ -675,6 +717,22 @@ static int smb138x_parallel_set_prop(struct power_supply *psy,
 		rc = smblib_set_charge_param(chg, &chg->param.fv, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
+		//MSCHANGE: prevent discharging when bucking
+		if (!val->intval) {
+			chg_en = 0;
+		}
+		else {
+			chg_en = 1;
+		}
+			
+		rc = smblib_masked_write(chg, CHARGING_ENABLE_CMD_REG,
+					CHARGING_ENABLE_CMD_BIT,
+					chg_en);
+		if (rc < 0) {
+			pr_err("Couldn't update charging control rc=%d\n", rc);
+			return rc;
+		}
+
 		rc = smblib_set_charge_param(chg, &chg->param.fcc, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_SET_SHIP_MODE:
@@ -810,6 +868,78 @@ static int smb138x_init_vconn_regulator(struct smb138x *chip)
 	return rc;
 }
 
+/**********************************
+ * THERMAL FRAMEWORK REGISTRATION *
+ *********************************/
+// MSCHANGE enabling smb thermistors registration with thermal framework
+static int tadc_ops_get_temp_therm1(void *data, int *temp)
+{
+	int rc = 0;
+	struct smb_charger *chg = data;
+	int val = 0;
+
+	if (!chg->iio.temp_chan || PTR_ERR(chg->iio.temp_chan) == -EPROBE_DEFER)
+		chg->iio.temp_chan = iio_channel_get(chg->dev, "batt_therm");
+
+	rc = smblib_read_iio_channel(chg, chg->iio.temp_chan,
+				1000, &val);
+	if (rc < 0) {
+		pr_err("Couldn't read BATT THERM channel, rc=%d\n", rc);
+		return rc;
+	}
+
+	*temp = val;
+	return 0;
+}
+
+static int tadc_ops_get_temp_therm2(void *data, int *temp)
+{
+	int rc = 0;
+	struct smb_charger *chg = data;
+
+	if (!chg->iio.skin_temp_chan || PTR_ERR(chg->iio.skin_temp_chan) == -EPROBE_DEFER)
+		chg->iio.skin_temp_chan = iio_channel_get(chg->dev, "aux_therm");
+
+	rc = smblib_read_iio_channel(chg, chg->iio.skin_temp_chan,
+				1000, &chg->skin_temp);
+	if (rc < 0) {
+		pr_err("Couldn't read SKIN TEMP/AUX THERM channel, rc=%d\n", rc);
+		return rc;
+	}
+
+	*temp = chg->skin_temp;
+	return 0;
+}
+
+static struct thermal_zone_of_device_ops tadc_ops_therm1 = {
+	.get_temp = tadc_ops_get_temp_therm1,
+};
+static struct thermal_zone_of_device_ops tadc_ops_therm2 = {
+	.get_temp = tadc_ops_get_temp_therm2,
+};
+
+static int smb138x_register_tzd(struct smb_charger *chg)
+{
+	struct thermal_zone_device *tzd;
+
+	tzd = devm_thermal_zone_of_sensor_register(
+		chg->dev, 0, chg, &tadc_ops_therm1);
+	if (IS_ERR(tzd)) {
+		pr_err("Error registering TZ zone:%ld for dt_ch:%d\n",
+			PTR_ERR(tzd), 0);
+		return -EINVAL;
+	}
+
+	tzd = devm_thermal_zone_of_sensor_register(
+		chg->dev, 1, chg, &tadc_ops_therm2);
+	if (IS_ERR(tzd)) {
+		pr_err("Error registering TZ zone:%ld for dt_ch:%d\n",
+			PTR_ERR(tzd), 1);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 /***************************
  * HARDWARE INITIALIZATION *
  ***************************/
@@ -847,6 +977,7 @@ static int smb138x_init_slave_hw(struct smb138x *chip)
 		return rc;
 	}
 
+#if 0 //MSCHANGE:Enable Parallel charging
 	/* enable watchdog bark and bite interrupts, and disable the watchdog */
 	rc = smblib_masked_write(chg, WD_CFG_REG, WDOG_TIMER_EN_BIT
 			| WDOG_TIMER_EN_ON_PLUGIN_BIT | BITE_WDOG_INT_EN_BIT
@@ -865,18 +996,12 @@ static int smb138x_init_slave_hw(struct smb138x *chip)
 		pr_err("Couldn't configure the watchdog bite rc=%d\n", rc);
 		return rc;
 	}
+#endif
 
 	/* Disable OTG */
-	rc = smblib_masked_write(chg, CMD_OTG_REG, OTG_EN_BIT, 0);
+	rc = smblib_masked_write(chg, DCDC_CMD_OTG_REG, OTG_EN_BIT, 0);  // MSCHANGE enabling smb5-reg
 	if (rc < 0) {
 		pr_err("Couldn't disable OTG rc=%d\n", rc);
-		return rc;
-	}
-
-	/* suspend parallel charging */
-	rc = smb138x_set_parallel_suspend(chip, true);
-	if (rc < 0) {
-		pr_err("Couldn't suspend parallel charging rc=%d\n", rc);
 		return rc;
 	}
 
@@ -896,6 +1021,7 @@ static int smb138x_init_slave_hw(struct smb138x *chip)
 		return rc;
 	}
 
+#if 0 //MSCHANGE:Enable Parallel charging
 	/* configure charge enable for software control; active high */
 	rc = smblib_masked_write(chg, CHGR_CFG2_REG,
 				 CHG_EN_POLARITY_BIT | CHG_EN_SRC_BIT, 0);
@@ -904,12 +1030,33 @@ static int smb138x_init_slave_hw(struct smb138x *chip)
 			rc);
 		return rc;
 	}
+#endif
 
-	/* enable parallel current sensing */
-	rc = smblib_masked_write(chg, CFG_REG,
-				 VCHG_EN_CFG_BIT, VCHG_EN_CFG_BIT);
+	// MSCHANGE enabling USBIN USBIN config for parallel charging 
+	/* ensure charging is cmd controlled */
+	rc = smblib_masked_write(chg, CHGR_CFG2_REG, 0xFF, 0xC);
 	if (rc < 0) {
-		pr_err("Couldn't enable parallel current sensing rc=%d\n",
+		pr_err("failed to write 0xC to CHGR_CFG2_REG rc=%d\n",
+			rc);
+		return rc;
+	}
+	rc = smblib_masked_write(chg, MISC_BUCK_OPTIONS_CFG, 0xFF, 0x41);
+	if (rc < 0) {
+		pr_err("failed to write 0x41 to MISC_BUCK_OPTIONS_CFG rc=%d\n",
+			rc);
+		return rc;
+	}
+
+	/* ensure OCP settings are reinitialized */
+	rc = smblib_masked_write(chg, BATIF_BATOCP_THRESHOLD_CFG, 0xFF, 0xD);
+	if (rc < 0) {
+		pr_err("incorrect OCP settings rc=%d\n",
+			rc);
+		return rc;
+	}
+	rc = smblib_masked_write(chg, BATIF_BATOCP_INTRPT_DELAY_TMR_CFG, 0xFF, 0x3F);
+	if (rc < 0) {
+		pr_err("incorrect OCP timer settings rc=%d\n",
 			rc);
 		return rc;
 	}
@@ -921,6 +1068,8 @@ static int smb138x_init_slave_hw(struct smb138x *chip)
 		return rc;
 	}
 
+	// MSCHANGE enabling smb1381
+#if 0
 	/* initialize charger temperature threshold */
 	rc = iio_write_channel_processed(chg->iio.temp_max_chan,
 					chip->dt.chg_temp_max_mdegc);
@@ -949,6 +1098,7 @@ static int smb138x_init_slave_hw(struct smb138x *chip)
 		pr_err("Couldn't set connector temp threshold3 rc=%d\n", rc);
 		return rc;
 	}
+#endif
 
 	/* increase the concurrent mode threshold */
 	rc = smblib_masked_write(chg, ENG_SDCDC_CFG7_REG,
@@ -958,9 +1108,35 @@ static int smb138x_init_slave_hw(struct smb138x *chip)
 		return rc;
 	}
 
+	// MSCHANGE prevent discharging when bucking
+	rc = smblib_masked_write(chg, USBIN_AICL_OPTIONS_CFG_REG,
+				 USBIN_AICL_EN_BIT,
+				 0);
+	if (rc < 0) {
+		pr_err("Couldn't set AICL cfg register rc=%d\n", rc);
+		return rc;
+	} 	
+
+	// MSCHANGE enabling USBIN USBIN config for parallel charging
+	/* set ICL to 0, this will be updated by smb5 as needed */
+	rc = smblib_set_charge_param(chg, &chg->param.usb_icl, 0);
+	if (rc < 0) {
+		pr_err("Couldn't set 0 ICL rc=%d\n", rc);
+		return rc;
+	}
+
+	/* suspend parallel charging */
+	rc = smb138x_set_parallel_suspend(chip, true);
+	if (rc < 0) {
+		pr_err("Couldn't suspend parallel charging rc=%d\n", rc);
+		return rc;
+	}
+
 	return 0;
 }
 
+// MSCHANGE this function is not needed since smb138x is used only in slave mode 
+#if 0
 static int smb138x_init_hw(struct smb138x *chip)
 {
 	struct smb_charger *chg = &chip->chg;
@@ -1071,6 +1247,7 @@ static int smb138x_init_hw(struct smb138x *chip)
 
 	return rc;
 }
+#endif
 
 static int smb138x_setup_wa_flags(struct smb138x *chip)
 {
@@ -1111,7 +1288,8 @@ static int smb138x_setup_wa_flags(struct smb138x *chip)
 /****************************
  * DETERMINE INITIAL STATUS *
  ****************************/
-
+// MSCHANGE we dont register for any interrupts for smb138x commenting out all related definitions and modules
+#if 0
 static irqreturn_t smb138x_handle_temperature_change(int irq, void *data)
 {
 	struct smb_irq_data *irq_data = data;
@@ -1133,7 +1311,7 @@ static int smb138x_determine_initial_status(struct smb138x *chip)
 {
 	struct smb_irq_data irq_data = {chip, "determine-initial-status"};
 
-	smblib_handle_usb_plugin(0, &irq_data);
+	usb_plugin_irq_handler(0, &irq_data);
 	smblib_handle_usb_typec_change(0, &irq_data);
 	smblib_handle_usb_source_change(0, &irq_data);
 	return 0;
@@ -1142,10 +1320,9 @@ static int smb138x_determine_initial_status(struct smb138x *chip)
 /**************************
  * INTERRUPT REGISTRATION *
  **************************/
-
 static struct smb_irq_info smb138x_irqs[] = {
-/* CHARGER IRQs */
-	[CHG_ERROR_IRQ] = {
+   //CHARGER IRQs 
+	[CHGR_ERROR_IRQ] = {
 		.name		= "chg-error",
 		.handler	= smblib_handle_debug,
 	},
@@ -1166,7 +1343,7 @@ static struct smb_irq_info smb138x_irqs[] = {
 		.name		= "step-chg-soc-update-request",
 		.handler	= smblib_handle_debug,
 	},
-/* OTG IRQs */
+  // OTG IRQs
 	[OTG_FAIL_IRQ] = {
 		.name		= "otg-fail",
 		.handler	= smblib_handle_debug,
@@ -1183,7 +1360,7 @@ static struct smb_irq_info smb138x_irqs[] = {
 		.name		= "testmode-change-detect",
 		.handler	= smblib_handle_debug,
 	},
-/* BATTERY IRQs */
+  // BATTERY IRQs 
 	[BATT_TEMP_IRQ] = {
 		.name		= "bat-temp",
 		.handler	= smblib_handle_batt_psy_changed,
@@ -1208,7 +1385,7 @@ static struct smb_irq_info smb138x_irqs[] = {
 		.name		= "bat-terminal-missing",
 		.handler	= smblib_handle_batt_psy_changed,
 	},
-/* USB INPUT IRQs */
+  // USB INPUT IRQs
 	[USBIN_COLLAPSE_IRQ] = {
 		.name		= "usbin-collapse",
 		.handler	= smblib_handle_debug,
@@ -1227,7 +1404,7 @@ static struct smb_irq_info smb138x_irqs[] = {
 	},
 	[USBIN_PLUGIN_IRQ] = {
 		.name		= "usbin-plugin",
-		.handler	= smblib_handle_usb_plugin,
+		.handler	= usb_plugin_irq_handler,
 	},
 	[USBIN_SRC_CHANGE_IRQ] = {
 		.name		= "usbin-src-change",
@@ -1241,7 +1418,7 @@ static struct smb_irq_info smb138x_irqs[] = {
 		.name		= "type-c-change",
 		.handler	= smblib_handle_usb_typec_change,
 	},
-/* DC INPUT IRQs */
+ // DC INPUT IRQs
 	[DCIN_COLLAPSE_IRQ] = {
 		.name		= "dcin-collapse",
 		.handler	= smblib_handle_debug,
@@ -1270,14 +1447,14 @@ static struct smb_irq_info smb138x_irqs[] = {
 		.name		= "dcin-icl-change",
 		.handler	= smblib_handle_debug,
 	},
-/* MISCELLANEOUS IRQs */
+  // MISCELLANEOUS IRQs
 	[WDOG_SNARL_IRQ] = {
 		.name		= "wdog-snarl",
 		.handler	= smblib_handle_debug,
 	},
 	[WDOG_BARK_IRQ] = {
 		.name		= "wdog-bark",
-		.handler	= smblib_handle_wdog_bark,
+		.handler	= wdog_bark_irq_handler,
 		.wake		= true,
 	},
 	[AICL_FAIL_IRQ] = {
@@ -1292,15 +1469,15 @@ static struct smb_irq_info smb138x_irqs[] = {
 		.name		= "high-duty-cycle",
 		.handler	= smblib_handle_debug,
 	},
-	[INPUT_CURRENT_LIMIT_IRQ] = {
+	[INPUT_CURRENT_LIMITING_IRQ] = {
 		.name		= "input-current-limiting",
 		.handler	= smblib_handle_debug,
 	},
-	[TEMPERATURE_CHANGE_IRQ] = {
+	[TEMP_CHANGE_IRQ] = {
 		.name		= "temperature-change",
 		.handler	= smb138x_handle_temperature_change,
 	},
-	[SWITCH_POWER_OK_IRQ] = {
+	[SWITCHER_POWER_OK_IRQ] = {
 		.name		= "switcher-power-ok",
 		.handler	= smblib_handle_debug,
 	},
@@ -1331,12 +1508,12 @@ static int smb138x_request_interrupt(struct smb138x *chip,
 		pr_err("Couldn't get irq %s byname\n", irq_name);
 		return irq;
 	}
-
+	
 	irq_index = smb138x_get_irq_index_byname(irq_name);
 	if (irq_index < 0) {
 		pr_err("%s is not a defined irq\n", irq_name);
 		return irq_index;
-	}
+	}	
 
 	if (!smb138x_irqs[irq_index].handler)
 		return 0;
@@ -1349,7 +1526,7 @@ static int smb138x_request_interrupt(struct smb138x *chip,
 	irq_data->name = irq_name;
 	irq_data->storm_data = smb138x_irqs[irq_index].storm_data;
 	mutex_init(&irq_data->storm_data.storm_lock);
-
+	
 	rc = devm_request_threaded_irq(chg->dev, irq, NULL,
 					smb138x_irqs[irq_index].handler,
 					IRQF_ONESHOT, irq_name, irq_data);
@@ -1357,7 +1534,6 @@ static int smb138x_request_interrupt(struct smb138x *chip,
 		pr_err("Couldn't request irq %d\n", irq);
 		return rc;
 	}
-
 	if (smb138x_irqs[irq_index].wake)
 		enable_irq_wake(irq);
 
@@ -1387,6 +1563,7 @@ static int smb138x_request_interrupts(struct smb138x *chip)
 
 	return rc;
 }
+#endif
 
 /*********
  * PROBE *
@@ -1474,6 +1651,8 @@ static int smb138x_master_probe(struct smb138x *chip)
 		goto cleanup;
 	}
 
+	// MSCHANGE we are only called in slave mode for smb138x commenting out interrupt related functions for compilation
+#if 0
 	rc = smb138x_init_hw(chip);
 	if (rc < 0) {
 		pr_err("Couldn't initialize hardware rc=%d\n", rc);
@@ -1492,6 +1671,7 @@ static int smb138x_master_probe(struct smb138x *chip)
 		pr_err("Couldn't request interrupts rc=%d\n", rc);
 		goto cleanup;
 	}
+#endif
 
 	return rc;
 
@@ -1511,14 +1691,31 @@ static int smb138x_slave_probe(struct smb138x *chip)
 	if (rc < 0) {
 		pr_err("Couldn't initialize smblib rc=%d\n", rc);
 		goto cleanup;
+	}	
+	
+	// MSCHANGE getting BATT_THERM and AUX_THERM from TADC
+	chg->iio.temp_chan = iio_channel_get(chg->dev, "batt_therm");
+	if (IS_ERR(chg->iio.temp_chan)) {
+		rc = PTR_ERR(chg->iio.temp_chan);
+		pr_err("failed to get batt_therm channel with rc: %d", rc);
+		goto cleanup;
 	}
 
+	chg->iio.skin_temp_chan = iio_channel_get(chg->dev, "aux_therm");
+	if (IS_ERR(chg->iio.skin_temp_chan)) {
+		rc = PTR_ERR(chg->iio.skin_temp_chan);
+		pr_err("failed to get aux_therm channel with rc: %d", rc);
+		goto cleanup;
+	}
+
+	// MSCHANGE enabling smb1381
+#if 0
 	chg->iio.temp_max_chan = iio_channel_get(chg->dev, "charger_temp_max");
 	if (IS_ERR(chg->iio.temp_max_chan)) {
 		rc = PTR_ERR(chg->iio.temp_max_chan);
 		goto cleanup;
 	}
-
+	
 	chg->iio.connector_temp_thr1_chan = iio_channel_get(chg->dev,
 							"connector_temp_thr1");
 	if (IS_ERR(chg->iio.connector_temp_thr1_chan)) {
@@ -1539,19 +1736,22 @@ static int smb138x_slave_probe(struct smb138x *chip)
 		rc = PTR_ERR(chg->iio.connector_temp_thr3_chan);
 		goto cleanup;
 	}
+#endif
+
+	chip->max_fcc = SMB138x_MAX_PARALLEL_FCC_UA;   // MSCHANGE setting a max fcc for smb138x
 
 	rc = smb138x_parse_dt(chip);
 	if (rc < 0) {
 		pr_err("Couldn't parse device tree rc=%d\n", rc);
 		goto cleanup;
 	}
-
+	
 	rc = smb138x_init_slave_hw(chip);
 	if (rc < 0) {
 		pr_err("Couldn't initialize hardware rc=%d\n", rc);
 		goto cleanup;
 	}
-
+	
 	if ((chip->dt.pl_mode == POWER_SUPPLY_PL_USBIN_USBIN)
 		|| (chip->dt.pl_mode == POWER_SUPPLY_PL_USBIN_USBIN_EXT)) {
 		rc = smb138x_init_vbus_regulator(chip);
@@ -1567,16 +1767,25 @@ static int smb138x_slave_probe(struct smb138x *chip)
 		pr_err("Couldn't initialize parallel psy rc=%d\n", rc);
 		goto cleanup;
 	}
-
-	rc = smb138x_determine_initial_slave_status(chip);
-	if (rc < 0) {
+	
+	// MSCHANGE we dont register for any interrupts for smb138x
+	//rc = smb138x_determine_initial_slave_status(chip);
+	/*if (rc < 0) {
 		pr_err("Couldn't determine initial status rc=%d\n", rc);
 		goto cleanup;
-	}
+	}*/
 
-	rc = smb138x_request_interrupts(chip);
-	if (rc < 0) {
+	// MSCHANGE we dont register for any interrupts for smb138x
+	//rc = smb138x_request_interrupts(chip);
+	/*if (rc < 0) {
 		pr_err("Couldn't request interrupts rc=%d\n", rc);
+		goto cleanup;
+	}*/
+
+	// MSCHANGE registering therm1 and therm2 with the thermal framework
+	rc = smb138x_register_tzd(chg);
+	if (rc) {
+		pr_err("smb138x_register_tzd failed to register with thermal framework \n");
 		goto cleanup;
 	}
 
@@ -1615,7 +1824,7 @@ static int smb138x_probe(struct platform_device *pdev)
 
 	chip->chg.dev = &pdev->dev;
 	chip->chg.debug_mask = &__debug_mask;
-	chip->chg.irq_info = smb138x_irqs;
+	// chip->chg.irq_info = smb138x_irqs;  // MSCHANGE we don't register for any interrupts for smb138x
 	chip->chg.name = "SMB";
 
 	chip->chg.regmap = dev_get_regmap(chip->chg.dev->parent, NULL);
@@ -1659,7 +1868,11 @@ static int smb138x_probe(struct platform_device *pdev)
 		goto cleanup;
 	}
 
-	pr_info("SMB138X probed successfully mode=%d\n", chip->chg.mode);
+	// MSCHANGE enabling USBIN USBIN
+	pr_info("SMB138X probed successfully pl_mode=%s batfet_mode=%s\n",
+		IS_USBIN(chip->dt.pl_mode) ? "USBIN-USBIN" : "USBMID-USBMID",
+		(chip->dt.pl_batfet_mode == POWER_SUPPLY_PL_STACKED_BATFET)
+			? "STACKED_BATFET" : "NON-STACKED_BATFET");
 	return rc;
 
 cleanup:
@@ -1685,10 +1898,19 @@ static void smb138x_shutdown(struct platform_device *pdev)
 		pr_err("Couldn't suspend charging rc=%d\n", rc);
 
 	/* Disable OTG */
-	rc = smblib_masked_write(chg, CMD_OTG_REG, OTG_EN_BIT, 0);
+	rc = smblib_masked_write(chg, DCDC_CMD_OTG_REG, OTG_EN_BIT, 0);  // MSCHANGE enabling smb5-reg
 	if (rc < 0)
 		pr_err("Couldn't disable OTG rc=%d\n", rc);
 
+	// MSCHANGE
+	/* ensure OCP is disabled */
+	rc = smblib_masked_write(chg, BATIF_BATOCP_THRESHOLD_CFG, 0xFF, 0x00);
+	if (rc < 0)
+		pr_err("incorrect OCP settings rc=%d\n", rc);
+	
+	rc = smblib_masked_write(chg, BATIF_BATOCP_INTRPT_DELAY_TMR_CFG, 0xFF, 0x00);
+	if (rc < 0)
+		pr_err("incorrect OCP timer settings rc=%d\n", rc);
 }
 
 static struct platform_driver smb138x_driver = {

@@ -1,4 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0
+#
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
 # ==========================================================================
 # Building
 # ==========================================================================
@@ -500,11 +507,10 @@ ifdef CONFIG_LTO_CLANG
     # combine symversions for later processing
     update_lto_symversions =				\
 	rm -f $@.symversions; 				\
-	for i in $(filter-out FORCE,$^); do		\
-		if [ -f $$i.symversions ]; then		\
-			cat $$i.symversions 		\
-				>> $@.symversions;	\
-		fi;					\
+	for i in $(foreach n,						\
+			$(filter-out FORCE,$^),				\
+			$(if $(wildcard $(n).symversions),$(n))); do	\
+		cat $$i.symversions >> $@.symversions;			\
 	done;
   endif
   # rebuild the symbol table with llvm-ar to include IR files
@@ -673,7 +679,7 @@ targets += $(multi-used-y) $(multi-used-m)
 
 PHONY += $(subdir-ym)
 $(subdir-ym):
-	$(Q)$(MAKE) $(build)=$@
+	$(Q)$(MAKE) V=1 $(build)=$@
 
 # Add FORCE to the prequisites of a target to force it to be always rebuilt.
 # ---------------------------------------------------------------------------
