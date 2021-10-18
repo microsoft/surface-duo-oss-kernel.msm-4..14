@@ -81,6 +81,8 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.hal_desc_sz = sizeof(struct hal_rx_desc_ipq8074),
 		.fix_l1ss = true,
 		.max_tx_ring = DP_TCL_NUM_RING_MAX,
+		.hal_params = &ath11k_hw_hal_params_ipq8074,
+		.supports_dynamic_smps = false,
 	},
 	{
 		.hw_rev = ATH11K_HW_IPQ6018_HW10,
@@ -129,6 +131,8 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.hal_desc_sz = sizeof(struct hal_rx_desc_ipq8074),
 		.fix_l1ss = true,
 		.max_tx_ring = DP_TCL_NUM_RING_MAX,
+		.hal_params = &ath11k_hw_hal_params_ipq8074,
+		.supports_dynamic_smps = false,
 	},
 	{
 		.name = "qca6390 hw2.0",
@@ -176,6 +180,8 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.hal_desc_sz = sizeof(struct hal_rx_desc_ipq8074),
 		.fix_l1ss = true,
 		.max_tx_ring = DP_TCL_NUM_RING_MAX_QCA6390,
+		.hal_params = &ath11k_hw_hal_params_qca6390,
+		.supports_dynamic_smps = false,
 	},
 	{
 		.name = "qcn9074 hw1.0",
@@ -223,6 +229,8 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.hal_desc_sz = sizeof(struct hal_rx_desc_qcn9074),
 		.fix_l1ss = true,
 		.max_tx_ring = DP_TCL_NUM_RING_MAX,
+		.hal_params = &ath11k_hw_hal_params_ipq8074,
+		.supports_dynamic_smps = true,
 	},
 	{
 		.name = "wcn6855 hw2.0",
@@ -270,6 +278,8 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.hal_desc_sz = sizeof(struct hal_rx_desc_wcn6855),
 		.fix_l1ss = false,
 		.max_tx_ring = DP_TCL_NUM_RING_MAX_QCA6390,
+		.hal_params = &ath11k_hw_hal_params_qca6390,
+		.supports_dynamic_smps = false,
 	},
 };
 
