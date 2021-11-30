@@ -931,6 +931,15 @@ KBUILD_CFLAGS   += $(call cc-option,-Werror=incompatible-pointer-types)
 # Require designated initializers for all marked structures
 KBUILD_CFLAGS   += $(call cc-option,-Werror=designated-init)
 
+#Suppress Unitialized warning in set_process_cpu_timer in posix-cpu-timers.c
+KBUILD_CFLAGS	+= $(call cc-disable-warning, maybe-uninitialized)
+
+#Suppress format warning in mhi_time_async_cb in mhi_init.c
+KBUILD_CFLAGS	+= $(call cc-disable-warning, format=)
+
+#Suppress too many arguments warning in uaduio_qmi_bye_cb in usb_audio_svc.c
+KBUILD_CFLAGS	+= $(call cc-disable-warning, format-extra-args)
+
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
 
