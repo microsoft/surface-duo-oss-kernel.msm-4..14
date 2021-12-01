@@ -946,6 +946,9 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, parentheses)
 #Suppress -Wunused-restult for sysfs_create_group in mhi_init.c:334:2
 KBUILD_CFLAGS	+= $(call cc-disable-warning, unused-result)
 
+#Suppress -Wunused-value for mhi_reg_write_enqueue in mhi_main.c:125:72 as the variable is pointed to %d in the function MHI_ASSERT
+KBUILD_CFLAGS	+= $(call cc-disable-warning, unused-value)
+
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
 
