@@ -206,13 +206,13 @@ static ssize_t time_us_async_show(struct device *dev,
 
 	ret = mhi_get_remote_time(mhi_dev, seq, &mhi_time_us_async_cb);
 	if (ret) {
-		MHI_ERR("Failed to request time, seq:%llx, ret:%d\n", seq, ret);
+		MHI_ERR("Failed to request time, seq:%lu, ret:%d\n", (unsigned long)seq, ret);
 		return scnprintf(buf, PAGE_SIZE,
 				 "Request failed or feature unsupported\n");
 	}
 
 	return scnprintf(buf, PAGE_SIZE,
-			 "Requested time asynchronously with seq:%llx\n", seq);
+			 "Requested time asynchronously with seq:%lu\n", (unsigned long)seq);
 }
 static DEVICE_ATTR_RO(time_us_async);
 
