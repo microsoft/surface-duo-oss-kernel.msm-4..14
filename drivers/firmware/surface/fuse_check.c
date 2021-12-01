@@ -31,6 +31,8 @@ static ssize_t print_fuse_data(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				char *buf);
 
+static int read_fuse_value();
+
 /*
 Masks to use to get different secure status from the SCM data
 */
