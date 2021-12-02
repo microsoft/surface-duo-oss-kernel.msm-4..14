@@ -31,8 +31,6 @@ static ssize_t print_fuse_data(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				char *buf);
 
-static int read_fuse_value();
-
 /*
 Masks to use to get different secure status from the SCM data
 */
@@ -143,7 +141,7 @@ static int initialize_sysfs_nodes(struct kobject *kobj)
 	return sysfs_create_group(kobj, &fuse_attrs_group);
 }
 
-static int read_fuse_value()
+static int read_fuse_value(void)
 {
 	struct scm_desc desc = {0};
 	int scm_ret = 0;
