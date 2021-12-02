@@ -949,6 +949,12 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, unused-result)
 #Suppress -Wunused-value for mhi_reg_write_enqueue in mhi_main.c:125:72 as the variable is pointed to %d in the function MHI_ASSERT
 KBUILD_CFLAGS	+= $(call cc-disable-warning, unused-value)
 
+#Suppress -Wsizeof-pointer-memaccess for sizeof argument in snprintf function for fd_show in hid-qvr.c:417:29
+#sending the sizeof(buf) is intentional
+KBUILD_CFLAGS	+= $(call cc-disable-warning, sizeof-pointer-memaccess)
+
+#Suppress -Wmissing-braces for qpnp-power-on.c:205:8 as the hierarchy in place seems to be intentional
+KBUILD_CFLAGS	+= $(call cc-disable-warning, missing-braces)
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
 
