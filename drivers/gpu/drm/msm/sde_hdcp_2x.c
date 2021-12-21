@@ -52,6 +52,10 @@
 		kthread_queue_work(&hdcp->worker, &hdcp->wk_##x); \
 }
 
+#define hdcp_min_enc_level_0   0
+#define hdcp_min_enc_level_1   1
+#define hdcp_min_enc_level_2   2
+
 struct sde_hdcp_2x_ctrl {
 	struct hdcp2_app_data app_data;
 	u32 timeout_left;
@@ -418,8 +422,6 @@ static void sde_hdcp_2x_cleanup_work(struct kthread_work *work)
 static u8 sde_hdcp_2x_stream_type(u8 min_enc_level)
 {
 	u8 stream_type = 0;
-	u8 const hdcp_min_enc_level_0 = 0, hdcp_min_enc_level_1 = 1,
-	   hdcp_min_enc_level_2 = 2;
 	u8 const stream_type_0 = 0, stream_type_1 = 1;
 
 	switch (min_enc_level) {
