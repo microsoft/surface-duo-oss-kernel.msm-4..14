@@ -809,7 +809,7 @@ static void app_msg_proc(struct npu_host_ctx *host_ctx, uint32_t *msg)
 			break;
 		}
 
-		pr_debug("network id : %d\n", network->id);
+		pr_debug("network id : %llx\n", (long long unsigned int)network->id);
 		stats_size = exe_rsp_pkt->header.size - sizeof(*exe_rsp_pkt);
 		pr_debug("stats_size %d:%d\n", exe_rsp_pkt->header.size,
 			stats_size);
