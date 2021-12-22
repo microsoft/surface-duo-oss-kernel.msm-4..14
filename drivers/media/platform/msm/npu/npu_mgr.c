@@ -1142,9 +1142,9 @@ static int npu_send_network_cmd(struct npu_device *npu_dev,
 		pr_err("Another cmd is pending\n");
 		ret = -EBUSY;
 	} else {
-		pr_debug("Send cmd %d network id %d\n",
+		pr_debug("Send cmd %d network id %llx\n",
 			((struct ipc_cmd_header_pkt *)cmd_ptr)->cmd_type,
-			network->id);
+			(long long unsigned int)network->id);
 		network->cmd_async = async;
 		network->cmd_ret_status = 0;
 		network->cmd_pending = true;
