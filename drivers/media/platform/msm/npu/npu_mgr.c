@@ -1937,7 +1937,7 @@ int32_t npu_host_exec_network_v2(struct npu_client *client,
 		goto exec_v2_done;
 	}
 
-	pr_debug("execute_v2 network %d\n", network->id);
+	pr_debug("execute_v2 network %llx\n", (long long unsigned int)network->id);
 	num_patch_params = exec_ioctl->patch_buf_info_num;
 	pkt_size = num_patch_params * sizeof(struct npu_patch_params_v2) +
 		sizeof(*exec_packet);
