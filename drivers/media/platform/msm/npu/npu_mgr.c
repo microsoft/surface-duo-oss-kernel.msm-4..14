@@ -1683,7 +1683,7 @@ int32_t npu_host_unload_network(struct npu_client *client,
 		goto free_network;
 	}
 
-	pr_debug("Unload network %d\n", network->id);
+	pr_debug("Unload network %llx\n", (long long unsigned int)network->id);
 	/* prepare IPC packet for UNLOAD */
 	unload_packet.header.cmd_type = NPU_IPC_CMD_UNLOAD;
 	unload_packet.header.size = sizeof(struct ipc_cmd_unload_pkt);
@@ -1802,7 +1802,7 @@ int32_t npu_host_exec_network(struct npu_client *client,
 		goto exec_done;
 	}
 
-	pr_debug("execute network %d\n", network->id);
+	pr_debug("execute network %llx\n", (long long unsigned int)network->id);
 	memset(&exec_packet, 0, sizeof(exec_packet));
 	if (exec_ioctl->patching_required) {
 		if ((exec_ioctl->input_layer_num != 1) ||
