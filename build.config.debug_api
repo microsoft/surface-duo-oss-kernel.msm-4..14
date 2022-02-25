@@ -1,0 +1,31 @@
+#
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
+KERNEL_DIR=kernel/msm-4.14
+. ${ROOT_DIR}/${KERNEL_DIR}/build.config.common
+POST_DEFCONFIG_CMDS="update_debug_config"
+
+function update_debug_config() {
+    ${KERNEL_DIR}/scripts/config --file ${OUT_DIR}/.config \
+         -e CONFIG_DMA_API_DEBUG \
+         -e CONFIG_DEBUG_SHIRQ \
+         -e CONFIG_DEBUG_KOBJECT \
+         -e CONFIG_DEBUG_KOBJECT_RELEASE \
+         -e CONFIG_DEBUG_LIST \
+         -e CONFIG_DEBUG_PI_LIST \
+         -e CONFIG_DEBUG_NOTIFIERS \
+         -e CONFIG_DEBUG_CREDENTIALS \
+         -e CONFIG_PANIC_ON_WARN_DEFAULT_ENABLE \
+         -d LTO \
+         -d LTO_CLANG \
+         -d CFI \
+         -d CFI_PERMISSIVE \
+         -d CFI_CLANG \
+         -d SHADOW_CALL_STACK
+    (cd ${OUT_DIR} && \
+     make O=${OUT_DIR} $archsubarch CROSS_COMPILE=${CROSS_COMPILE} olddefconfig)
+}

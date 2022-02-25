@@ -1,0 +1,458 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
+
+#include <dt-bindings/clock/mdss-10nm-pll-clk.h>
+#include "surface-duo-display-panel-lg-v2-vid-c3.dtsi"
+#include "surface-duo-display-panel-lg-v2-vid-r2.dtsi"
+#include "surface-duo-display-panel-lg-v2-cmd-c3-ev1-5.dtsi"
+#include "surface-duo-display-panel-lg-v2-cmd-r2-ev1-5.dtsi"
+#include "surface-duo-display-panel-lg-v2-cmd-c3-ev2.dtsi"
+#include "surface-duo-display-panel-lg-v2-cmd-r2-ev2.dtsi"
+#include "surface-duo-display-panel-lg-v2-cmd-c3-dv.dtsi"
+#include "surface-duo-display-panel-lg-v2-cmd-r2-dv.dtsi"
+
+
+&sde_dsi_active {
+	mux {
+		pins = "gpio5";
+		function = "gpio";
+	};
+
+	config {
+		pins = "gpio5";
+		drive-strength = <8>;   /* 8 mA */
+		bias-disable = <0>;   /* no pull */
+	};
+};
+
+&sde_dsi_suspend {
+	mux {
+		pins = "gpio5";
+		function = "gpio";
+	};
+
+	config {
+		pins = "gpio5";
+		drive-strength = <2>;   /* 2 mA */
+		bias-pull-down;         /* PULL DOWN */
+	};
+};
+
+&sde_dsi1_active {
+	mux {
+		pins = "gpio6";
+		function = "gpio";
+	};
+
+	config {
+		pins = "gpio6";
+		drive-strength = <8>;   /* 8 mA */
+		bias-disable = <0>;   /* no pull */
+	};
+};
+
+&sde_dsi1_suspend {
+	mux {
+		pins = "gpio6";
+		function = "gpio";
+	};
+
+	config {
+		pins = "gpio6";
+		drive-strength = <2>;   /* 2 mA */
+		bias-pull-down;         /* PULL DOWN */
+	};
+};
+
+&sde_te_active {
+	mux {
+		pins = "gpio8";
+		function = "mdp_vsync";
+	};
+
+	config {
+		pins = "gpio8";
+		drive-strength = <2>;   /* 2 mA */
+		bias-pull-down;         /* PULL DOWN */
+	};
+};
+
+&sde_te_suspend {
+	mux {
+	    pins = "gpio8";
+		function = "mdp_vsync";
+	};
+
+	config {
+		pins = "gpio8";
+		drive-strength = <2>;   /* 2 mA */
+		bias-pull-down;         /* PULL DOWN */
+	};
+};
+
+&sde_te1_active {
+	mux {
+		pins = "gpio9";
+		function = "mdp_vsync";
+	};
+
+	config {
+		pins = "gpio9";
+		drive-strength = <2>;   /* 2 mA */
+		bias-pull-down;         /* PULL DOWN */
+	};
+};
+
+&sde_te1_suspend {
+	mux {
+		pins = "gpio9";
+		function = "mdp_vsync";
+	};
+
+	config {
+		pins = "gpio9";
+		drive-strength = <2>;   /* 2 mA */
+		bias-pull-down;         /* PULL DOWN */
+	};
+};
+
+&soc {
+	dsi_panel_pwr_supply_r2: dsi_panel_pwr_supply_r2 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			qcom,supply-name = "vddi";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <62000>;
+			qcom,supply-disable-load = <80>;
+			qcom,supply-post-on-sleep = <20>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			qcom,supply-name = "vpnl";
+			qcom,supply-min-voltage = <3000000>;
+			qcom,supply-max-voltage = <3000000>;
+			qcom,supply-enable-load = <857000>;
+			qcom,supply-disable-load = <0>;
+			qcom,supply-post-on-sleep = <0>;
+		};
+	};
+
+	dsi_panel_pwr_supply_c3: dsi_panel_pwr_supply_c3 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			qcom,supply-name = "vddi";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <62000>;
+			qcom,supply-disable-load = <80>;
+			qcom,supply-post-on-sleep = <20>;
+		};
+	};
+
+	dsi_lg_amoled_dsc_cmd_c3_display: qcom,dsi-display@0 {
+		label = "dsi_lg_amoled_dsc_cmd_c3_display";
+		qcom,display-type = "primary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&dsi_lg_amoled_dsc_cmd_C3>;
+	};
+
+	dsi_lg_amoled_dsc_cmd_r2_display: qcom,dsi-display@1 {
+		label = "dsi_lg_amoled_dsc_cmd_r2_display";
+		qcom,display-type = "secondary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <1>;
+		qcom,dsi-phy-num = <1>;
+		qcom,dsi-select-clocks = "mux_byte_clk1", "mux_pixel_clk1";
+
+		qcom,dsi-panel = <&dsi_lg_amoled_dsc_cmd_R2>;
+	};
+
+	/* For SW43408A v2 video mode panels*/
+	dsi_lg_v2_amoled_dsc_vid_c3_display: qcom,dsi-display@2 {
+		label = "dsi_lg_v2_amoled_dsc_vid_c3_display";
+		qcom,display-type = "primary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&dsi_lg_v2_amoled_dsc_vid_c3>;
+	};
+
+	dsi_lg_v2_amoled_dsc_vid_r2_display: qcom,dsi-display@3 {
+		label = "dsi_lg_v2_amoled_dsc_vid_r2_display";
+		qcom,display-type = "secondary";
+		qcom,dsi-display-active;
+
+        qcom,dsi-ctrl-num = <1>;
+		qcom,dsi-phy-num = <1>;
+		qcom,dsi-select-clocks = "mux_byte_clk1", "mux_pixel_clk1";
+
+		qcom,dsi-panel = <&dsi_lg_v2_amoled_dsc_vid_r2>;
+	};
+
+	/* For SW43408A v2 command mode panels ev1.5*/
+	dsi_lg_v2_amoled_dsc_cmd_c3_display_ev1_5: qcom,dsi-display@4 {
+		label = "dsi_lg_v2_amoled_dsc_cmd_c3_display_ev1_5";
+		qcom,display-type = "primary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&dsi_lg_v2_amoled_dsc_cmd_c3_ev1_5>;
+	};
+
+	dsi_lg_v2_amoled_dsc_cmd_r2_display_ev1_5: qcom,dsi-display@5 {
+		label = "dsi_lg_v2_amoled_dsc_cmd_r2_display_ev1_5";
+		qcom,display-type = "secondary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <1>;
+		qcom,dsi-phy-num = <1>;
+		qcom,dsi-select-clocks = "mux_byte_clk1", "mux_pixel_clk1";
+
+		qcom,dsi-panel = <&dsi_lg_v2_amoled_dsc_cmd_r2_ev1_5>;
+	};
+
+	/* For SW43416 v2 command mode panels ev2*/
+	dsi_lg_v2_amoled_dsc_cmd_c3_display_ev2: qcom,dsi-display@6 {
+		label = "dsi_lg_v2_amoled_dsc_cmd_c3_display_ev2";
+		qcom,display-type = "primary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&dsi_lg_v2_amoled_dsc_cmd_c3_ev2>;
+	};
+
+	dsi_lg_v2_amoled_dsc_cmd_r2_display_ev2: qcom,dsi-display@7 {
+		label = "dsi_lg_v2_amoled_dsc_cmd_r2_display_ev2";
+		qcom,display-type = "secondary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <1>;
+		qcom,dsi-phy-num = <1>;
+		qcom,dsi-select-clocks = "mux_byte_clk1", "mux_pixel_clk1";
+
+		qcom,dsi-panel = <&dsi_lg_v2_amoled_dsc_cmd_r2_ev2>;
+	};
+
+	/* For SW43416 v2 command mode panels dv*/
+	dsi_lg_v2_amoled_dsc_cmd_c3_display_dv: qcom,dsi-display@8 {
+		label = "dsi_lg_v2_amoled_dsc_cmd_c3_display_dv";
+		qcom,display-type = "primary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+		qcom,dsi-panel = <&dsi_lg_v2_amoled_dsc_cmd_c3_dv>;
+	};
+
+	dsi_lg_v2_amoled_dsc_cmd_r2_display_dv: qcom,dsi-display@9 {
+		label = "dsi_lg_v2_amoled_dsc_cmd_r2_display_dv";
+		qcom,display-type = "secondary";
+		qcom,dsi-display-active;
+
+		qcom,dsi-ctrl-num = <1>;
+		qcom,dsi-phy-num = <1>;
+		qcom,dsi-select-clocks = "mux_byte_clk1", "mux_pixel_clk1";
+
+		qcom,dsi-panel = <&dsi_lg_v2_amoled_dsc_cmd_r2_dv>;
+	};
+
+	sde_dsi: qcom,dsi-display-primary {
+		compatible = "qcom,dsi-display";
+		label = "primary";
+
+		qcom,dsi-ctrl = <&mdss_dsi0 &mdss_dsi1>;
+		qcom,dsi-phy = <&mdss_dsi_phy0 &mdss_dsi_phy1>;
+
+		clocks = <&mdss_dsi0_pll BYTECLK_MUX_0_CLK>,
+			<&mdss_dsi0_pll PCLK_MUX_0_CLK>,
+			<&mdss_dsi1_pll BYTECLK_MUX_1_CLK>,
+			<&mdss_dsi1_pll PCLK_MUX_1_CLK>;
+		clock-names = "mux_byte_clk0", "mux_pixel_clk0",
+									"mux_byte_clk1", "mux_pixel_clk1";
+
+		pinctrl-names = "panel_active", "panel_suspend";
+		pinctrl-0 = <&sde_dsi_active &sde_te_active>;
+		pinctrl-1 = <&sde_dsi_suspend &sde_te_suspend>;
+
+		qcom,platform-te-gpio = <&tlmm 8 0>;
+		qcom,platform-reset-gpio = <&tlmm 5 0>;
+		qcom,panel-te-source = <0>;
+
+		vddi-supply = <&pm8150_s4>;
+		//	vpnl-supply = <N/A>;
+
+		qcom,dsi-display-list =
+			<&dsi_lg_v2_amoled_dsc_cmd_c3_display_ev1_5
+			&dsi_lg_v2_amoled_dsc_cmd_c3_display_ev2
+			&dsi_lg_v2_amoled_dsc_cmd_c3_display_dv
+			&dsi_lg_v2_amoled_dsc_vid_c3_display
+			&dsi_lg_amoled_dsc_cmd_c3_display>;
+	};
+
+	sde_dsi1: qcom,dsi-display-secondary {
+		compatible = "qcom,dsi-display";
+		label = "secondary";
+
+		qcom,dsi-ctrl = <&mdss_dsi0 &mdss_dsi1>;
+		qcom,dsi-phy = <&mdss_dsi_phy0 &mdss_dsi_phy1>;
+
+		clocks = <&mdss_dsi0_pll BYTECLK_MUX_0_CLK>,
+			<&mdss_dsi0_pll PCLK_MUX_0_CLK>,
+			<&mdss_dsi1_pll BYTECLK_MUX_1_CLK>,
+			<&mdss_dsi1_pll PCLK_MUX_1_CLK>;
+		clock-names = "mux_byte_clk0", "mux_pixel_clk0",
+									"mux_byte_clk1", "mux_pixel_clk1";
+
+		pinctrl-names = "panel_active", "panel_suspend";
+		pinctrl-0 = <&sde_dsi1_active &sde_te1_active>;
+		pinctrl-1 = <&sde_dsi1_suspend &sde_te1_suspend>;
+
+		qcom,platform-te-gpio = <&tlmm 9 0>;
+		qcom,platform-sec-reset-gpio = <&tlmm 6 0>;
+		qcom,panel-te-source = <1>;
+
+		vddi-supply = <&pm8150_s4>;
+		vpnl-supply = <&pm8150_l17>;
+
+		qcom,dsi-display-list =
+			<&dsi_lg_v2_amoled_dsc_cmd_r2_display_ev1_5
+			&dsi_lg_v2_amoled_dsc_cmd_r2_display_ev2
+			&dsi_lg_v2_amoled_dsc_cmd_r2_display_dv
+			&dsi_lg_v2_amoled_dsc_vid_r2_display
+			&dsi_lg_amoled_dsc_cmd_r2_display>;
+	};
+
+	sde_wb: qcom,wb-display@0 {
+		compatible = "qcom,wb-display";
+		cell-index = <0>;
+		label = "wb_display";
+	};
+
+  ext_disp: qcom,msm-ext-disp {
+		compatible = "qcom,msm-ext-disp";
+
+		ext_disp_audio_codec: qcom,msm-ext-disp-audio-codec-rx {
+			compatible = "qcom,msm-ext-disp-audio-codec-rx";
+		};
+	};
+};
+
+&sde_dp {
+	qcom,dp-usbpd-detection = <&pm8150b_pdphy>;
+	qcom,ext-disp = <&ext_disp>;
+	qcom,dp-aux-switch = <&fsa4480>;
+
+	qcom,usbplug-cc-gpio = <&tlmm 38 0>;
+
+	pinctrl-names = "mdss_dp_active", "mdss_dp_sleep";
+	pinctrl-0 = <&sde_dp_usbplug_cc_active>;
+	pinctrl-1 = <&sde_dp_usbplug_cc_suspend>;
+};
+
+&mdss_mdp {
+	connectors = <&sde_rscc &sde_wb &sde_dp &sde_dsi &sde_dsi1>;
+	/* Only first layer mixer is for primary */
+	qcom,sde-mixer-display-pref = "primary", "none", "none",
+	                    "none", "none", "none";
+
+	dsi_lg_amoled_dsc_cmd_C3: qcom,mdss_dsi_panel_lg_amoled_cmd_C3 {
+		qcom,mdss-dsi-panel-name = "dsi panel lg amoled cmd C3";
+
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply_c3>;
+		qcom,platform-te-gpio = <&tlmm 8 0>;
+		qcom,platform-reset-gpio = <&tlmm 5 0>;
+
+#include "surface-duo-display-panel-lg-cmd-common.dtsi"
+
+	};
+
+	dsi_lg_amoled_dsc_cmd_R2: qcom,mdss_dsi_panel_lg_amoled_cmd_R2 {
+		qcom,mdss-dsi-panel-name = "dsi panel lg amoled cmd R2";
+
+		qcom,mdss-dsi-sec-bl-pmic-control-type = "bl_ctrl_dcs";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,panel-sec-supply-entries = <&dsi_panel_pwr_supply_r2>;
+		qcom,platform-te-gpio = <&tlmm 9 0>;
+		qcom,platform-sec-reset-gpio = <&tlmm 6 0>;
+
+#include "surface-duo-display-panel-lg-cmd-common.dtsi"
+
+	};
+};
+
+&dsi_lg_v2_amoled_dsc_vid_c3 {
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply_c3>;
+		qcom,platform-te-gpio = <&tlmm 8 0>;
+		qcom,platform-reset-gpio = <&tlmm 5 0>;
+};
+
+&dsi_lg_v2_amoled_dsc_vid_r2 {
+		qcom,panel-sec-supply-entries = <&dsi_panel_pwr_supply_r2>;
+		qcom,platform-te-gpio = <&tlmm 9 0>;
+		qcom,platform-sec-reset-gpio = <&tlmm 6 0>;
+};
+
+&dsi_lg_v2_amoled_dsc_cmd_c3_ev1_5 {
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply_c3>;
+		qcom,platform-te-gpio = <&tlmm 8 0>;
+		qcom,platform-reset-gpio = <&tlmm 5 0>;
+};
+
+&dsi_lg_v2_amoled_dsc_cmd_r2_ev1_5 {
+		qcom,panel-sec-supply-entries = <&dsi_panel_pwr_supply_r2>;
+		qcom,platform-te-gpio = <&tlmm 9 0>;
+		qcom,platform-sec-reset-gpio = <&tlmm 6 0>;
+};
+
+&dsi_lg_v2_amoled_dsc_cmd_c3_ev2 {
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply_c3>;
+		qcom,platform-te-gpio = <&tlmm 8 0>;
+		qcom,platform-reset-gpio = <&tlmm 5 0>;
+};
+
+&dsi_lg_v2_amoled_dsc_cmd_r2_ev2 {
+		qcom,panel-sec-supply-entries = <&dsi_panel_pwr_supply_r2>;
+		qcom,platform-te-gpio = <&tlmm 9 0>;
+		qcom,platform-sec-reset-gpio = <&tlmm 6 0>;
+};
+
+&dsi_lg_v2_amoled_dsc_cmd_c3_dv {
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply_c3>;
+		qcom,platform-te-gpio = <&tlmm 8 0>;
+		qcom,platform-reset-gpio = <&tlmm 5 0>;
+};
+
+&dsi_lg_v2_amoled_dsc_cmd_r2_dv {
+		qcom,panel-sec-supply-entries = <&dsi_panel_pwr_supply_r2>;
+		qcom,platform-te-gpio = <&tlmm 9 0>;
+		qcom,platform-sec-reset-gpio = <&tlmm 6 0>;
+};
