@@ -5863,7 +5863,11 @@ static ssize_t arm_smmu_debug_testbus_read(struct file *file,
 							testbus_version);
 		arm_smmu_power_off(pwr);
 
+<<<<<<< HEAD
 		snprintf(buf, buf_len, "0x%0lx\n", val);
+=======
+		snprintf(buf, buf_len, "0x%0x\lx", val);
+>>>>>>> 0499f0fd372b9858858bbb11154f40df2d00599b
 	} else {
 
 		struct arm_smmu_device *smmu = file->private_data;

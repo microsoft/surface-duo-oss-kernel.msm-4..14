@@ -52,9 +52,15 @@
 		kthread_queue_work(&hdcp->worker, &hdcp->wk_##x); \
 }
 
+<<<<<<< HEAD
 #define hdcp_min_enc_level_0  0
 #define hdcp_min_enc_level_1  1
 #define hdcp_min_enc_level_2  2
+=======
+#define hdcp_min_enc_level_0   0
+#define hdcp_min_enc_level_1   1
+#define hdcp_min_enc_level_2   2
+>>>>>>> 0499f0fd372b9858858bbb11154f40df2d00599b
 
 struct sde_hdcp_2x_ctrl {
 	struct hdcp2_app_data app_data;

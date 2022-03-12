@@ -182,13 +182,21 @@ static ssize_t time_async_show(struct device *dev,
 
 	ret = mhi_get_remote_time(mhi_dev, seq, &mhi_time_async_cb);
 	if (ret) {
+<<<<<<< HEAD
 		MHI_ERR("Failed to request time, seq:%llx, ret:%d\n", (unsigned long long)seq, ret);
+=======
+		MHI_ERR("Failed to request time, seq:%lu, ret:%d\n", (unsigned long)seq, ret);
+>>>>>>> 0499f0fd372b9858858bbb11154f40df2d00599b
 		return scnprintf(buf, PAGE_SIZE,
 				 "Request failed or feature unsupported\n");
 	}
 
 	return scnprintf(buf, PAGE_SIZE,
+<<<<<<< HEAD
 			 "Requested time asynchronously with seq:%llx\n", (unsigned long long)seq);
+=======
+			 "Requested time asynchronously with seq:%lu\n", (unsigned long)seq);
+>>>>>>> 0499f0fd372b9858858bbb11154f40df2d00599b
 }
 static DEVICE_ATTR_RO(time_async);
 
@@ -206,13 +214,21 @@ static ssize_t time_us_async_show(struct device *dev,
 
 	ret = mhi_get_remote_time(mhi_dev, seq, &mhi_time_us_async_cb);
 	if (ret) {
+<<<<<<< HEAD
 		MHI_ERR("Failed to request time, seq:%llx, ret:%d\n", (unsigned long long)seq, ret);
+=======
+		MHI_ERR("Failed to request time, seq:%lu, ret:%d\n", (unsigned long)seq, ret);
+>>>>>>> 0499f0fd372b9858858bbb11154f40df2d00599b
 		return scnprintf(buf, PAGE_SIZE,
 				 "Request failed or feature unsupported\n");
 	}
 
 	return scnprintf(buf, PAGE_SIZE,
+<<<<<<< HEAD
 			 "Requested time asynchronously with seq:%llx\n", (unsigned long long)seq);
+=======
+			 "Requested time asynchronously with seq:%lu\n", (unsigned long)seq);
+>>>>>>> 0499f0fd372b9858858bbb11154f40df2d00599b
 }
 static DEVICE_ATTR_RO(time_us_async);
 

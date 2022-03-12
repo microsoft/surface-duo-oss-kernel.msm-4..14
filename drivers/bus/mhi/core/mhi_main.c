@@ -122,7 +122,11 @@ static void mhi_reg_write_enqueue(struct mhi_controller *mhi_cntrl,
 
 	q_index = q_index & (REG_WRITE_QUEUE_LEN - 1);
 
+<<<<<<< HEAD
 	MHI_ASSERT(mhi_cntrl->reg_write_q[q_index].valid, ("queue full idx %s", (const char *)(mhi_cntrl->reg_write_q[q_index].valid)));
+=======
+	MHI_ASSERT(mhi_cntrl->reg_write_q[q_index].valid, ("queue full idx %d", (const char *)mhi_cntrl->reg_write_q[q_index].valid));
+>>>>>>> 0499f0fd372b9858858bbb11154f40df2d00599b
 
 	mhi_cntrl->reg_write_q[q_index].reg_addr =  reg_addr;
 	mhi_cntrl->reg_write_q[q_index].val = val;
@@ -1383,7 +1387,11 @@ int mhi_process_tsync_ev_ring(struct mhi_controller *mhi_cntrl,
 	remote_time = MHI_TRE_GET_EV_TIME(dev_rp);
 
 	MHI_VERB("Received TSYNC event with seq:0x%lu time:0x%llx\n",
+<<<<<<< HEAD
 		 (unsigned long)sequence, remote_time);
+=======
+		 sequence, (const char *)(&(mhi_tsync->int_sequence))));
+>>>>>>> 0499f0fd372b9858858bbb11154f40df2d00599b
 
 	read_lock_bh(&mhi_cntrl->pm_lock);
 	if (likely(MHI_DB_ACCESS_VALID(mhi_cntrl)))
