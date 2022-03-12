@@ -931,6 +931,40 @@ KBUILD_CFLAGS   += $(call cc-option,-Werror=incompatible-pointer-types)
 # Require designated initializers for all marked structures
 KBUILD_CFLAGS   += $(call cc-option,-Werror=designated-init)
 
+#Suppress Unitialized warning in set_process_cpu_timer in posix-cpu-timers.c
+KBUILD_CFLAGS	+= $(call cc-disable-warning, maybe-uninitialized)
+
+#Suppress too many arguments warning in uaduio_qmi_bye_cb in usb_audio_svc.c
+KBUILD_CFLAGS	+= $(call cc-disable-warning, format-extra-args)
+
+#Suppress __read_overflow2 attribute error in memcpy from (Disable FORTIFY_SOURCE)
+KBUILD_CFLAGS	+= -D__NO_FORTIFY
+
+#Suppress -Wparentheses for arithmetic in mhi_internal.h:536:64
+KBUILD_CFLAGS	+= $(call cc-disable-warning, parentheses)
+
+#Suppress -Wunused-restult for sysfs_create_group in mhi_init.c:334:2
+KBUILD_CFLAGS	+= $(call cc-disable-warning, unused-result)
+
+#Suppress -Wunused-value for mhi_reg_write_enqueue in mhi_main.c:125:72 as the variable is pointed to %d in the function MHI_ASSERT
+KBUILD_CFLAGS	+= $(call cc-disable-warning, unused-value)
+
+#Suppress -Wsizeof-pointer-memaccess for sizeof argument in snprintf function for fd_show in hid-qvr.c:417:29
+#sending the sizeof(buf) is intentional
+KBUILD_CFLAGS	+= $(call cc-disable-warning, sizeof-pointer-memaccess)
+
+#Suppress -Wmissing-braces for qpnp-power-on.c:205:8 as the hierarchy in place seems to be intentional
+KBUILD_CFLAGS	+= $(call cc-disable-warning, missing-braces)
+
+#Suppress -Wpointer-to-int-cast for cam_vfe_fe_ver1.c:399:20 as the casting to uin32_t seems to be intentional
+KBUILD_CFLAGS	+= $(call cc-disable-warning, pointer-to-int-cast)
+
+#Suppress -Wint-to-pointer-cast for arm-ssmu.c:1604:4 as casting the function to a void * fixes a format error
+KBUILD_CFLAGS	+= $(call cc-disable-warning, int-to-pointer-cast)
+
+#Suppress -Wsequence-point in cam_icp_hw_mgr.c:3684:17 as this warning was removed in updated versions of C
+KBUILD_CFLAGS	+= $(call cc-disable-warning, sequence-point)
+
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
 
@@ -943,6 +977,8 @@ include scripts/Makefile.ubsan
 KBUILD_CPPFLAGS += $(ARCH_CPPFLAGS) $(KCPPFLAGS)
 KBUILD_AFLAGS   += $(ARCH_AFLAGS)   $(KAFLAGS)
 KBUILD_CFLAGS   += $(ARCH_CFLAGS)   $(KCFLAGS)
+
+
 
 # Use --build-id when available.
 LDFLAGS_BUILD_ID := $(patsubst -Wl$(comma)%,%,\

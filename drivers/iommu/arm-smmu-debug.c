@@ -94,9 +94,9 @@ static void arm_smmu_debug_dump_tbu_qns4_testbus(struct device *dev,
 		arm_smmu_debug_tbu_testbus_select(tbu_base, tcu_base,
 				testbus_version, WRITE, reg);
 		dev_info(dev, "testbus_sel: 0x%lx Index: %d val: 0x%llx\n",
-			arm_smmu_debug_tbu_testbus_select(tbu_base, tcu_base,
+			(long unsigned int)arm_smmu_debug_tbu_testbus_select(tbu_base, tcu_base,
 				testbus_version, READ, 0), i,
-			arm_smmu_debug_tbu_testbus_output(tbu_base,
+			(long long unsigned int)arm_smmu_debug_tbu_testbus_output(tbu_base,
 							testbus_version));
 	}
 }
@@ -128,10 +128,10 @@ void arm_smmu_debug_dump_tbu_testbus(struct device *dev, void __iomem *tbu_base,
 		arm_smmu_debug_program_tbu_testbus(tbu_base, tcu_base,
 				testbus_version,
 				TBU_CLK_GATE_CONTROLLER_TESTBUS);
-		dev_info(dev, "testbus_sel: 0x%lx val: 0x%llx\n",
-			arm_smmu_debug_tbu_testbus_select(tbu_base, tcu_base,
+		dev_info(dev, "testbus_sel: 0x%lx val: 0x%llx\n", 
+			(long unsigned int)arm_smmu_debug_tbu_testbus_select(tbu_base, tcu_base,
 						testbus_version, READ, 0),
-			arm_smmu_debug_tbu_testbus_output(tbu_base,
+			(long long unsigned int)arm_smmu_debug_tbu_testbus_output(tbu_base,
 							testbus_version));
 	}
 
@@ -157,9 +157,9 @@ void arm_smmu_debug_dump_tbu_testbus(struct device *dev, void __iomem *tbu_base,
 				testbus_version,
 				TBU_MULTIMASTER_QCHANNEL_TESTBUS);
 		dev_info(dev, "testbus_sel: 0x%lx val: 0x%llx\n",
-			arm_smmu_debug_tbu_testbus_select(tbu_base,
+			(long unsigned int)arm_smmu_debug_tbu_testbus_select(tbu_base,
 				tcu_base, testbus_version, READ, 0),
-			arm_smmu_debug_tbu_testbus_output(tbu_base,
+			(long long unsigned int)arm_smmu_debug_tbu_testbus_output(tbu_base,
 							testbus_version));
 	}
 }
@@ -181,9 +181,9 @@ static void arm_smmu_debug_program_tcu_testbus(struct device *dev,
 				PTW_AND_CACHE_TESTBUS, WRITE, reg);
 		if (print)
 			dev_info(dev, "testbus_sel: 0x%lx Index: %d val: 0x%lx\n",
-				 arm_smmu_debug_tcu_testbus_select(base,
+				 (long unsigned int)arm_smmu_debug_tcu_testbus_select(base,
 				 tcu_base, PTW_AND_CACHE_TESTBUS, READ, 0),
-				 i, arm_smmu_debug_tcu_testbus_output(base));
+				 i, (long unsigned int)arm_smmu_debug_tcu_testbus_output(base));
 	}
 }
 
@@ -218,9 +218,9 @@ void arm_smmu_debug_dump_tcu_testbus(struct device *dev, void __iomem *base,
 					~GENMASK(1, 0), TCU_PTW_TESTBUS_SEL2,
 					TCU_PTW_TESTBUS_SEL2 + 1, 0, false);
 			dev_info(dev, "testbus_sel: 0x%lx Index: %d val: 0x%lx\n",
-				 arm_smmu_debug_tcu_testbus_select(base,
+				 (long unsigned int)arm_smmu_debug_tcu_testbus_select(base,
 				 tcu_base, PTW_AND_CACHE_TESTBUS, READ, 0),
-				 i, arm_smmu_debug_tcu_testbus_output(base));
+				 i, (long unsigned int)arm_smmu_debug_tcu_testbus_output(base));
 		}
 	}
 
@@ -228,7 +228,7 @@ void arm_smmu_debug_dump_tcu_testbus(struct device *dev, void __iomem *base,
 	arm_smmu_debug_tcu_testbus_select(base, tcu_base,
 			CLK_TESTBUS, WRITE, TCU_CLK_TESTBUS_SEL);
 	dev_info(dev, "Programming Tcu clk gate controller: testbus_sel: 0x%lx\n",
-		arm_smmu_debug_tcu_testbus_select(base, tcu_base,
+		(long unsigned int)arm_smmu_debug_tcu_testbus_select(base, tcu_base,
 						CLK_TESTBUS, READ, 0));
 }
 

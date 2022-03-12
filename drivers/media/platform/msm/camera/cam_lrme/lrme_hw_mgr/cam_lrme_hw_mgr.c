@@ -337,7 +337,7 @@ static int cam_lrme_mgr_util_prepare_hw_update_entries(
 
 		if (rc || (!vaddr_ptr) || (!len)) {
 			CAM_ERR(CAM_LRME,
-				"hdl=%x vaddr=%pK offset=%d cmdBufflen=%d cmdlen=%d index=%d num_cmd_buf=%d",
+				"hdl=%x vaddr=%pK offset=%d cmdBufflen=%d cmdlen=%ld index=%d num_cmd_buf=%d",
 				cmd_desc[i].mem_handle, (void *)vaddr_ptr,
 				cmd_desc[i].offset, cmd_desc[i].length, len, i,
 				prepare->packet->num_cmd_buf);

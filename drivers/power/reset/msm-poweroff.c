@@ -414,7 +414,7 @@ static void deassert_ps_hold(void)
 
 static void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
 {
-	pr_notice("Going down for restart now reboot_mode %d cmd %s \n");
+	pr_notice("Going down for restart now reboot_mode %d cmd %x \n", reboot_mode, *cmd);
 
 	msm_restart_prepare(cmd);
 

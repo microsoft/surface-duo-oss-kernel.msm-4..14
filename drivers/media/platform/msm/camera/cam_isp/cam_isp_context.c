@@ -243,7 +243,7 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 
 		if (log_rate_limit) {
 			CAM_DBG(CAM_ISP,
-			"time[%lld] last reported req_id[%u] frame id[%lld] applied id[%lld] current state[%s] next state[%s] hw_event[%s]",
+			"time[%lld] last reported req_id[%lld] frame id[%lld] applied id[%lld] current state[%s] next state[%s] hw_event[%s]",
 			ctx_monitor[index].evt_time_stamp,
 			ctx_monitor[index].last_reported_id,
 			ctx_monitor[index].frame_id,
@@ -257,7 +257,7 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 
 		} else {
 			CAM_INFO(CAM_ISP,
-			"time[%lld] last reported req_id[%u] frame id[%lld] applied id[%lld] current state[%s] next state[%s] hw_event[%s]",
+			"time[%lld] last reported req_id[%lld] frame id[%lld] applied id[%lld] current state[%s] next state[%s] hw_event[%s]",
 			ctx_monitor[index].evt_time_stamp,
 			ctx_monitor[index].last_reported_id,
 			ctx_monitor[index].frame_id,

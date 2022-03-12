@@ -4014,7 +4014,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 
 		if (blob_size < (sizeof(uint32_t) * 2 + hfr_config->num_ports *
 			sizeof(struct cam_isp_port_hfr_config))) {
-			CAM_ERR(CAM_ISP, "Invalid blob size %u expected %u",
+			CAM_ERR(CAM_ISP, "Invalid blob size %u expected %lu",
 				blob_size, sizeof(uint32_t) * 2 +
 				sizeof(struct cam_isp_port_hfr_config) *
 				hfr_config->num_ports);
@@ -4045,7 +4045,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 
 		if (blob_size < (sizeof(uint32_t) * 2 + sizeof(uint64_t) *
 			(clock_config->num_rdi + 2))) {
-			CAM_ERR(CAM_ISP, "Invalid blob size %u expected %u",
+			CAM_ERR(CAM_ISP, "Invalid blob size %u expected %lu",
 				blob_size,
 				sizeof(uint32_t) * 2 + sizeof(uint64_t) *
 				(clock_config->num_rdi + 2));

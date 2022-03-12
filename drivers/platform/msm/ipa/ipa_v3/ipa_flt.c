@@ -1160,7 +1160,7 @@ static void __ipa_convert_flt_rule_in(struct ipa_flt_rule rule_in,
 {
 	if (unlikely(sizeof(struct ipa_flt_rule) >
 			sizeof(struct ipa_flt_rule_i))) {
-		IPAERR_RL("invalid size in:%d size out:%d\n",
+		IPAERR_RL("invalid size in:%lx size out:%lx\n",
 			sizeof(struct ipa_flt_rule_i),
 			sizeof(struct ipa_flt_rule));
 		return;
