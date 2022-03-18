@@ -1,4 +1,5 @@
 /* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -3753,6 +3754,9 @@ static struct platform_driver rotator_driver = {
 		.of_match_table = sde_rotator_dt_match,
 		.pm = &sde_rotator_pm_ops,
 		.suppress_bind_attrs = true,
+		/* MSCHANGE Start Make it ASYNC to improve boot time*/
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
+		/* MSCHANGE End */
 	},
 };
 
@@ -3766,6 +3770,9 @@ static void __exit sde_rotator_exit_module(void)
 	platform_driver_unregister(&rotator_driver);
 }
 
-module_init(sde_rotator_init_module);
+/* MSCHANGE Start move init call to late init, since its waiting for pm_domain */
+//module_init(sde_rotator_init_module);
+late_initcall(sde_rotator_init_module);
+/* MSCHANGE End */
 module_exit(sde_rotator_exit_module);
 MODULE_DESCRIPTION("MSM SDE ROTATOR driver");
