@@ -1,0 +1,79 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
+
+/*#include "pm8150.dtsi"
+#include "pm8150b.dtsi"
+#include "pm8150l.dtsi"
+#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>*/
+
+/* PMIC GPIO pin control configurations: */
+&pm8150l_gpios {
+    vref_ctrl_1: vref_ctrl_1 {
+        pins = "gpio1";
+        function = "normal";
+        power-source = <0>;
+        drive-push-pull;
+        output-low;
+    };
+
+    vref_ctrl_2: vref_ctrl_2 {
+        pins = "gpio2";
+        function = "normal";
+        power-source = <0>;
+        drive-push-pull;
+        output-low;
+    };
+
+    vref_ctrl_3: vref_ctrl_3 {
+        pins = "gpio3";
+        function = "normal";
+        power-source = <0>;
+        drive-push-pull;
+        output-low;
+    };
+
+    vref_ctrl_4: vref_ctrl_4 {
+        pins = "gpio4";
+        function = "normal";
+        power-source = <0>;
+        drive-push-pull;
+        output-low;
+    };
+
+    cell_c3_disc: cell_c3_disc {
+        pins = "gpio5";
+        function = "normal";
+        power-source = <0>;
+        drive-push-pull;
+        output-low;
+    };
+
+    cell_r2_disc: cell_r2_disc {
+        pins = "gpio8";
+        function = "normal";
+        power-source = <0>;
+        drive-push-pull;
+        output-low;
+    };
+
+    rshare_ctrl: rshare_ctrl {
+        pins = "gpio10";
+        function = "normal";
+        power-source = <0>;
+        drive-push-pull;
+        output-low;
+    };
+
+    bypass_shdn_n: bypass_shdn_n {
+        pins = "gpio11";
+        function = "normal";
+        power-source = <0>;
+        drive-push-pull;
+        output-low;
+    };
+};

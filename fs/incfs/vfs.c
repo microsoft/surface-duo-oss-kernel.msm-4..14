@@ -15,6 +15,7 @@
 #include <linux/seq_file.h>
 #include <linux/syscalls.h>
 #include <linux/xattr.h>
+#include <linux/wait.h>
 
 #include <uapi/linux/incrementalfs.h>
 
@@ -30,9 +31,6 @@
 #define READ_FILE_MODE 0444
 #define READ_EXEC_FILE_MODE 0555
 #define READ_WRITE_FILE_MODE 0666
-
-/* Needed for kernel 4.14 - remove for later kernels */
-typedef unsigned int __poll_t;
 
 static int incfs_remount_fs(struct super_block *sb, int *flags, char *data);
 
@@ -900,14 +898,14 @@ static int init_new_file(struct mount_info *mi, struct dentry *dentry,
 		.dentry = dentry
 	};
 	new_file = dentry_open(&path, O_RDWR | O_NOATIME | O_LARGEFILE,
-			       mi->mi_owner);
+			       current_cred());
 
 	if (IS_ERR(new_file)) {
 		error = PTR_ERR(new_file);
 		goto out;
 	}
 
-	bfc = incfs_alloc_bfc(new_file);
+	bfc = incfs_alloc_bfc(mi, new_file);
 	fput(new_file);
 	if (IS_ERR(bfc)) {
 		error = PTR_ERR(bfc);
@@ -1028,7 +1026,7 @@ static int dir_relative_path_resolve(
 	if (dir_fd < 0)
 		return dir_fd;
 
-	dir_f = dentry_open(base_path, O_RDONLY | O_NOATIME, mi->mi_owner);
+	dir_f = dentry_open(base_path, O_RDONLY | O_NOATIME, current_cred());
 
 	if (IS_ERR(dir_f)) {
 		error = PTR_ERR(dir_f);
@@ -1906,10 +1904,13 @@ static int file_open(struct inode *inode, struct file *file)
 	struct file *backing_file = NULL;
 	struct path backing_path = {};
 	int err = 0;
+	const struct cred *old_cred;
 
 	get_incfs_backing_path(file->f_path.dentry, &backing_path);
-	backing_file = dentry_open(
-		&backing_path, O_RDWR | O_NOATIME | O_LARGEFILE, mi->mi_owner);
+	old_cred = override_creds(mi->mi_owner);
+	backing_file = dentry_open(&backing_path,
+			O_RDWR | O_NOATIME | O_LARGEFILE, current_cred());
+	revert_creds(old_cred);
 	path_put(&backing_path);
 
 	if (IS_ERR(backing_file)) {
