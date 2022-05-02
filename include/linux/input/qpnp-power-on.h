@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2015, 2017-2018, The Linux Foundation.
+ * Copyright (c) 2020 Microsoft Corporation
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -61,6 +62,11 @@ enum pon_restart_reason {
 	PON_RESTART_REASON_DMVERITY_CORRUPTED	= 0x04,
 	PON_RESTART_REASON_DMVERITY_ENFORCE	= 0x05,
 	PON_RESTART_REASON_KEYS_CLEAR		= 0x06,
+	PON_RESTART_REASON_SHIPMODE		= 0x07,        //MSCHANGE: Enable shipmode
+	PON_RESTART_REASON_RNRMODE		= 0x08,
+	PON_RESTART_BATTERY_DRIVER_TRIGGERED_RSOC_IMBALANCE = 0x09,   	// MSCHANGE battery driver triggered reset reason
+	PON_RESTART_BATTERY_DRIVER_TRIGGERED_FG_FAULT = 0x0A,   	// MSCHANGE battery driver triggered reset reason
+	PON_RESTART_KERNEL_PANIC=0x0B,					// MSCHANGE Add code to indicate that reset occurred due to kernel panic
 };
 
 #ifdef CONFIG_INPUT_QPNP_POWER_ON
