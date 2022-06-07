@@ -1,4 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0
+#
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
 VERSION = 4
 PATCHLEVEL = 14
 SUBLEVEL = 190
@@ -1338,11 +1345,15 @@ else
 	UTS_RELEASE=$(KERNELRELEASE)
 endif
 define filechk_utsrelease.h
-	if [ `echo -n "$(UTS_RELEASE)" | wc -c ` -gt $(uts_len) ]; then \
-		echo '"$(UTS_RELEASE)" exceeds $(uts_len) characters' >&2;    \
-		exit 1;                                                       \
-	fi;                                                             \
-	(echo \#define UTS_RELEASE \"$(UTS_RELEASE)\";)
+	if [ `echo -n "$(KERNELRELEASE)" | wc -c ` -gt $(uts_len) ]; then   \
+	  echo '"$(KERNELRELEASE)" exceeds $(uts_len) characters' >&2;      \
+	  exit 1;                                                           \
+	fi;                                                                 \
+	if [ -n "$(BUILD_NUMBER)" ]; then                                   \
+	  (echo \#define UTS_RELEASE \"$(KERNELRELEASE)-ab$(BUILD_NUMBER)\";) \
+	else                                                                \
+	  (echo \#define UTS_RELEASE \"$(KERNELRELEASE)\";)                 \
+	fi
 endef
 
 define filechk_version.h
@@ -1392,7 +1403,7 @@ headers_install: __headers
 	  $(error Headers not exportable for the $(SRCARCH) architecture))
 	$(Q)$(MAKE) $(hdr-inst)=include/uapi dst=include
 	$(Q)$(MAKE) $(hdr-inst)=arch/$(hdr-arch)/include/uapi $(hdr-dst)
-	$(Q)$(MAKE) $(hdr-inst)=techpack
+	$(Q)$(MAKE) $(hdr-inst)=techpack dst=include
 
 PHONY += headers_check_all
 headers_check_all: headers_install_all
@@ -1402,7 +1413,7 @@ PHONY += headers_check
 headers_check: headers_install
 	$(Q)$(MAKE) $(hdr-inst)=include/uapi dst=include HDRCHECK=1
 	$(Q)$(MAKE) $(hdr-inst)=arch/$(hdr-arch)/include/uapi $(hdr-dst) HDRCHECK=1
-	$(Q)$(MAKE) $(hdr-inst)=techpack HDRCHECK=1
+	$(Q)$(MAKE) $(hdr-inst)=techpack dst=include HDRCHECK=1
 
 # ---------------------------------------------------------------------------
 # Kernel selftest

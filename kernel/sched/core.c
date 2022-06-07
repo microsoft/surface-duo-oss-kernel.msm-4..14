@@ -4,6 +4,7 @@
  *  Core kernel scheduler code and related syscalls
  *
  *  Copyright (C) 1991-2002  Linus Torvalds
+ *  Copyright (c) 2020 Microsoft Corporation
  */
 #include <linux/sched.h>
 #include <linux/sched/clock.h>
