@@ -15,6 +15,7 @@
 #include <linux/seq_file.h>
 #include <linux/syscalls.h>
 #include <linux/xattr.h>
+#include <linux/wait.h>
 
 #include <uapi/linux/incrementalfs.h>
 
@@ -30,9 +31,6 @@
 #define READ_FILE_MODE 0444
 #define READ_EXEC_FILE_MODE 0555
 #define READ_WRITE_FILE_MODE 0666
-
-/* Needed for kernel 4.14 - remove for later kernels */
-typedef unsigned int __poll_t;
 
 static int incfs_remount_fs(struct super_block *sb, int *flags, char *data);
 

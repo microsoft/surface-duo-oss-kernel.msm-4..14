@@ -1,0 +1,413 @@
+/* SPDX-License-Identifier: GPL-2.0+ */
+/*
+ * DA7280 Haptic device driver registers
+ *
+ * Copyright (c) 2020 Microsoft Corporation
+ * Copyright (c) 2017 Dialog Semiconductor.
+ * Author: Roy Im <Roy.Im.Opensource@diasemi.com>
+ */
+
+#ifndef _DA7280_REG_DEFS_H
+#define _DA7280_REG_DEFS_H
+
+#include <linux/bitops.h>
+
+/* Registers */
+
+#define DA7280_CHIP_REV                       0x00
+#define DA7280_IRQ_EVENT1                     0x03
+#define DA7280_IRQ_EVENT_WARNING_DIAG         0x04
+#define DA7280_IRQ_EVENT_SEQ_DIAG             0x05
+#define DA7280_IRQ_STATUS1                    0x06
+#define DA7280_IRQ_MASK1                      0x07
+#define DA7280_CIF_I2C1                       0x08
+#define DA7280_FRQ_LRA_PER_H                  0x0A
+#define DA7280_FRQ_LRA_PER_L                  0x0B
+#define DA7280_ACTUATOR1                      0x0C
+#define DA7280_ACTUATOR2                      0x0D
+#define DA7280_ACTUATOR3                      0x0E
+#define DA7280_CALIB_V2I_H                    0x0F
+#define DA7280_CALIB_V2I_L                    0x10
+#define DA7280_CALIB_IMP_H                    0x11
+#define DA7280_CALIB_IMP_L                    0x12
+#define DA7280_TOP_CFG1                       0x13
+#define DA7280_TOP_CFG2                       0x14
+#define DA7280_TOP_CFG3                       0x15
+#define DA7280_TOP_CFG4                       0x16
+#define DA7280_TOP_INT_CFG1                   0x17
+#define DA7280_TOP_INT_CFG6_H                 0x1C
+#define DA7280_TOP_INT_CFG6_L                 0x1D
+#define DA7280_TOP_INT_CFG7_H                 0x1E
+#define DA7280_TOP_INT_CFG7_L                 0x1F
+#define DA7280_TOP_INT_CFG8                   0x20
+#define DA7280_TOP_CTL1                       0x22
+#define DA7280_TOP_CTL2                       0x23
+#define DA7280_SEQ_CTL1                       0x24
+#define DA7280_SWG_C1                         0x25
+#define DA7280_SWG_C2                         0x26
+#define DA7280_SWG_C3                         0x27
+#define DA7280_SEQ_CTL2                       0x28
+#define DA7280_GPI_0_CTL                      0x29
+#define DA7280_GPI_1_CTL                      0x2A
+#define DA7280_GPI_2_CTL                      0x2B
+#define DA7280_MEM_CTL1                       0x2C
+#define DA7280_MEM_CTL2                       0x2D
+#define DA7280_ADC_DATA_H1                    0x2E
+#define DA7280_ADC_DATA_L1                    0x2F
+#define DA7280_POLARITY                       0x43
+#define DA7280_LRA_AVR_H                      0x44
+#define DA7280_LRA_AVR_L                      0x45
+#define DA7280_FRQ_LRA_PER_ACT_H              0x46
+#define DA7280_FRQ_LRA_PER_ACT_L              0x47
+#define DA7280_FRQ_PHASE_H                    0x48
+#define DA7280_FRQ_PHASE_L                    0x49
+#define DA7280_FRQ_CTL                        0x4C
+#define DA7280_TRIM3                          0x5F
+#define DA7280_TRIM4                          0x60
+#define DA7280_TRIM6                          0x62
+#define DA7280_TOP_CFG5                       0x6E
+#define DA7280_IRQ_EVENT_ACTUATOR_FAULT       0x81
+#define DA7280_IRQ_STATUS2                    0x82
+#define DA7280_IRQ_MASK2                      0x83
+#define DA7280_SNP_MEM_0                      0x84
+#define DA7280_SNP_MEM_99                     0xE7
+
+/* DA7280_CHIP_REV (Address 0x00) */
+#define DA7280_CHIP_REV_MAJOR_SHIFT		0
+#define DA7280_CHIP_REV_MAJOR_MASK		(15 << 0)
+#define DA7280_CHIP_REV_MINOR_SHIFT		4
+#define DA7280_CHIP_REV_MINOR_MASK		(15 << 4)
+
+/* DA7280_IRQ_EVENT1 (Address 0x03) */
+#define DA7280_E_SEQ_CONTINUE_SHIFT		0
+#define DA7280_E_SEQ_CONTINUE_MASK		BIT(0)
+#define DA7280_E_UVLO_SHIFT			1
+#define DA7280_E_UVLO_MASK			BIT(1)
+#define DA7280_E_SEQ_DONE_SHIFT			2
+#define DA7280_E_SEQ_DONE_MASK			BIT(2)
+#define DA7280_E_OVERTEMP_CRIT_SHIFT		3
+#define DA7280_E_OVERTEMP_CRIT_MASK		BIT(3)
+#define DA7280_E_SEQ_FAULT_SHIFT		4
+#define DA7280_E_SEQ_FAULT_MASK			BIT(4)
+#define DA7280_E_WARNING_SHIFT			5
+#define DA7280_E_WARNING_MASK			BIT(5)
+#define DA7280_E_ACTUATOR_FAULT_SHIFT		6
+#define DA7280_E_ACTUATOR_FAULT_MASK		BIT(6)
+#define DA7280_E_OC_FAULT_SHIFT			7
+#define DA7280_E_OC_FAULT_MASK			BIT(7)
+
+/* DA7280_IRQ_EVENT_WARNING_DIAG (Address 0x04) */
+#define DA7280_E_OVERTEMP_WARN_SHIFT            3
+#define DA7280_E_OVERTEMP_WARN_MASK             BIT(3)
+#define DA7280_E_MEM_TYPE_SHIFT                 4
+#define DA7280_E_MEM_TYPE_MASK                  BIT(4)
+#define DA7280_E_LIM_DRIVE_ACC_SHIFT            6
+#define DA7280_E_LIM_DRIVE_ACC_MASK             BIT(6)
+#define DA7280_E_LIM_DRIVE_SHIFT                7
+#define DA7280_E_LIM_DRIVE_MASK                 BIT(7)
+
+/* DA7280_IRQ_EVENT_PAT_DIAG (Address 0x05) */
+#define DA7280_E_PWM_FAULT_SHIFT		5
+#define DA7280_E_PWM_FAULT_MASK			BIT(5)
+#define DA7280_E_MEM_FAULT_SHIFT		6
+#define DA7280_E_MEM_FAULT_MASK			BIT(6)
+#define DA7280_E_SEQ_ID_FAULT_SHIFT		7
+#define DA7280_E_SEQ_ID_FAULT_MASK		BIT(7)
+
+/* DA7280_IRQ_STATUS1 (Address 0x06) */
+#define DA7280_STA_SEQ_CONTINUE_SHIFT		0
+#define DA7280_STA_SEQ_CONTINUE_MASK		BIT(0)
+#define DA7280_STA_UVLO_VBAT_OK_SHIFT		1
+#define DA7280_STA_UVLO_VBAT_OK_MASK		BIT(1)
+#define DA7280_STA_SEQ_DONE_SHIFT		2
+#define DA7280_STA_SEQ_DONE_MASK		BIT(2)
+#define DA7280_STA_OVERTEMP_CRIT_SHIFT		3
+#define DA7280_STA_OVERTEMP_CRIT_MASK		BIT(3)
+#define DA7280_STA_SEQ_FAULT_SHIFT		4
+#define DA7280_STA_SEQ_FAULT_MASK		BIT(4)
+#define DA7280_STA_WARNING_SHIFT		5
+#define DA7280_STA_WARNING_MASK			BIT(5)
+#define DA7280_STA_ACTUATOR_SHIFT		6
+#define DA7280_STA_ACTUATOR_MASK		BIT(6)
+#define DA7280_STA_OC_SHIFT			7
+#define DA7280_STA_OC_MASK			BIT(7)
+
+/* DA7280_IRQ_MASK1 (Address 0x07) */
+#define DA7280_SEQ_CONTINUE_M_SHIFT		0
+#define DA7280_SEQ_CONTINUE_M_MASK		BIT(0)
+#define DA7280_E_UVLO_M_SHIFT			1
+#define DA7280_E_UVLO_M_MASK			BIT(1)
+#define DA7280_SEQ_DONE_M_SHIFT			2
+#define DA7280_SEQ_DONE_M_MASK			BIT(2)
+#define DA7280_OVERTEMP_CRIT_M_SHIFT		3
+#define DA7280_OVERTEMP_CRIT_M_MASK		BIT(3)
+#define DA7280_SEQ_FAULT_M_SHIFT		4
+#define DA7280_SEQ_FAULT_M_MASK			BIT(4)
+#define DA7280_WARNING_M_SHIFT			5
+#define DA7280_WARNING_M_MASK			BIT(5)
+#define DA7280_ACTUATOR_M_SHIFT			6
+#define DA7280_ACTUATOR_M_MASK			BIT(6)
+#define DA7280_OC_M_SHIFT			7
+#define DA7280_OC_M_MASK			BIT(7)
+
+/* DA7280_CIF_I2C1 (Address 0x08) */
+#define DA7280_I2C_TO_ENABLE_SHIFT		6
+#define DA7280_I2C_TO_ENABLE_MASK		BIT(6)
+#define DA7280_I2C_WR_MODE_SHIFT		7
+#define DA7280_I2C_WR_MODE_MASK			BIT(7)
+
+/* DA7280_FRQ_LRA_PER_H (Address 0x0a) */
+#define DA7280_LRA_PER_H_SHIFT			0
+#define DA7280_LRA_PER_H_MASK			(255 << 0)
+
+/* DA7280_FRQ_LRA_PER_L (Address 0x0b) */
+#define DA7280_LRA_PER_L_SHIFT			0
+#define DA7280_LRA_PER_L_MASK			(127 << 0)
+
+/* DA7280_ACTUATOR1 (Address 0x0c) */
+#define DA7280_ACTUATOR_NOMMAX_SHIFT		0
+#define DA7280_ACTUATOR_NOMMAX_MASK		(255 << 0)
+
+/* DA7280_ACTUATOR2 (Address 0x0d) */
+#define DA7280_ACTUATOR_ABSMAX_SHIFT		0
+#define DA7280_ACTUATOR_ABSMAX_MASK		(255 << 0)
+
+/* DA7280_ACTUATOR3 (Address 0x0e) */
+#define DA7280_IMAX_SHIFT			0
+#define DA7280_IMAX_MASK			(31 << 0)
+
+/* DA7280_CALIB_V2I_H (Address 0x0f) */
+#define DA7280_V2I_FACTOR_H_SHIFT		0
+#define DA7280_V2I_FACTOR_H_MASK		(255 << 0)
+
+/* DA7280_CALIB_V2I_L (Address 0x10) */
+#define DA7280_V2I_FACTOR_L_SHIFT		0
+#define DA7280_V2I_FACTOR_L_MASK		(255 << 0)
+
+/* DA7280_CALIB_IMP_H (Address 0x11) */
+#define DA7280_IMPEDANCE_H_SHIFT		0
+#define DA7280_IMPEDANCE_H_MASK			(255 << 0)
+
+/* DA7280_CALIB_IMP_L (Address 0x12) */
+#define DA7280_IMPEDANCE_L_SHIFT		0
+#define DA7280_IMPEDANCE_L_MASK			(3 << 0)
+
+/* DA7280_TOP_CFG1 (Address 0x13) */
+#define DA7280_AMP_PID_EN_SHIFT			0
+#define DA7280_AMP_PID_EN_MASK			BIT(0)
+#define DA7280_RAPID_STOP_EN_SHIFT		1
+#define DA7280_RAPID_STOP_EN_MASK		BIT(1)
+#define DA7280_ACCELERATION_EN_SHIFT		2
+#define DA7280_ACCELERATION_EN_MASK		BIT(2)
+#define DA7280_FREQ_TRACK_EN_SHIFT		3
+#define DA7280_FREQ_TRACK_EN_MASK		BIT(3)
+#define DA7280_BEMF_SENSE_EN_SHIFT		 4
+#define DA7280_BEMF_SENSE_EN_MASK		BIT(4)
+#define DA7280_ACTUATOR_TYPE_SHIFT		5
+#define DA7280_ACTUATOR_TYPE_MASK		BIT(5)
+#define DA7280_EMBEDDED_MODE_SHIFT		7
+#define DA7280_EMBEDDED_MODE_MASK		BIT(7)
+
+/* DA7280_TOP_CFG2 (Address 0x14) */
+#define DA7280_FULL_BRAKE_THR_SHIFT		0
+#define DA7280_FULL_BRAKE_THR_MASK		(15 << 0)
+#define DA7280_MEM_DATA_SIGNED_SHIFT		4
+#define DA7280_MEM_DATA_SIGNED_MASK		BIT(4)
+
+/* DA7280_TOP_CFG3 (Address 0x15) */
+#define DA7280_VDD_MARGIN_SHIFT			0
+#define DA7280_VDD_MARGIN_MASK			(15 << 0)
+
+/* DA7280_TOP_CFG4 (Address 0x16) */
+#define DA7280_TST_CALIB_IMPEDANCE_DIS_SHIFT	6
+#define DA7280_TST_CALIB_IMPEDANCE_DIS_MASK	BIT(6)
+#define DA7280_V2I_FACTOR_FREEZE_SHIFT		7
+#define DA7280_V2I_FACTOR_FREEZE_MASK		BIT(7)
+
+/* DA7280_TOP_INT_CFG1 (Address 0x17) */
+#define DA7280_BEMF_FAULT_LIM_SHIFT		0
+#define DA7280_BEMF_FAULT_LIM_MASK		(3 << 0)
+#define DA7280_FRQ_LOCKED_LIM_SHIFT		2
+#define DA7280_FRQ_LOCKED_LIM_MASK		(63 << 2)
+
+/* DA7280_TOP_INT_CFG6_H (Address 0x1c) */
+#define DA7280_FRQ_PID_KP_H_SHIFT		0
+#define DA7280_FRQ_PID_KP_H_MASK		(255 << 0)
+
+/* DA7280_TOP_INT_CFG6_L (Address 0x1d) */
+#define DA7280_FRQ_PID_KP_L_SHIFT		0
+#define DA7280_FRQ_PID_KP_L_MASK		(255 << 0)
+
+/* DA7280_TOP_INT_CFG7_H (Address 0x1e) */
+#define DA7280_FRQ_PID_KI_H_SHIFT		0
+#define DA7280_FRQ_PID_KI_H_MASK		(255 << 0)
+
+/* DA7280_TOP_INT_CFG7_L (Address 0x1f) */
+#define DA7280_FRQ_PID_KI_L_SHIFT		0
+#define DA7280_FRQ_PID_KI_L_MASK		(255 << 0)
+
+/* DA7280_TOP_INT_CFG8 (Address 0x20) */
+#define DA7280_TST_FRQ_TRACK_BEMF_LIM_SHIFT     0
+#define DA7280_TST_FRQ_TRACK_BEMF_LIM_MASK      (15 << 0)
+#define DA7280_TST_AMP_RAPID_STOP_LIM_SHIFT     4
+#define DA7280_TST_AMP_RAPID_STOP_LIM_MASK      (7 << 4)
+
+/* DA7280_TOP_CTL1 (Address 0x22) */
+#define DA7280_OPERATION_MODE_SHIFT		0
+#define DA7280_OPERATION_MODE_MASK		(7 << 0)
+#define DA7280_STANDBY_EN_SHIFT			3
+#define DA7280_STANDBY_EN_MASK			BIT(3)
+#define DA7280_SEQ_START_SHIFT			4
+#define DA7280_SEQ_START_MASK			BIT(4)
+
+/* DA7280_TOP_CTL2 (Address 0x23) */
+#define DA7280_OVERRIDE_VAL_SHIFT		0
+#define DA7280_OVERRIDE_VAL_MASK		(255 << 0)
+
+/* DA7280_SEQ_CTL1 (Address 0x24) */
+#define DA7280_SEQ_CONTINUE_SHIFT		0
+#define DA7280_SEQ_CONTINUE_MASK		BIT(0)
+#define DA7280_WAVEGEN_MODE_SHIFT		1
+#define DA7280_WAVEGEN_MODE_MASK		BIT(1)
+#define DA7280_FREQ_WAVEFORM_TIMEBASE_SHIFT	2
+#define DA7280_FREQ_WAVEFORM_TIMEBASE_MASK	BIT(2)
+
+/* DA7280_SWG_C1 (Address 0x25) */
+#define DA7280_CUSTOM_WAVE_GEN_COEFF1_SHIFT	0
+#define DA7280_CUSTOM_WAVE_GEN_COEFF1_MASK	(255 << 0)
+
+/* DA7280_SWG_C2 (Address 0x26) */
+#define DA7280_CUSTOM_WAVE_GEN_COEFF2_SHIFT	0
+#define DA7280_CUSTOM_WAVE_GEN_COEFF2_MASK	(255 << 0)
+
+/* DA7280_SWG_C3 (Address 0x27) */
+#define DA7280_CUSTOM_WAVE_GEN_COEFF3_SHIFT	0
+#define DA7280_CUSTOM_WAVE_GEN_COEFF3_MASK	(255 << 0)
+
+/* DA7280_SEQ_CTL2 (Address 0x28) */
+#define DA7280_PS_SEQ_ID_SHIFT			0
+#define DA7280_PS_SEQ_ID_MASK			(15 << 0)
+#define DA7280_PS_SEQ_LOOP_SHIFT		4
+#define DA7280_PS_SEQ_LOOP_MASK			(15 << 4)
+
+/* DA7280_GPIO_0_CTL (Address 0x29) */
+#define DA7280_GPI0_POLARITY_SHIFT		0
+#define DA7280_GPI0_POLARITY_MASK		(3 << 0)
+#define DA7280_GPI0_MODE_SHIFT			2
+#define DA7280_GPI0_MODE_MASK			BIT(2)
+#define DA7280_GPI0_SEQUENCE_ID_SHIFT		3
+#define DA7280_GPI0_SEQUENCE_ID_MASK		(15 << 3)
+
+/* DA7280_GPIO_1_CTL (Address 0x2a) */
+#define DA7280_GPI1_POLARITY_SHIFT		0
+#define DA7280_GPI1_POLARITY_MASK		(3 << 0)
+#define DA7280_GPI1_MODE_SHIFT			2
+#define DA7280_GPI1_MODE_MASK			BIT(2)
+#define DA7280_GPI1_SEQUENCE_ID_SHIFT		3
+#define DA7280_GPI1_SEQUENCE_ID_MASK		(15 << 3)
+
+/* DA7280_GPIO_2_CTL (Address 0x2b) */
+#define DA7280_GPI2_POLARITY_SHIFT		0
+#define DA7280_GPI2_POLARITY_MASK		(3 << 0)
+#define DA7280_GPI2_MODE_SHIFT			2
+#define DA7280_GPI2_MODE_MASK			BIT(2)
+#define DA7280_GPI2_SEQUENCE_ID_SHIFT		3
+#define DA7280_GPI2_SEQUENCE_ID_MASK		(15 << 3)
+
+/* DA7280_MEM_CTL1 (Address 0x2c) */
+#define DA7280_WAV_MEM_BASE_ADDR_SHIFT		0
+#define DA7280_WAV_MEM_BASE_ADDR_MASK		(255 << 0)
+
+/* DA7280_MEM_CTL2 (Address 0x2d) */
+#define DA7280_WAV_MEM_LOCK_SHIFT		7
+#define DA7280_WAV_MEM_LOCK_MASK		BIT(7)
+
+/* DA7280_ADC_DATA_H1 (Address 0x2e) */
+#define DA7280_ADC_VDD_H_SHIFT			0
+#define DA7280_ADC_VDD_H_MASK			(255 << 0)
+
+/* DA7280_ADC_DATA_L1 (Address 0x2f) */
+#define DA7280_ADC_VDD_L_SHIFT			0
+#define DA7280_ADC_VDD_L_MASK			(127 << 0)
+
+/* DA7280_POLARITY (Address 0x43) */
+#define DA7280_POLARITY_SHIFT			0
+#define DA7280_POLARITY_MASK			BIT(0)
+
+/* DA7280_LRA_AVR_H (Address 0x44) */
+#define DA7280_LRA_PER_AVERAGE_H_SHIFT		0
+#define DA7280_LRA_PER_AVERAGE_H_MASK		(255 << 0)
+
+/* DA7280_LRA_AVR_L (Address 0x45) */
+#define DA7280_LRA_PER_AVERAGE_L_SHIFT		0
+#define DA7280_LRA_PER_AVERAGE_L_MASK		(127 << 0)
+
+/* DA7280_FRQ_LRA_PER_ACT_H (Address 0x46) */
+#define DA7280_LRA_PER_ACTUAL_H_SHIFT		0
+#define DA7280_LRA_PER_ACTUAL_H_MASK		(255 << 0)
+
+/* DA7280_FRQ_LRA_PER_ACT_L (Address 0x47) */
+#define DA7280_LRA_PER_ACTUAL_L_SHIFT		0
+#define DA7280_LRA_PER_ACTUAL_L_MASK		(127 << 0)
+
+/* DA7280_FRQ_PHASE_H (Address 0x48) */
+#define DA7280_PHASE_DELAY_H_SHIFT		0
+#define DA7280_PHASE_DELAY_H_MASK		(255 << 0)
+
+/* DA7280_FRQ_PHASE_L (Address 0x49) */
+#define DA7280_DELAY_SHIFT_L_SHIFT		0
+#define DA7280_DELAY_SHIFT_L_MASK		(7 << 0)
+#define DA7280_DELAY_SHIFT_FREEZE_SHIFT		7
+#define DA7280_DELAY_SHIFT_FREEZE_MASK		BIT(7)
+
+/* DA7280_FRQ_CTL (Address 0x4c) */
+#define DA7280_FREQ_TRACKING_FORCE_ON_SHIFT	0
+#define DA7280_FREQ_TRACKING_FORCE_ON_MASK	BIT(0)
+#define DA7280_FREQ_TRACKING_AUTO_ADJ_SHIFT	1
+#define DA7280_FREQ_TRACKING_AUTO_ADJ_MASK	BIT(1)
+
+/* DA7280_TRIM3 (Address 0x5f) */
+#define DA7280_REF_UVLO_THRES_SHIFT		3
+#define DA7280_REF_UVLO_THRES_MASK		(3 << 3)
+#define DA7280_LOOP_FILT_LOW_BW_SHIFT		5
+#define DA7280_LOOP_FILT_LOW_BW_MASK		BIT(5)
+#define DA7280_LOOP_IDAC_DOUBLE_RANGE_SHIFT	6
+#define DA7280_LOOP_IDAC_DOUBLE_RANGE_MASK	BIT(6)
+
+/* DA7280_TRIM4 (Address 0x60) */
+#define DA7280_LOOP_FILT_RES_TRIM_SHIFT		0
+#define DA7280_LOOP_FILT_RES_TRIM_MASK		(3 << 0)
+#define DA7280_LOOP_FILT_CAP_TRIM_SHIFT		2
+#define DA7280_LOOP_FILT_CAP_TRIM_MASK		(3 << 2)
+
+/* DA7280_TRIM6 (Address 0x62) */
+#define DA7280_HBRIDGE_ERC_HS_TRIM_SHIFT	0
+#define DA7280_HBRIDGE_ERC_HS_TRIM_MASK		(3 << 0)
+#define DA7280_HBRIDGE_ERC_LS_TRIM_SHIFT	2
+#define DA7280_HBRIDGE_ERC_LS_TRIM_MASK		(3 << 2)
+
+/* DA7280_TOP_CFG5 (Address 0x6e) */
+#define DA7280_V2I_FACTOR_OFFSET_EN_SHIFT		0
+#define DA7280_V2I_FACTOR_OFFSET_EN_MASK		BIT(0)
+#define DA7280_FRQ_PAUSE_ON_POLARITY_CHANGE_SHIFT	1
+#define DA7280_FRQ_PAUSE_ON_POLARITY_CHANGE_MASK	BIT(1)
+#define DA7280_DELAY_BYPASS_SHIFT			2
+#define DA7280_DELAY_BYPASS_MASK			BIT(2)
+
+/* DA7280_IRQ_EVENT_ACTUATOR_FAULT (Address 0x81) */
+#define DA7280_ADC_SAT_FAULT_SHIFT		2
+#define DA7280_ADC_SAT_FAULT_MASK		BIT(2)
+
+/* DA7280_IRQ_STATUS2 (Address 0x82) */
+#define DA7280_STA_ADC_SAT_SHIFT		7
+#define DA7280_STA_ADC_SAT_MASK			BIT(7)
+
+/* DA7280_IRQ_MASK2 (Address 0x83) */
+#define DA7280_ADC_SAT_M_SHIFT			7
+#define DA7280_ADC_SAT_M_MASK			BIT(7)
+
+/* DA7280_SNP_MEM_XX (Address 0x84 ~ 0xe7) */
+#define DA7280_SNP_MEM_SHIFT			0
+#define DA7280_SNP_MEM_MASK			(255 << 0)
+
+#endif
