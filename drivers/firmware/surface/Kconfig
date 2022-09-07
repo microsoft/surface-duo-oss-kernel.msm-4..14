@@ -1,0 +1,18 @@
+config SURFACE_FIRMWARE
+        bool "Firmware drivers for Microsoft Surface"
+        default y
+        help
+          This option selects drivers included as part of surface customization.
+
+config SURFACE_FIRMWARE_FACTORY
+        tristate "Microsoft Surface Factory firmware modules"
+          default n
+        depends on SURFACE_FIRMWARE
+          select SURFACE_FACTORY_UTIL
+
+config FACTORY_UTIL
+	def_bool y
+  depends on SURFACE_FIRMWARE && SURFACE_FIRMWARE_FACTORY
+
+config SURFACE_LIBRARY
+	def_bool y

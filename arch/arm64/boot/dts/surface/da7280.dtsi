@@ -1,0 +1,77 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&tlmm {
+	da7280_pins {
+		da7280_intr_default: da7280_intr_default {
+			mux {
+				pins = "gpio42";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio42";
+				bias-pull-up;
+				input-enable;
+			};
+		};
+	};
+};
+
+&qupv3_se1_i2c {
+	haptics: da7280-haptics@4A {
+		compatible = "dlg,da7280";
+		reg = <0x4A>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <42 0>;
+		interrupt-names = "da7280-haptics";
+		pinctrl-names = "da7280_default";
+		pinctrl-0 = <&da7280_intr_default>;
+		dlg,actuator-type = "LRA";
+		dlg,op-mode = <1>;
+		dlg,nom-microvolt = <2000000>;
+		dlg,abs-max-microvolt = <2000000>;
+		dlg,imax-microamp = <129000>;
+		dlg,impd-micro-ohms = <14300000>;
+		dlg,resonant-freq-hz = <190>;
+		dlg,seq-id-0-len-us = <76160>;
+		dlg,seq-id-1-len-us = <146880>;
+		dlg,seq-id-2-len-us = <65280>;
+		dlg,seq-id-3-len-us = <125120>;
+		dlg,seq-id-4-len-us = <54400>;
+		dlg,seq-id-5-len-us = <81600>;
+		dlg,bemf-sens-enable;
+		dlg,freq-track-enable;
+
+		dlg,mem-array = <
+			0x06 0x08 0x10 0x11 0x12 0x13 0x14 0x15 0x1C 0x2A
+			0x33 0x3C 0x42 0x4B 0x4C 0x4E 0x17 0x19 0x27 0x29
+			0x17 0x19 0x03 0x84 0x5E 0x04 0x08 0x84 0x5D 0x01
+			0x84 0x5E 0x02 0x00 0xA4 0x5D 0x03 0x84 0x5E 0x06
+			0x08 0x84 0x5D 0x05 0x84 0x5D 0x06 0x84 0x5E 0x08
+			0x84 0x5E 0x05 0x8C 0x5E 0x24 0x84 0x5F 0x10 0x84
+			0x5E 0x05 0x84 0x5E 0x08 0x84 0x5F 0x01 0x8C 0x5E
+			0x04 0x84 0x5E 0x08 0x84 0x5F 0x11 0x19 0x88 0x00
+			0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+			0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+		>;
+
+		/*
+		 * dlg,bemf-sens-enable: Enable for internal loop computations.
+		 * dlg,freq-track-enable: Enable for resonant frequency tracking.
+		 * dlg,acc-enable: Enable for active acceleration.
+		 * dlg,rapid-stop-enable: Enable for rapid stop.
+		 * dlg,amp-pid-enable: Enable for the amplitude PID.
+		 * dlg,mem-array: Customized waveform memory(patterns) data downloaded to
+		 *  the device during initialization. This is an array of 100 values(u8).
+		 */
+	};
+};

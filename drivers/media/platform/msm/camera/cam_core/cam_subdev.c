@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -118,6 +119,8 @@ int cam_subdev_remove(struct cam_subdev *sd)
 	if (!sd)
 		return -EINVAL;
 
+	/* MSCHANGE Handle errors properly to support Deferring initialization*/
+	platform_set_drvdata(sd->pdev, NULL);
 	cam_unregister_subdev(sd);
 	cam_node_deinit((struct cam_node *)sd->token);
 	kfree(sd->token);
