@@ -1,0 +1,398 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
+&flash_led{
+	/delete-node/ qcom,flash_0;
+	/delete-node/ qcom,torch_0;
+	/delete-node/ qcom,led_switch_0;
+	/delete-node/ qcom,flash_1;
+	/delete-node/ qcom,torch_1;
+	/delete-node/ qcom,led_switch_1;
+
+	pm8150l_flash0: qcom,flash_0 {
+		label = "flash";
+		qcom,led-name = "led:flash_0";
+		qcom,max-current = <1200>;
+		qcom,default-led-trigger = "flash0_trigger";
+		qcom,id = <0>;
+		qcom,current-ma = <1200>;
+		qcom,duration-ms = <190>;
+		qcom,ires-ua = <12500>;
+		qcom,hdrm-voltage-mv = <325>;
+		qcom,hdrm-vol-hi-lo-win-mv = <100>;
+	};
+
+	pm8150l_flash1: qcom,flash_1 {
+		label = "flash";
+		qcom,led-name = "led:flash_1";
+		qcom,max-current = <85>;
+		qcom,default-led-trigger = "flash1_trigger";
+		qcom,id = <0>;
+		qcom,current-ma = <85>;
+		qcom,duration-ms = <190>;
+		qcom,ires-ua = <12500>;
+		qcom,hdrm-voltage-mv = <325>;
+		qcom,hdrm-vol-hi-lo-win-mv = <100>;
+	};
+
+	pm8150l_torch0: qcom,torch_0 {
+		label = "torch";
+		qcom,led-name = "led:torch_0";
+		qcom,max-current = <135>;
+		qcom,default-led-trigger = "torch0_trigger";
+		qcom,id = <0>;
+		qcom,current-ma = <135>;
+		qcom,ires-ua = <12500>;
+		qcom,hdrm-voltage-mv = <325>;
+		qcom,hdrm-vol-hi-lo-win-mv = <100>;
+	};
+
+	pm8150l_torch1: qcom,torch_1 {
+		label = "torch";
+		qcom,led-name = "led:torch_1";
+		qcom,max-current = <135>;
+		qcom,default-led-trigger = "torch1_trigger";
+		qcom,id = <0>;
+		qcom,current-ma = <135>;
+		qcom,ires-ua = <12500>;
+		qcom,hdrm-voltage-mv = <325>;
+		qcom,hdrm-vol-hi-lo-win-mv = <100>;
+	};
+
+	pm8150l_switch0: qcom,led_switch_0 {
+		label = "switch";
+		qcom,led-name = "led:switch_0";
+		qcom,led-mask = <1>;
+		qcom,default-led-trigger = "switch0_trigger";
+	};
+
+	pm8150l_switch1: qcom,led_switch_1 {
+		label = "switch";
+		qcom,led-name = "led:switch_1";
+		qcom,led-mask = <1>;
+		qcom,default-led-trigger = "switch1_trigger";
+	};
+
+};
+
+&tlmm {
+	camera_power_active: camera_power_active {
+			mux {
+			pins = "gpio11";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio11";
+			bias-pull-up;
+			drive-strength = <2>;
+		};
+	};
+
+	camera_power_suspend: camera_power_suspend {
+		mux {
+			pins = "gpio11";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio11";
+			bias-pull-down;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+};
+
+&cam_cci0 {
+
+	qcom,cam-res-mgr {
+		compatible = "qcom,cam-res-mgr";
+		status = "ok";
+	};
+
+	camera_vana_ldo: camera-vana-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "camera_vana_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		vin-supply = <&pm8150l_bob>;
+	};
+
+	camera_vdig_ldo: camera-vdig-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "camera_vdig_ldo";
+		regulator-min-microvolt = <1050000>;
+		regulator-max-microvolt = <1050000>;
+		vin-supply = <&pm8150l_s8>;
+	};
+
+	camera_vaf_ldo: camera-vaf-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "camera_vaf_ldo";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		vin-supply = <&pm8150l_bob>;
+	};
+
+	actuator_rear: qcom,actuator@0 {
+		cell-index = <0>;
+		reg = <0x0>;
+		compatible = "qcom,actuator";
+		cci-master = <1>;
+		cam_vaf-supply = <&camera_vaf_ldo>;
+		regulator-names = "cam_vaf";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <2800000>;
+		rgltr-max-voltage = <2800000>;
+		rgltr-load-current = <0>;
+	};
+
+	eeprom_rear: qcom,eeprom@0 {
+		cell-index = <0>;
+		reg = <0x0>;
+		compatible = "qcom,eeprom";
+		cam_vdig-supply = <&camera_vdig_ldo>;
+		cam_vio-supply = <&pm8150l_l1>;
+		cam_vana-supply = <&camera_vana_ldo>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		cam_vaf-supply = <&camera_vaf_ldo>;
+		regulator-names = "cam_vio", "cam_vana", "cam_vdig",
+			"cam_clk", "cam_vaf";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 2800000 1050000 0 3312000>;
+		rgltr-max-voltage = <1800000 2800000 1050000 0 3312000>;
+		rgltr-load-current = <0 80000 1050000 0 2000000>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_active
+					&cam_sensor_active_rear_aux
+					&camera_power_active>;
+		pinctrl-1 = <&cam_sensor_mclk1_suspend
+					&cam_sensor_suspend_rear_aux
+					&camera_power_suspend>;
+		gpios = <&tlmm 14 0>,
+			<&tlmm 30 0>,
+			<&tlmm 11 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1 2>;
+		gpio-req-tbl-flags = <1 0 1>;
+		gpio-req-tbl-label = "CAMIF_MCLK1",
+					"CAM_RESET1",
+					"CAM_POWER_GPIO1";
+		sensor-position = <0>;
+		sensor-mode = <0>;
+		cci-master = <1>;
+		status = "ok";
+		clocks = <&clock_camcc CAM_CC_MCLK1_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+
+	led_flash_rear: qcom,camera-flash@0 {
+		cell-index = <0>;
+		reg = <0x00 0x00>;
+		compatible = "qcom,camera-flash";
+		flash-source = <&pm8150l_flash0>;
+		torch-source = <&pm8150l_torch0>;
+		switch-source = <&pm8150l_switch0>;
+		status = "ok";
+	};
+
+	actuator_front: qcom,actuator@1 {
+		cell-index = <1>;
+		reg = <0x1>;
+		compatible = "qcom,actuator";
+		cci-master = <1>;
+		cam_vaf-supply = <&camera_vaf_ldo>;
+		regulator-names = "cam_vaf";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <2800000>;
+		rgltr-max-voltage = <2800000>;
+		rgltr-load-current = <0>;
+	};
+
+	eeprom_front: qcom,eeprom@1 {
+		cell-index = <1>;
+		reg = <0x1>;
+		compatible = "qcom,eeprom";
+		cam_vdig-supply = <&camera_vdig_ldo>;
+		cam_vio-supply = <&pm8150l_l1>;
+		cam_vana-supply = <&camera_vana_ldo>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		cam_vaf-supply = <&camera_vaf_ldo>;
+		regulator-names = "cam_vio", "cam_vana", "cam_vdig",
+			"cam_clk", "cam_vaf";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 2800000 1050000 0 3312000>;
+		rgltr-max-voltage = <1800000 2800000 1050000 0 3312000>;
+		rgltr-load-current = <0 80000 1050000 0 2000000>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_active
+					&cam_sensor_active_rear_aux
+					&camera_power_active>;
+		pinctrl-1 = <&cam_sensor_mclk1_suspend
+					&cam_sensor_suspend_rear_aux
+					&camera_power_suspend>;
+		gpios = <&tlmm 14 0>,
+			<&tlmm 30 0>,
+			<&tlmm 11 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1 2>;
+		gpio-req-tbl-flags = <1 0 1>;
+		gpio-req-tbl-label = "CAMIF_MCLK1",
+					"CAM_RESET1",
+					"CAM_POWER_GPIO1";
+		sensor-position = <0>;
+		sensor-mode = <0>;
+		cci-master = <1>;
+		status = "ok";
+		clocks = <&clock_camcc CAM_CC_MCLK1_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+
+	led_flash_front: qcom,camera-flash@1 {
+		cell-index = <1>;
+		reg = <0x01 0x00>;
+		compatible = "qcom,camera-flash";
+		flash-source = <&pm8150l_flash1>;
+		torch-source = <&pm8150l_torch1>;
+		switch-source = <&pm8150l_switch1>;
+		status = "ok";
+	};
+
+	cam_sensor0: qcom,cam-sensor@0 {
+		#thermal-sensor-cells = <0>;
+		cell-index = <0>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x0>;
+		csiphy-sd-index = <1>;
+		sensor-position-roll = <90>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <180>;
+		actuator-src = <&eeprom_rear>;
+		eeprom-src = <&eeprom_rear>;
+		led-flash-src = <&led_flash_rear>;
+		cam_bob-supply = <&pm8150l_bob>;
+		cam_vdig-supply = <&camera_vdig_ldo>;
+		cam_vio-supply = <&pm8150l_l1>;
+		cam_vana-supply = <&camera_vana_ldo>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_vana", "cam_vdig",
+			"cam_clk", "cam_bob";
+		rgltr-cntrl-support;
+		pwm-switch;
+		rgltr-min-voltage = <1800000 2800000 1050000 0 3312000>;
+		rgltr-max-voltage = <1800000 2800000 1050000 0 3312000>;
+		rgltr-load-current = <0 80000 1050000 0 2000000>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_active
+					&cam_sensor_active_rear_aux
+					&camera_power_active>;
+		pinctrl-1 = <&cam_sensor_mclk1_suspend
+					&cam_sensor_suspend_rear_aux
+					&camera_power_suspend>;
+		gpios = <&tlmm 14 0>,
+			<&tlmm 30 0>,
+			<&tlmm 11 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1 2>;
+		gpio-req-tbl-flags = <1 0 1>;
+		gpio-req-tbl-label = "CAMIF_MCLK1",
+					"CAM_RESET1",
+					"CAM_POWER_GPIO1";
+		sensor-mode = <0>;
+		cci-master = <1>;
+		status = "ok";
+		clocks = <&clock_camcc CAM_CC_MCLK1_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+
+	cam_sensor1: qcom,cam-sensor@1 {
+		#thermal-sensor-cells = <0>;
+		cell-index = <1>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x1>;
+		csiphy-sd-index = <1>;
+		sensor-position-roll = <90>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <180>;
+		actuator-src = <&actuator_front>;
+		eeprom-src = <&eeprom_front>;
+		led-flash-src = <&led_flash_front>;
+		cam_bob-supply = <&pm8150l_bob>;
+		cam_vdig-supply = <&camera_vdig_ldo>;
+		cam_vio-supply = <&pm8150l_l1>;
+		cam_vana-supply = <&camera_vana_ldo>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_vana", "cam_vdig",
+			"cam_clk", "cam_bob";
+		rgltr-cntrl-support;
+		pwm-switch;
+		rgltr-min-voltage = <1800000 2800000 1050000 0 3312000>;
+		rgltr-max-voltage = <1800000 2800000 1050000 0 3312000>;
+		rgltr-load-current = <0 80000 1050000 0 2000000>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_active
+					&cam_sensor_active_rear_aux
+					&camera_power_active>;
+		pinctrl-1 = <&cam_sensor_mclk1_suspend
+					&cam_sensor_suspend_rear_aux
+					&camera_power_suspend>;
+		gpios = <&tlmm 14 0>,
+			<&tlmm 30 0>,
+			<&tlmm 11 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1 2>;
+		gpio-req-tbl-flags = <1 0 1>;
+		gpio-req-tbl-label = "CAMIF_MCLK1",
+					"CAM_RESET1",
+					"CAM_POWER_GPIO1";
+		sensor-mode = <0>;
+		cci-master = <1>;
+		status = "ok";
+		clocks = <&clock_camcc CAM_CC_MCLK1_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+};
+
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+&soc {
+	cam_csiphy2: qcom,csiphy@ac67000 {
+		status = "disabled";
+	};
+
+	cam_csiphy3: qcom,csiphy@ac68000 {
+		status = "disabled";
+	};
+
+	cam_csid_lite0: qcom,csid-lite0@acc8000 {
+		status = "disabled";
+	};
+
+	cam_csid_lite1: qcom,csid-lite1@accf000 {
+		status = "disabled";
+	};
+
+	cam_vfe_lite0: qcom,vfe-lite0@acc4000 {
+		status = "disabled";
+	};
+
+	cam_vfe_lite1: qcom,vfe-lite1@accb000 {
+		status = "disabled";
+	};
+};

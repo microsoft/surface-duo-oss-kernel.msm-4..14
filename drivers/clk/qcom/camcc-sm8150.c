@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -694,7 +695,8 @@ static struct clk_rcg2 cam_cc_csi1phytimer_clk_src = {
 	},
 };
 
-static struct clk_rcg2 cam_cc_csi2phytimer_clk_src = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_rcg2 cam_cc_csi2phytimer_clk_src = {
 	.cmd_rcgr = 0x604c,
 	.mnd_width = 0,
 	.hid_width = 5,
@@ -714,7 +716,8 @@ static struct clk_rcg2 cam_cc_csi2phytimer_clk_src = {
 	},
 };
 
-static struct clk_rcg2 cam_cc_csi3phytimer_clk_src = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_rcg2 cam_cc_csi3phytimer_clk_src = {
 	.cmd_rcgr = 0x6070,
 	.mnd_width = 0,
 	.hid_width = 5,
@@ -977,7 +980,8 @@ static const struct freq_tbl ftbl_cam_cc_ife_lite_0_clk_src[] = {
 	{ }
 };
 
-static struct clk_rcg2 cam_cc_ife_lite_0_clk_src = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_rcg2 cam_cc_ife_lite_0_clk_src = {
 	.cmd_rcgr = 0xc004,
 	.mnd_width = 0,
 	.hid_width = 5,
@@ -1000,7 +1004,8 @@ static struct clk_rcg2 cam_cc_ife_lite_0_clk_src = {
 	},
 };
 
-static struct clk_rcg2 cam_cc_ife_lite_0_csid_clk_src = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_rcg2 cam_cc_ife_lite_0_csid_clk_src = {
 	.cmd_rcgr = 0xc020,
 	.mnd_width = 0,
 	.hid_width = 5,
@@ -1023,7 +1028,8 @@ static struct clk_rcg2 cam_cc_ife_lite_0_csid_clk_src = {
 	},
 };
 
-static struct clk_rcg2 cam_cc_ife_lite_1_clk_src = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_rcg2 cam_cc_ife_lite_1_clk_src = {
 	.cmd_rcgr = 0xc048,
 	.mnd_width = 0,
 	.hid_width = 5,
@@ -1046,7 +1052,8 @@ static struct clk_rcg2 cam_cc_ife_lite_1_clk_src = {
 	},
 };
 
-static struct clk_rcg2 cam_cc_ife_lite_1_csid_clk_src = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_rcg2 cam_cc_ife_lite_1_csid_clk_src = {
 	.cmd_rcgr = 0xc064,
 	.mnd_width = 0,
 	.hid_width = 5,
@@ -1217,7 +1224,8 @@ static struct clk_rcg2 cam_cc_mclk1_clk_src = {
 	},
 };
 
-static struct clk_rcg2 cam_cc_mclk2_clk_src = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_rcg2 cam_cc_mclk2_clk_src = {
 	.cmd_rcgr = 0x5044,
 	.mnd_width = 8,
 	.hid_width = 5,
@@ -1237,7 +1245,8 @@ static struct clk_rcg2 cam_cc_mclk2_clk_src = {
 	},
 };
 
-static struct clk_rcg2 cam_cc_mclk3_clk_src = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_rcg2 cam_cc_mclk3_clk_src = {
 	.cmd_rcgr = 0x5064,
 	.mnd_width = 8,
 	.hid_width = 5,
@@ -1525,7 +1534,8 @@ static struct clk_branch cam_cc_csi1phytimer_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_csi2phytimer_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_csi2phytimer_clk = {
 	.halt_reg = 0x6064,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -1543,7 +1553,8 @@ static struct clk_branch cam_cc_csi2phytimer_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_csi3phytimer_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_csi3phytimer_clk = {
 	.halt_reg = 0x6088,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -1597,7 +1608,8 @@ static struct clk_branch cam_cc_csiphy1_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_csiphy2_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_csiphy2_clk = {
 	.halt_reg = 0x6068,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -1615,7 +1627,8 @@ static struct clk_branch cam_cc_csiphy2_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_csiphy3_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_csiphy3_clk = {
 	.halt_reg = 0x608c,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -1899,7 +1912,8 @@ static struct clk_branch cam_cc_ife_1_dsp_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_ife_lite_0_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_ife_lite_0_clk = {
 	.halt_reg = 0xc01c,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -1917,7 +1931,8 @@ static struct clk_branch cam_cc_ife_lite_0_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_ife_lite_0_cphy_rx_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_ife_lite_0_cphy_rx_clk = {
 	.halt_reg = 0xc040,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -1935,7 +1950,8 @@ static struct clk_branch cam_cc_ife_lite_0_cphy_rx_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_ife_lite_0_csid_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_ife_lite_0_csid_clk = {
 	.halt_reg = 0xc038,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -1953,7 +1969,8 @@ static struct clk_branch cam_cc_ife_lite_0_csid_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_ife_lite_1_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_ife_lite_1_clk = {
 	.halt_reg = 0xc060,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -1971,7 +1988,8 @@ static struct clk_branch cam_cc_ife_lite_1_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_ife_lite_1_cphy_rx_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_ife_lite_1_cphy_rx_clk = {
 	.halt_reg = 0xc084,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -1989,7 +2007,8 @@ static struct clk_branch cam_cc_ife_lite_1_cphy_rx_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_ife_lite_1_csid_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_ife_lite_1_csid_clk = {
 	.halt_reg = 0xc07c,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -2223,7 +2242,8 @@ static struct clk_branch cam_cc_mclk1_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_mclk2_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_mclk2_clk = {
 	.halt_reg = 0x505c,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -2241,7 +2261,8 @@ static struct clk_branch cam_cc_mclk2_clk = {
 	},
 };
 
-static struct clk_branch cam_cc_mclk3_clk = {
+/*MSCHANGE To disable unused vfe-lite and csiphy*/
+__attribute__ ((unused)) static struct clk_branch cam_cc_mclk3_clk = {
 	.halt_reg = 0x507c,
 	.halt_check = BRANCH_HALT,
 	.clkr = {
@@ -2323,14 +2344,18 @@ static struct clk_regmap *cam_cc_sm8150_clocks[] = {
 	[CAM_CC_CSI0PHYTIMER_CLK_SRC] = &cam_cc_csi0phytimer_clk_src.clkr,
 	[CAM_CC_CSI1PHYTIMER_CLK] = &cam_cc_csi1phytimer_clk.clkr,
 	[CAM_CC_CSI1PHYTIMER_CLK_SRC] = &cam_cc_csi1phytimer_clk_src.clkr,
-	[CAM_CC_CSI2PHYTIMER_CLK] = &cam_cc_csi2phytimer_clk.clkr,
-	[CAM_CC_CSI2PHYTIMER_CLK_SRC] = &cam_cc_csi2phytimer_clk_src.clkr,
-	[CAM_CC_CSI3PHYTIMER_CLK] = &cam_cc_csi3phytimer_clk.clkr,
-	[CAM_CC_CSI3PHYTIMER_CLK_SRC] = &cam_cc_csi3phytimer_clk_src.clkr,
+	//MSCHANGE: START: To disable unused vfe-lite and csiphy
+	//[CAM_CC_CSI2PHYTIMER_CLK] = &cam_cc_csi2phytimer_clk.clkr,
+	//[CAM_CC_CSI2PHYTIMER_CLK_SRC] = &cam_cc_csi2phytimer_clk_src.clkr,
+	//[CAM_CC_CSI3PHYTIMER_CLK] = &cam_cc_csi3phytimer_clk.clkr,
+	//[CAM_CC_CSI3PHYTIMER_CLK_SRC] = &cam_cc_csi3phytimer_clk_src.clkr,
+	//MSCHANGE: END: To disable unused vfe-lite and csiphy
 	[CAM_CC_CSIPHY0_CLK] = &cam_cc_csiphy0_clk.clkr,
 	[CAM_CC_CSIPHY1_CLK] = &cam_cc_csiphy1_clk.clkr,
-	[CAM_CC_CSIPHY2_CLK] = &cam_cc_csiphy2_clk.clkr,
-	[CAM_CC_CSIPHY3_CLK] = &cam_cc_csiphy3_clk.clkr,
+	//MSCHANGE: START: To disable unused vfe-lite and csiphy
+	//[CAM_CC_CSIPHY2_CLK] = &cam_cc_csiphy2_clk.clkr,
+	//[CAM_CC_CSIPHY3_CLK] = &cam_cc_csiphy3_clk.clkr,
+	//MSCHANGE: END: To disable unused vfe-lite and csiphy
 	[CAM_CC_FAST_AHB_CLK_SRC] = &cam_cc_fast_ahb_clk_src.clkr,
 	[CAM_CC_FD_CORE_CLK] = &cam_cc_fd_core_clk.clkr,
 	[CAM_CC_FD_CORE_CLK_SRC] = &cam_cc_fd_core_clk_src.clkr,
@@ -2353,16 +2378,18 @@ static struct clk_regmap *cam_cc_sm8150_clocks[] = {
 	[CAM_CC_IFE_1_CSID_CLK] = &cam_cc_ife_1_csid_clk.clkr,
 	[CAM_CC_IFE_1_CSID_CLK_SRC] = &cam_cc_ife_1_csid_clk_src.clkr,
 	[CAM_CC_IFE_1_DSP_CLK] = &cam_cc_ife_1_dsp_clk.clkr,
-	[CAM_CC_IFE_LITE_0_CLK] = &cam_cc_ife_lite_0_clk.clkr,
-	[CAM_CC_IFE_LITE_0_CLK_SRC] = &cam_cc_ife_lite_0_clk_src.clkr,
-	[CAM_CC_IFE_LITE_0_CPHY_RX_CLK] = &cam_cc_ife_lite_0_cphy_rx_clk.clkr,
-	[CAM_CC_IFE_LITE_0_CSID_CLK] = &cam_cc_ife_lite_0_csid_clk.clkr,
-	[CAM_CC_IFE_LITE_0_CSID_CLK_SRC] = &cam_cc_ife_lite_0_csid_clk_src.clkr,
-	[CAM_CC_IFE_LITE_1_CLK] = &cam_cc_ife_lite_1_clk.clkr,
-	[CAM_CC_IFE_LITE_1_CLK_SRC] = &cam_cc_ife_lite_1_clk_src.clkr,
-	[CAM_CC_IFE_LITE_1_CPHY_RX_CLK] = &cam_cc_ife_lite_1_cphy_rx_clk.clkr,
-	[CAM_CC_IFE_LITE_1_CSID_CLK] = &cam_cc_ife_lite_1_csid_clk.clkr,
-	[CAM_CC_IFE_LITE_1_CSID_CLK_SRC] = &cam_cc_ife_lite_1_csid_clk_src.clkr,
+	//MSCHANGE: START: To disable unused vfe-lite and csiphy
+	//[CAM_CC_IFE_LITE_0_CLK] = &cam_cc_ife_lite_0_clk.clkr,
+	//[CAM_CC_IFE_LITE_0_CLK_SRC] = &cam_cc_ife_lite_0_clk_src.clkr,
+	//[CAM_CC_IFE_LITE_0_CPHY_RX_CLK] = &cam_cc_ife_lite_0_cphy_rx_clk.clkr,
+	//[CAM_CC_IFE_LITE_0_CSID_CLK] = &cam_cc_ife_lite_0_csid_clk.clkr,
+	//[CAM_CC_IFE_LITE_0_CSID_CLK_SRC] = &cam_cc_ife_lite_0_csid_clk_src.clkr,
+	//[CAM_CC_IFE_LITE_1_CLK] = &cam_cc_ife_lite_1_clk.clkr,
+	//[CAM_CC_IFE_LITE_1_CLK_SRC] = &cam_cc_ife_lite_1_clk_src.clkr,
+	//[CAM_CC_IFE_LITE_1_CPHY_RX_CLK] = &cam_cc_ife_lite_1_cphy_rx_clk.clkr,
+	//[CAM_CC_IFE_LITE_1_CSID_CLK] = &cam_cc_ife_lite_1_csid_clk.clkr,
+	//[CAM_CC_IFE_LITE_1_CSID_CLK_SRC] = &cam_cc_ife_lite_1_csid_clk_src.clkr,
+	//MSCHANGE: END: To disable unused vfe-lite and csiphy
 	[CAM_CC_IPE_0_AHB_CLK] = &cam_cc_ipe_0_ahb_clk.clkr,
 	[CAM_CC_IPE_0_AREG_CLK] = &cam_cc_ipe_0_areg_clk.clkr,
 	[CAM_CC_IPE_0_AXI_CLK] = &cam_cc_ipe_0_axi_clk.clkr,
@@ -2380,10 +2407,12 @@ static struct clk_regmap *cam_cc_sm8150_clocks[] = {
 	[CAM_CC_MCLK0_CLK_SRC] = &cam_cc_mclk0_clk_src.clkr,
 	[CAM_CC_MCLK1_CLK] = &cam_cc_mclk1_clk.clkr,
 	[CAM_CC_MCLK1_CLK_SRC] = &cam_cc_mclk1_clk_src.clkr,
-	[CAM_CC_MCLK2_CLK] = &cam_cc_mclk2_clk.clkr,
-	[CAM_CC_MCLK2_CLK_SRC] = &cam_cc_mclk2_clk_src.clkr,
-	[CAM_CC_MCLK3_CLK] = &cam_cc_mclk3_clk.clkr,
-	[CAM_CC_MCLK3_CLK_SRC] = &cam_cc_mclk3_clk_src.clkr,
+	//MSCHANGE: START: To disable unused vfe-lite and csiphy
+	//[CAM_CC_MCLK2_CLK] = &cam_cc_mclk2_clk.clkr,
+	//[CAM_CC_MCLK2_CLK_SRC] = &cam_cc_mclk2_clk_src.clkr,
+	//[CAM_CC_MCLK3_CLK] = &cam_cc_mclk3_clk.clkr,
+	//[CAM_CC_MCLK3_CLK_SRC] = &cam_cc_mclk3_clk_src.clkr,
+	//MSCHANGE: END: To disable unused vfe-lite and csiphy
 	[CAM_CC_PLL0] = &cam_cc_pll0.clkr,
 	[CAM_CC_PLL0_OUT_EVEN] = &cam_cc_pll0_out_even.clkr,
 	[CAM_CC_PLL0_OUT_ODD] = &cam_cc_pll0_out_odd.clkr,
