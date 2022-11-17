@@ -1,0 +1,61 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
+
+&qupv3_se1_i2c {
+	status = "ok";
+
+	smb138x: qcom,smb138x@44 {
+	compatible = "qcom,i2c-pmic";
+		status = "okay";
+	reg = <0x44>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	qcom,periph-map = <0x10 0x11 0x12 0x13 0x14 0x16 0x36>;
+		smb138x_revid: qcom,revid@100 {
+			compatible = "qcom,qpnp-revid";
+			reg = <0x100 0x100>;
+		};
+
+		smb138x_tadc: qcom,tadc@3600 {
+			compatible = "qcom,tadc";
+			reg = <0x3600 0x100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#io-channel-cells = <1>;
+			batt_temp@0 {
+				reg = <0>;
+				qcom,rbias = <100000>;
+				qcom,rtherm-at-25degc = <100000>;
+				qcom,beta-coefficient = <4250>;
+			};
+
+			skin_temp@1 {
+				reg = <1>;
+				qcom,rbias = <100000>;
+				qcom,rtherm-at-25degc = <100000>;
+				qcom,beta-coefficient = <4250>;
+			};
+		};
+
+	smb1381_charger: qcom,smb1381-charger@1000 {
+			compatible = "qcom,smb138x-parallel-slave";
+			qcom,pmic-revid = <&smb138x_revid>;
+			reg = <0x1000 0x700>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			#thermal-sensor-cells = <1>;
+			qcom,parallel-mode = <1>;
+			io-channels =
+				<&smb138x_tadc 0>,
+				<&smb138x_tadc 1>;
+			io-channel-names =
+				"batt_therm",
+				"aux_therm";
+		};
+	};
+};

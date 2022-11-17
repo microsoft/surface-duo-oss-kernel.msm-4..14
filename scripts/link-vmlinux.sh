@@ -1,5 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2020 Microsoft Corporation
 #
 # link vmlinux
 #
@@ -151,7 +152,7 @@ vmlinux_link()
 
 	if [ "${SRCARCH}" != "um" ]; then
 		local ld=${LD}
-		local ldflags="${LDFLAGS} ${LDFLAGS_vmlinux}"
+		local ldflags="-verbose ${LDFLAGS} ${LDFLAGS_vmlinux}"
 
 		if [ -n "${LDFINAL_vmlinux}" ]; then
 			ld=${LDFINAL_vmlinux}

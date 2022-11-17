@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -867,7 +868,7 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 	dp_display_process_mst_hpd_high(dp, false);
 
 	rc = dp->ctrl->on(dp->ctrl, dp->mst.mst_active,
-				dp->panel->fec_en, false);
+				dp->panel->fec_en, dp->panel->dsc_en, false);
 	if (rc) {
 		dp->is_connected = false;
 		goto end;
@@ -1486,7 +1487,10 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 
 	dp->tot_dsc_blks_in_use = 0;
 
-	dp->debug->hdcp_disabled = hdcp_disabled;
+	/* MSCHANGE Force disable HDCP */
+	dp->debug->hdcp_disabled = true;
+	/* MSCHANGE End */
+
 	dp_display_update_hdcp_status(dp, true);
 
 	dp_display_get_usb_extcon(dp);
@@ -1634,7 +1638,8 @@ static int dp_display_prepare(struct dp_display *dp_display, void *panel)
 	 * So, we execute in shallow mode here to do only minimal
 	 * and required things.
 	 */
-	rc = dp->ctrl->on(dp->ctrl, dp->mst.mst_active, dp_panel->fec_en, true);
+	rc = dp->ctrl->on(dp->ctrl, dp->mst.mst_active, dp_panel->fec_en,
+				dp_panel->dsc_en, true);
 	if (rc)
 		goto end;
 
