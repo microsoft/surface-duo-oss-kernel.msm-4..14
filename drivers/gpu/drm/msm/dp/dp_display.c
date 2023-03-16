@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -126,12 +127,6 @@ static const struct of_device_id dp_dt_match[] = {
 	{.compatible = "qcom,dp-display"},
 	{}
 };
-
-static void dp_display_update_hdcp_info(struct dp_display_private *dp);
-static bool dp_display_framework_ready(struct dp_display_private *dp)
-{
-	return dp->dp_display.post_open ? false : true;
-}
 
 static inline bool dp_display_is_hdcp_enabled(struct dp_display_private *dp)
 {
@@ -348,13 +343,6 @@ static void dp_display_hdcp_cb_work(struct work_struct *work)
 	u8 sink_status = 0;
 
 	dp = container_of(dw, struct dp_display_private, hdcp_cb_work);
-
-	dp_display_update_hdcp_info(dp);
-
-	if (!dp_display_is_hdcp_enabled(dp))
-		return;
-
-	dp->link->hdcp_status.hdcp_state = HDCP_STATE_AUTHENTICATING;
 
 	if (!dp->power_on || !dp->is_connected || atomic_read(&dp->aborted) ||
 			dp->hdcp_abort)
@@ -641,36 +629,6 @@ static void dp_display_send_hpd_event(struct dp_display_private *dp)
 			envp);
 }
 
-static void dp_display_post_open(struct dp_display *dp_display)
-{
-	struct drm_connector *connector;
-	struct dp_display_private *dp;
-
-	if (!dp_display) {
-		pr_err("invalid input\n");
-		return;
-	}
-
-	dp = container_of(dp_display, struct dp_display_private, dp_display);
-	if (IS_ERR_OR_NULL(dp)) {
-		pr_err("invalid params\n");
-		return;
-	}
-
-	connector = dp->dp_display.base_connector;
-
-	if (!connector) {
-		pr_err("connector not set\n");
-		return;
-	}
-
-	/* if cable is already connected, send notification */
-	if (dp->hpd->hpd_high)
-		queue_work(dp->wq, &dp->connect_work);
-	else
-		dp_display->post_open = NULL;
-}
-
 static int dp_display_send_hpd_notification(struct dp_display_private *dp)
 {
 	int ret = 0;
@@ -682,15 +640,6 @@ static int dp_display_send_hpd_notification(struct dp_display_private *dp)
 		dp->dp_display.is_sst_connected = hpd;
 	else
 		dp->dp_display.is_sst_connected = false;
-
-	if (!dp_display_framework_ready(dp)) {
-		pr_debug("%s: dp display framework not ready\n", __func__);
-		if (!dp->dp_display.is_bootsplash_en) {
-			dp->dp_display.is_bootsplash_en = true;
-			drm_client_dev_register(dp->dp_display.drm_dev);
-		}
-		return ret;
-	}
 
 	reinit_completion(&dp->notification_comp);
 	dp_display_send_hpd_event(dp);
@@ -867,7 +816,7 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 	dp_display_process_mst_hpd_high(dp, false);
 
 	rc = dp->ctrl->on(dp->ctrl, dp->mst.mst_active,
-				dp->panel->fec_en, false);
+				dp->panel->fec_en, dp->panel->dsc_en, false);
 	if (rc) {
 		dp->is_connected = false;
 		goto end;
@@ -1258,11 +1207,6 @@ static void dp_display_connect_work(struct work_struct *work)
 	struct dp_display_private *dp = container_of(work,
 			struct dp_display_private, connect_work);
 
-	if (dp->dp_display.is_sst_connected && dp_display_framework_ready(dp)) {
-		pr_debug("HPD already on\n");
-		return;
-	}
-
 	if (atomic_read(&dp->aborted)) {
 		pr_warn("HPD off requested\n");
 		return;
@@ -1486,7 +1430,10 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 
 	dp->tot_dsc_blks_in_use = 0;
 
-	dp->debug->hdcp_disabled = hdcp_disabled;
+	/* MSCHANGE Force disable HDCP */
+	dp->debug->hdcp_disabled = true;
+	/* MSCHANGE End */
+
 	dp_display_update_hdcp_status(dp, true);
 
 	dp_display_get_usb_extcon(dp);
@@ -1634,7 +1581,8 @@ static int dp_display_prepare(struct dp_display *dp_display, void *panel)
 	 * So, we execute in shallow mode here to do only minimal
 	 * and required things.
 	 */
-	rc = dp->ctrl->on(dp->ctrl, dp->mst.mst_active, dp_panel->fec_en, true);
+	rc = dp->ctrl->on(dp->ctrl, dp->mst.mst_active, dp_panel->fec_en,
+				dp_panel->dsc_en, true);
 	if (rc)
 		goto end;
 
@@ -2841,7 +2789,7 @@ static int dp_display_probe(struct platform_device *pdev)
 	g_dp_display->unprepare     = dp_display_unprepare;
 	g_dp_display->request_irq   = dp_request_irq;
 	g_dp_display->get_debug     = dp_get_debug;
-	g_dp_display->post_open     = dp_display_post_open;
+	g_dp_display->post_open     = NULL;
 	g_dp_display->post_init     = dp_display_post_init;
 	g_dp_display->config_hdr    = dp_display_config_hdr;
 	g_dp_display->mst_install   = dp_display_mst_install;

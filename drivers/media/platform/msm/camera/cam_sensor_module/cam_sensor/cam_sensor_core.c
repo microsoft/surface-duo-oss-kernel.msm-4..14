@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,6 +20,15 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+#include "cam_thermal_reg.h"
+
+
+#ifdef KERNEL_VENDOR_EDIT
+void cam_sensor_fill_data(uint32_t data, struct cam_sensor_fill_req* sensor_req)
+{
+    sensor_req->data_req = data;
+}
+#endif
 
 static void cam_sensor_update_req_mgr(
 	struct cam_sensor_ctrl_t *s_ctrl,
@@ -898,6 +908,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			"CAM_START_DEV Success, sensor_id:0x%x,sensor_slave_addr:0x%x",
 			s_ctrl->sensordata->slave_info.sensor_id,
 			s_ctrl->sensordata->slave_info.sensor_slave_addr);
+		CAM_INFO(CAM_SENSOR,"CAM_START_DEV: calling cam_thermal_reg_register_tzd()");
+		cam_thermal_reg_register_tzd(s_ctrl);
+
 	}
 		break;
 	case CAM_STOP_DEV: {
@@ -919,6 +932,8 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			}
 		}
 
+		CAM_INFO(CAM_SENSOR,"CAM_STOP_DEV: calling cam_thermal_reg_unregister_tzd()");
+		cam_thermal_reg_unregister_tzd();
 		cam_sensor_release_per_frame_resource(s_ctrl);
 		s_ctrl->last_flush_req = 0;
 		s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
@@ -926,6 +941,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			"CAM_STOP_DEV Success, sensor_id:0x%x,sensor_slave_addr:0x%x",
 			s_ctrl->sensordata->slave_info.sensor_id,
 			s_ctrl->sensordata->slave_info.sensor_slave_addr);
+
 	}
 		break;
 	case CAM_CONFIG_DEV: {
@@ -990,6 +1006,39 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 	}
 		break;
+#ifdef KERNEL_VENDOR_EDIT
+	case CAM_SENSOR_READ_CMD: {
+		struct  cam_sensor_fill_req sensorReq = {0};
+		uint32_t regData = 0;
+		uint32_t dataType = 0;
+
+		if (cmd->databytes == 1) {
+			dataType = CAMERA_SENSOR_I2C_TYPE_BYTE;
+		} else if (cmd->databytes == 2)  {
+			dataType = CAMERA_SENSOR_I2C_TYPE_WORD;
+		} else if (cmd->databytes == 3 ) {
+			dataType = CAMERA_SENSOR_I2C_TYPE_3B;
+		} else if (cmd->databytes == 4)  {
+			dataType = CAMERA_SENSOR_I2C_TYPE_DWORD;
+		} else {
+			dataType = CAMERA_SENSOR_I2C_TYPE_BYTE;
+		}
+
+		rc = camera_io_dev_read(&(s_ctrl->io_master_info), cmd->address, &regData, CAMERA_SENSOR_I2C_TYPE_WORD, dataType);
+		if (rc < 0) {
+		    CAM_ERR(CAM_SENSOR, "camera_io_dev_read Fail: %d", rc);
+		    goto release_mutex;
+		}
+
+		cam_sensor_fill_data(regData, &sensorReq);
+		if (copy_to_user(u64_to_user_ptr(cmd->handle), &sensorReq, sizeof(struct cam_sensor_fill_req))) {
+			CAM_ERR(CAM_SENSOR, "Failed Copy to User");
+			rc = -EFAULT;
+			goto release_mutex;
+		}
+	}
+		break;
+#endif
 	default:
 		CAM_ERR(CAM_SENSOR, "Invalid Opcode: %d", cmd->op_code);
 		rc = -EINVAL;

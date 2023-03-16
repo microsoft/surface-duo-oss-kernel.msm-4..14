@@ -79,7 +79,7 @@ struct dentry;
 /*
  * The caller must ensure that fd table isn't shared or hold rcu or file lock
  */
-static inline struct file *__fcheck_files(struct files_struct *files, unsigned int fd)
+static inline struct file *files_lookup_fd_raw(struct files_struct *files, unsigned int fd)
 {
 	struct fdtable *fdt = rcu_dereference_raw(files->fdt);
 
@@ -95,7 +95,7 @@ static inline struct file *fcheck_files(struct files_struct *files, unsigned int
 	RCU_LOCKDEP_WARN(!rcu_read_lock_held() &&
 			   !lockdep_is_held(&files->file_lock),
 			   "suspicious rcu_dereference_check() usage");
-	return __fcheck_files(files, fd);
+	return files_lookup_fd_raw(files, fd);
 }
 
 /*

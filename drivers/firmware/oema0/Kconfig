@@ -1,0 +1,18 @@
+config OEMA0_FIRMWARE
+        bool "Firmware drivers for OEMA0"
+        default y
+        help
+          This option selects drivers included as part of surface customization.
+
+config OEMA0_FIRMWARE_FACTORY
+        tristate "OEMA0 Factory firmware modules"
+          default n
+        depends on OEMA0_FIRMWARE
+          select OEMA0_FACTORY_UTIL
+
+config FACTORY_UTIL
+	def_bool y
+  depends on OEMA0_FIRMWARE && OEMA0_FIRMWARE_FACTORY
+
+config OEMA0_LIBRARY
+	def_bool y
